@@ -91,19 +91,19 @@ if (NOT MSVC)
     target_link_libraries(libloki PUBLIC m)
 endif()
 
-# Unified aldev binary (editor + REPL + play modes)
+# Unified aldalog binary (editor + REPL + play modes)
 # Note: internal target name is alda_bin to avoid conflict with libalda
 add_executable(alda_bin
     src/main.c
     src/alda_repl.c
 )
-set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "aldev")
+set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "aldalog")
 
 # Strip binary by default (reduces size significantly)
 if(NOT MSVC)
     add_custom_command(TARGET alda_bin POST_BUILD
         COMMAND strip $<TARGET_FILE:alda_bin>
-        COMMENT "Stripping aldev binary"
+        COMMENT "Stripping aldalog binary"
     )
 endif()
 
@@ -123,8 +123,8 @@ add_custom_target(show-config
 )
 
 enable_testing()
-add_test(NAME aldev_version COMMAND $<TARGET_FILE:alda_bin> --version)
-add_test(NAME aldev_help COMMAND $<TARGET_FILE:alda_bin> --help)
+add_test(NAME aldalog_version COMMAND $<TARGET_FILE:alda_bin> --version)
+add_test(NAME aldalog_help COMMAND $<TARGET_FILE:alda_bin> --help)
 
 # Test framework library
 add_library(test_framework STATIC tests/test_framework.c)

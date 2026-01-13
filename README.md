@@ -1,6 +1,6 @@
-# aldev
+# aldalog
 
-**aldev** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
+**aldalog** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
 
 It currently only works on macOS and Linux
 
@@ -31,8 +31,8 @@ make
 ### REPL Mode (Interactive Composition)
 
 ```bash
-aldev                    # Start REPL
-aldev -sf gm.sf2         # REPL with built-in synth
+aldalog                    # Start REPL
+aldalog -sf gm.sf2         # REPL with built-in synth
 ```
 
 Type Alda notation directly:
@@ -63,7 +63,7 @@ REPL commands (use with or without `:` prefix):
 ### Editor Mode (Live-Coding)
 
 ```bash
-aldev song.alda          # Open file in editor
+aldalog song.alda          # Open file in editor
 ```
 
 **Keybindings:**
@@ -83,8 +83,8 @@ aldev song.alda          # Open file in editor
 ### Play Mode (Headless)
 
 ```bash
-aldev play song.alda              # Play file and exit
-aldev play -sf gm.sf2 song.alda   # Play with built-in synth
+aldalog play song.alda              # Play file and exit
+aldalog play -sf gm.sf2 song.alda   # Play with built-in synth
 ```
 
 ## Lua Scripting (Editor)
@@ -108,7 +108,7 @@ loki.alda.set_synth(true)
 
 ## Ableton Link
 
-Aldev supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
+Aldalog supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
 
 ### Quick Start
 

@@ -1627,7 +1627,7 @@ static void loki_lua_report(const struct loki_lua_opts *opts, const char *fmt, .
     }
 }
 
-/* Load init.lua: try override, .aldev/init.lua (local), then ~/.aldev/init.lua */
+/* Load init.lua: try override, .aldalog/init.lua (local), then ~/.aldalog/init.lua */
 int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts) {
     if (!L) return -1;
 
@@ -1652,11 +1652,11 @@ int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts) {
         return 0;
     }
 
-    /* Try local .aldev/init.lua first (project-specific) */
+    /* Try local .aldalog/init.lua first (project-specific) */
     if (project_root) {
-        snprintf(init_path, sizeof(init_path), "%s/.aldev/init.lua", project_root);
+        snprintf(init_path, sizeof(init_path), "%s/.aldalog/init.lua", project_root);
     } else {
-        snprintf(init_path, sizeof(init_path), ".aldev/init.lua");
+        snprintf(init_path, sizeof(init_path), ".aldalog/init.lua");
     }
 
     if (access(init_path, R_OK) == 0) {
@@ -1672,7 +1672,7 @@ int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts) {
     if (!loaded) {
         const char *home = getenv("HOME");
         if (home && home[0] != '\0') {
-            snprintf(init_path, sizeof(init_path), "%s/.aldev/init.lua", home);
+            snprintf(init_path, sizeof(init_path), "%s/.aldalog/init.lua", home);
             if (access(init_path, R_OK) == 0) {
                 if (luaL_dofile(L, init_path) != LUA_OK) {
                     const char *err = lua_tostring(L, -1);
@@ -1699,7 +1699,7 @@ static void loki_lua_extend_path(lua_State *L, const struct loki_lua_opts *opts)
     const char *project_root = (opts && opts->project_root && opts->project_root[0] != '\0')
                                    ? opts->project_root
                                    : ".";
-    int wrote = snprintf(addition + used, remaining, "%s/.aldev/?.lua;%s/.aldev/?/init.lua;",
+    int wrote = snprintf(addition + used, remaining, "%s/.aldalog/?.lua;%s/.aldalog/?/init.lua;",
                          project_root, project_root);
     if (wrote > 0 && (size_t)wrote < remaining) {
         used += (size_t)wrote;
@@ -1711,7 +1711,7 @@ static void loki_lua_extend_path(lua_State *L, const struct loki_lua_opts *opts)
 
     const char *home = getenv("HOME");
     if (home && home[0] != '\0' && remaining > 1) {
-        wrote = snprintf(addition + used, remaining, "%s/.aldev/?.lua;%s/.aldev/?/init.lua;",
+        wrote = snprintf(addition + used, remaining, "%s/.aldalog/?.lua;%s/.aldalog/?/init.lua;",
                          home, home);
         if (wrote > 0 && (size_t)wrote < remaining) {
             used += (size_t)wrote;

@@ -5,7 +5,7 @@ build/
 .cache
 .*_cache
 .repl_history
-.aldev/repl_history
+.aldalog/repl_history
 
 
 # ai

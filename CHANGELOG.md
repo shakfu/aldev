@@ -59,7 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Supports modes: 'n' (normal), 'i' (insert), 'v' (visual), 'c' (command)
   - Key notation: single chars ('a'), control keys ('<C-a>'), special keys ('<Enter>', '<Esc>', '<Tab>', etc.)
   - Lua callbacks are checked before built-in handlers in each mode
-  - Alda keybindings (Ctrl-E, Ctrl-P, Ctrl-G) now customizable via `.aldev/keybindings/alda_keys.lua`
+  - Alda keybindings (Ctrl-E, Ctrl-P, Ctrl-G) now customizable via `.aldalog/keybindings/alda_keys.lua`
 
 - **REPL Syntax Highlighting**: Real-time Alda syntax highlighting in the REPL as you type
   - Custom line editor with terminal raw mode (no external dependencies)
@@ -76,8 +76,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Renamed project to aldalog instead of aldev**.
 - **Stripped Binary**: Binary is now stripped by default, reducing size significantly
-- **Simplified Configuration**: Renamed `.loki/` to `.aldev/` configuration directory
+- **Simplified Configuration**: Renamed `.loki/` to `.aldalog/` configuration directory
   - Removed unused modules (ai, editor, markdown, modal, languages, test, example)
   - Removed non-Alda language definitions (13 languages)
   - Kept only Alda-specific files: alda.lua (syntax), alda.lua (module), theme.lua, themes/
@@ -122,11 +123,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **Unified Binary**: Merged editor, REPL, and playback into single `aldev` binary
-  - `aldev` (no args) - Interactive REPL for direct Alda notation input
-  - `aldev file.alda` - Editor mode with live-coding
-  - `aldev play file.alda` - Headless playback
-  - `aldev -sf soundfont.sf2` - REPL with built-in synthesizer
+- **Unified Binary**: Merged editor, REPL, and playback into single `aldalog` binary
+  - `aldalog` (no args) - Interactive REPL for direct Alda notation input
+  - `aldalog file.alda` - Editor mode with live-coding
+  - `aldalog play file.alda` - Headless playback
+  - `aldalog -sf soundfont.sf2` - REPL with built-in synthesizer
   - Single 1.7MB distributable binary
 
 - **Direct Alda REPL**: New interactive mode for typing Alda notation directly
@@ -144,9 +145,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Selection still takes precedence if text is visually selected
   - More musically meaningful for livecoding workflows
 
-- **Eager Language Loading**: Changed from lazy to eager loading of language definitions in `.aldev/init.lua`
+- **Eager Language Loading**: Changed from lazy to eager loading of language definitions in `.aldalog/init.lua`
   - Ensures syntax highlighting works immediately when opening files
-  - All languages in `.aldev/languages/` are now loaded at startup
+  - All languages in `.aldalog/languages/` are now loaded at startup
 
 - **Self-Contained Lua Build**: Switched from system Lua to local Lua 5.5.0 in thirdparty/
   - Project now builds without requiring system Lua installation
@@ -159,7 +160,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Removed
 
 - **Separate Binaries**: Removed `alda-editor` and `alda-repl` as separate executables
-  - Replaced by unified `aldev` binary with mode dispatch
+  - Replaced by unified `aldalog` binary with mode dispatch
   - Deleted `src/main_editor.c` and `src/main_repl.c`
 
 - **Lua REPL**: Removed standalone Lua REPL (`alda-repl`)
@@ -195,13 +196,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Automatically initializes Alda when opening `.alda` files
     - Status bar shows "ALDA" indicator when in Alda mode
     - Status bar shows "[PLAYING]" during active playback
-  - **Syntax Highlighting** (`.aldev/languages/alda.lua`):
+  - **Syntax Highlighting** (`.aldalog/languages/alda.lua`):
     - All General MIDI instruments (piano, violin, trumpet, etc.)
     - Alda attributes (tempo, volume, pan, quantization, etc.)
     - Note names (c, d, e, f, g, a, b) and rests (r)
     - Octave markers (o0-o9)
     - Line comments (#)
-  - **Lua Helper Module** (`.aldev/modules/alda.lua`):
+  - **Lua Helper Module** (`.aldalog/modules/alda.lua`):
     - `alda.play(code, [callback])` - Play Alda code asynchronously
     - `alda.play_sync(code)` - Play Alda code (blocking)
     - `alda.play_line()` - Play current line (editor only)
@@ -232,15 +233,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - `libremidi` - Cross-platform MIDI output
   - **Files Added**:
     - `src/loki_alda.c`, `src/loki_alda.h` - Core Alda integration
-    - `.aldev/languages/alda.lua` - Syntax highlighting
-    - `.aldev/modules/alda.lua` - Lua helper module
+    - `.aldalog/languages/alda.lua` - Syntax highlighting
+    - `.aldalog/modules/alda.lua` - Lua helper module
   - **Files Modified**:
     - `src/loki_internal.h` - Added `CTRL_P`, `CTRL_G` keys and `alda_mode` flag
     - `src/loki_modal.c` - Added keybinding handlers
     - `src/loki_core.c` - Added status bar indicators
     - `src/loki_editor.c` - Added auto-initialization for .alda files
     - `src/loki_lua.c` - Added Lua bindings
-    - `.aldev/init.lua` - Load alda module
+    - `.aldalog/init.lua` - Load alda module
     - `CMakeLists.txt` - Build integration
 
 ## [0.1.0] - Initial Release

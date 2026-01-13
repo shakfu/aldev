@@ -1,10 +1,10 @@
-# Aldev Color Themes
+# Aldalog Color Themes
 
-This directory contains pre-made color themes for the Aldev editor.
+This directory contains pre-made color themes for the Aldalog editor.
 
 ## Usage
 
-Load a theme in your `.aldev/init.lua`:
+Load a theme in your `.aldalog/init.lua`:
 
 ```lua
 theme = require("theme")

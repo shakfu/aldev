@@ -15,20 +15,20 @@ build: configure
 library: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target libloki --config Release
 
-# Primary target: unified aldev binary
-aldev: configure
+# Primary target: unified aldalog binary
+aldalog: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target alda_bin --config Release
 
 # Compatibility aliases
-editor: aldev
-repl: aldev
-loki: aldev
-alda: aldev
+editor: aldalog
+repl: aldalog
+loki: aldalog
+alda: aldalog
 
 show-config: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target show-config --config Release
 
-test: aldev
+test: aldalog
 	@$(CMAKE) -E chdir $(BUILD_DIR) ctest --output-on-failure
 
 clean:

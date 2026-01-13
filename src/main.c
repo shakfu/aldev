@@ -1,12 +1,12 @@
 /**
  * @file main.c
- * @brief Unified entry point for aldev - editor, REPL, and playback.
+ * @brief Unified entry point for aldalog - editor, REPL, and playback.
  *
  * Dispatch modes:
- *   aldev              -> REPL mode (interactive Alda composition)
- *   aldev file.alda    -> Editor mode (live-coding editor)
- *   aldev play file    -> Play mode (headless playback)
- *   aldev repl         -> REPL mode (explicit)
+ *   aldalog              -> REPL mode (interactive Alda composition)
+ *   aldalog file.alda    -> Editor mode (live-coding editor)
+ *   aldalog play file    -> Play mode (headless playback)
+ *   aldalog repl         -> REPL mode (explicit)
  */
 
 #include "loki/editor.h"
@@ -19,7 +19,7 @@ extern int alda_repl_main(int argc, char **argv);
 extern int alda_play_main(int argc, char **argv);
 
 static void print_unified_help(const char *prog) {
-    printf("aldev %s - Music composition editor and REPL\n", LOKI_VERSION);
+    printf("aldalog %s - Music composition editor and REPL\n", LOKI_VERSION);
     printf("\n");
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL\n", prog);
@@ -76,13 +76,13 @@ int main(int argc, char **argv) {
 
     /* Version flag */
     if (strcmp(first_arg, "-V") == 0 || strcmp(first_arg, "--version") == 0) {
-        printf("aldev %s\n", LOKI_VERSION);
+        printf("aldalog %s\n", LOKI_VERSION);
         return 0;
     }
 
     /* Explicit subcommands */
     if (strcmp(first_arg, "repl") == 0) {
-        /* Shift arguments: aldev repl -sf foo -> aldev -sf foo */
+        /* Shift arguments: aldalog repl -sf foo -> aldalog -sf foo */
         return alda_repl_main(argc - 1, argv + 1);
     }
 

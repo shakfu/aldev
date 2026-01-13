@@ -1,11 +1,11 @@
 -- ==============================================================================
--- Aldev Editor Configuration
+-- Aldalog Editor Configuration
 -- ==============================================================================
 --
--- This is the main configuration file for the Aldev editor.
+-- This is the main configuration file for the Aldalog editor.
 -- Loading priority:
---   1. .aldev/init.lua (local, project-specific)
---   2. ~/.aldev/init.lua (global, home directory)
+--   1. .aldalog/init.lua (local, project-specific)
+--   2. ~/.aldalog/init.lua (global, home directory)
 --
 -- ==============================================================================
 
@@ -16,14 +16,14 @@ MODE = loki.get_lines and "editor" or "repl"
 -- Configure Module Path
 -- ==============================================================================
 
--- Add .aldev/modules and .aldev/keybindings to package.path for require()
-package.path = package.path .. ";.aldev/modules/?.lua;.aldev/keybindings/?.lua"
+-- Add .aldalog/modules and .aldalog/keybindings to package.path for require()
+package.path = package.path .. ";.aldalog/modules/?.lua;.aldalog/keybindings/?.lua"
 
 -- Also add global config path if available
 local home = os.getenv("HOME")
 if home then
-    package.path = package.path .. ";" .. home .. "/.aldev/modules/?.lua"
-    package.path = package.path .. ";" .. home .. "/.aldev/keybindings/?.lua"
+    package.path = package.path .. ";" .. home .. "/.aldalog/modules/?.lua"
+    package.path = package.path .. ";" .. home .. "/.aldalog/keybindings/?.lua"
 end
 
 -- ==============================================================================
@@ -59,9 +59,9 @@ end
 -- Load Keybindings
 -- ==============================================================================
 
--- Debug logging (set DEBUG_ENABLED = true to enable, writes to /tmp/aldev_debug.log)
+-- Debug logging (set DEBUG_ENABLED = true to enable, writes to /tmp/aldalog_debug.log)
 DEBUG_ENABLED = false
-local log_file = DEBUG_ENABLED and io.open("/tmp/aldev_debug.log", "w") or nil
+local log_file = DEBUG_ENABLED and io.open("/tmp/aldalog_debug.log", "w") or nil
 function dbg(msg)
     if log_file then
         log_file:write(os.date("%H:%M:%S") .. " " .. tostring(msg) .. "\n")
@@ -93,7 +93,7 @@ if MODE == "editor" then
     dbg("=== Editor mode startup ===")
 
     -- Load Alda keybindings (Ctrl-E, Ctrl-P, Ctrl-G)
-    -- Customize in .aldev/keybindings/alda_keys.lua
+    -- Customize in .aldalog/keybindings/alda_keys.lua
     dbg("Loading alda_keys module...")
     local alda_keys = require("alda_keys")
     dbg("alda_keys loaded")
@@ -113,8 +113,8 @@ end
 
 if MODE == "editor" then
     if ext_count > 0 then
-        loki.status(string.format("Aldev ready. %d language extensions available.", ext_count))
+        loki.status(string.format("Aldalog ready. %d language extensions available.", ext_count))
     else
-        loki.status("Aldev ready. Press Ctrl-L for Lua REPL.")
+        loki.status("Aldalog ready. Press Ctrl-L for Lua REPL.")
     end
 end

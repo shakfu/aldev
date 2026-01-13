@@ -6,8 +6,8 @@
 --   languages.init()  -- Set up lazy loading (call once at startup)
 --
 -- Languages are loaded automatically when opening files:
---   ./aldev test.alda  → Automatically loads alda.lua
---   ./aldev init.lua   → Automatically loads lua.lua
+--   ./aldalog test.alda  → Automatically loads alda.lua
+--   ./aldalog init.lua   → Automatically loads lua.lua
 
 local M = {}
 
@@ -19,9 +19,9 @@ local loaded_languages = {}
 
 -- Configuration
 local config = {
-    lang_dir = ".aldev/languages",
+    lang_dir = ".aldalog/languages",
     fallback_dirs = {
-        (os.getenv("HOME") or "") .. "/.aldev/languages",
+        (os.getenv("HOME") or "") .. "/.aldalog/languages",
     },
     default_syntax = nil,  -- No default fallback language
     enable_status = true,  -- Show "Loaded X" messages
