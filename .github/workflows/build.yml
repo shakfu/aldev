@@ -1,4 +1,4 @@
-name: Build aldev
+name: Build aldalog
 
 on: [workflow_dispatch]
   # push:
@@ -19,11 +19,11 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             artifact_suffix: linux
-            binary_path: build/aldev
+            binary_path: build/aldalog
           - name: macOS
             os: macos-latest
             artifact_suffix: macos
-            binary_path: build/aldev
+            binary_path: build/aldalog
     env:
       BUILD_DIR: build
       BUILD_TYPE: Release
@@ -40,12 +40,12 @@ jobs:
       - name: Collect artifact
         run: |
           cmake -E make_directory artifacts
-          cmake -E copy "${{ matrix.binary_path }}" "artifacts/aldev-${{ matrix.artifact_suffix }}"
+          cmake -E copy "${{ matrix.binary_path }}" "artifacts/aldalog-${{ matrix.artifact_suffix }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aldev-${{ matrix.artifact_suffix }}
+          name: aldalog-${{ matrix.artifact_suffix }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -80,12 +80,12 @@ jobs:
         shell: pwsh
         run: |
           cmake -E make_directory artifacts
-          cmake -E copy "build/aldev.exe" "artifacts/aldev-windows.exe"
+          cmake -E copy "build/aldalog.exe" "artifacts/aldalog-windows.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aldev-windows
+          name: aldalog-windows
           path: artifacts/*
           if-no-files-found: error
 
@@ -101,11 +101,11 @@ jobs:
 
       - name: Create unified archive
         run: |
-          tar -czf aldev-all-platforms.tar.gz -C dist .
+          tar -czf aldalog-all-platforms.tar.gz -C dist .
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
-          name: aldev-cross-platform
-          path: aldev-all-platforms.tar.gz
+          name: aldalog-cross-platform
+          path: aldalog-all-platforms.tar.gz
           if-no-files-found: error
