@@ -1,0 +1,22 @@
+Modal Editing Test Summary
+==========================
+
+Due to the complexity of testing modal editing functions that read from terminal,
+we have created test wrapper functions in loki_modal.c:
+- modal_process_normal_mode_key()
+- modal_process_insert_mode_key()  
+- modal_process_visual_mode_key()
+
+These are exposed in loki_internal.h for testing purposes only.
+
+A full test suite (test_modal.c) with 30 tests has been designed but needs
+manual row creation helpers. The test framework needs enhancement to support:
+1. Helper to create test content with multiple lines
+2. Helper to extract buffer content as string
+3. Proper fd mocking for terminal operations
+
+Recommended next steps:
+1. Enhance test framework with content helpers
+2. Implement full modal editing test suite
+3. Add integration tests for mode transitions
+4. Test paragraph motions with complex content
