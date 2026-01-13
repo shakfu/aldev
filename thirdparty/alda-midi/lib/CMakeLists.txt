@@ -64,6 +64,8 @@ if(APPLE)
         "-framework AudioToolbox"
     )
 elseif(UNIX AND NOT APPLE)
+    # Enable GNU/POSIX extensions for pthread_rwlock_t (libuv) and usleep
+    target_compile_definitions(alda PRIVATE _GNU_SOURCE)
     find_package(ALSA)
     if(ALSA_FOUND)
         target_link_libraries(alda PUBLIC ${ALSA_LIBRARIES})
