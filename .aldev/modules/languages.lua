@@ -6,8 +6,8 @@
 --   languages.init()  -- Set up lazy loading (call once at startup)
 --
 -- Languages are loaded automatically when opening files:
---   ./loki test.py  → Automatically loads python.lua
---   ./loki test.go  → Automatically loads go.lua
+--   ./aldev test.alda  → Automatically loads alda.lua
+--   ./aldev init.lua   → Automatically loads lua.lua
 
 local M = {}
 
@@ -23,7 +23,7 @@ local config = {
     fallback_dirs = {
         (os.getenv("HOME") or "") .. "/.aldev/languages",
     },
-    default_syntax = "markdown",  -- Loaded immediately as fallback
+    default_syntax = nil,  -- No default fallback language
     enable_status = true,  -- Show "Loaded X" messages
 }
 
@@ -200,7 +200,7 @@ function M.init(user_config)
         status(string.format("Language registry: %d extensions mapped", ext_count))
     end
 
-    -- Load default/fallback language immediately (markdown)
+    -- Load default language if configured
     if config.default_syntax then
         M.load(config.default_syntax)
     end
@@ -302,10 +302,10 @@ end
 -- Register with REPL help
 if loki.repl and loki.repl.register then
     loki.repl.register("languages.list", "List available language definitions")
-    loki.repl.register("languages.load", "Load a language: languages.load('python')")
-    loki.repl.register("languages.reload", "Reload a language: languages.reload('python')")
+    loki.repl.register("languages.load", "Load a language: languages.load('alda')")
+    loki.repl.register("languages.reload", "Reload a language: languages.reload('alda')")
     loki.repl.register("languages.stats", "Show language loading statistics")
-    loki.repl.register("languages.get_extensions", "Get extensions for language: languages.get_extensions('python')")
+    loki.repl.register("languages.get_extensions", "Get extensions for language: languages.get_extensions('alda')")
 end
 
 return M

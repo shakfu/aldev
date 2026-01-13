@@ -1,21 +1,14 @@
-# Loki Color Themes
+# Aldev Color Themes
 
-This directory contains pre-made color themes for Loki.
+This directory contains pre-made color themes for the Aldev editor.
 
 ## Usage
 
-To use a theme, load it in your `~/.loki/init.lua` or `.loki/init.lua`:
+Load a theme in your `.aldev/init.lua`:
 
 ```lua
--- Load a theme
-dofile(os.getenv("HOME") .. "/.loki/themes/dracula.lua")
-```
-
-Or for project-specific themes:
-
-```lua
--- Assuming .loki is in your project root
-dofile(".loki/themes/monokai.lua")
+theme = require("theme")
+theme.load("dracula")
 ```
 
 ## Available Themes
