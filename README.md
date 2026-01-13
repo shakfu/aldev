@@ -1,23 +1,22 @@
 # aldev
 
-A unified command-line tool for the [Alda](https://alda.io) music programming language featuring a live-coding editor and interactive REPL.
+**aldev** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
 
-Built on [loki](https://github.com/shakfu/loki), a lightweight text editor with vim-like modal editing and Lua scripting. Uses [libalda](https://github.com/shakfu/midi-langs/tree/main/alda-midi) for Alda parsing and playback.
+## Features
+
+- **Editor Mode**: Vim-style modal editing with live-coding support
+- **REPL Mode**: Interactive Alda composition—write notation and hear it immediately
+- **Play Mode**: Headless playback for scripts and automation
+- **Asynchronous playback** (non-blocking) using [libuv](https://github.com/libuv/libuv)
+- **Built-in MIDI output** powered by [libremidi](https://github.com/celtera/libremidi)
+- **MIDI file export** powered by [midifile](https://github.com/craigsapp/midifile)
+- **Integrated software synthesizer** using [TinySoundFont](https://github.com/schellingb/TinySoundFont) and [miniaudio](https://github.com/mackron/miniaudio)
+- **Networked tempo synchronization** with DAWs and other performers using [Ableton Link](https://github.com/Ableton/link)
+- **Lua scripting** for editor customization.
 
 ## Status
 
 Early development. Core functionality works but the API is evolving.
-
-## Features
-
-- **Editor Mode**: Vim-like modal editor with live-coding support
-- **REPL Mode**: Interactive Alda composition - type notation directly
-- **Play Mode**: Headless playback for scripts and automation
-- **Ableton Link**: Tempo sync with DAWs and other musicians on the network
-- Builtin MIDI output using [libremidi](https://github.com/celtera/libremidi).
-- Built-in software synthesizer using [TinySoundFont](https://github.com/schellingb/TinySoundFont) and [miniaudio](https://github.com/mackron/miniaudio).
-- Async playback (non-blocking)
-- Lua scripting for editor customization
 
 ## Building
 
