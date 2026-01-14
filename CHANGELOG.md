@@ -176,6 +176,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Now dynamically calls `buffer_get_current()` to get the active buffer's context
   - Falls back to registry pointer for backwards compatibility with tests
 
+- **Line Numbers Not Displaying**: Fixed `loki.line_numbers(true)` having no effect
+  - Root cause: `buffers_init()` and `buffer_create()` didn't copy the `line_numbers` field
+  - Settings from init.lua were applied to initial context but lost when buffer system initialized
+  - Now properly copies `line_numbers` setting when creating buffers
+
 ---
 
 ## [0.1.1]

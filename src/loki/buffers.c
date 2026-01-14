@@ -103,6 +103,9 @@ int buffers_init(editor_ctx_t *initial_ctx) {
     first->ctx.L = initial_ctx->L;
     memcpy(first->ctx.colors, initial_ctx->colors, sizeof(first->ctx.colors));
 
+    /* Copy display settings */
+    first->ctx.line_numbers = initial_ctx->line_numbers;
+
     /* Copy buffer content (rows) */
     first->ctx.numrows = initial_ctx->numrows;
     first->ctx.row = initial_ctx->row;
@@ -167,6 +170,8 @@ int buffer_create(const char *filename) {
         buf->ctx.L = template_ctx->L;  /* Share Lua state */
         /* Copy color scheme */
         memcpy(buf->ctx.colors, template_ctx->colors, sizeof(buf->ctx.colors));
+        /* Copy display settings */
+        buf->ctx.line_numbers = template_ctx->line_numbers;
     }
 
     /* Initialize undo system for new buffer */

@@ -2,9 +2,10 @@
 
 ## High Priority
 
-- [ ] Fix line numbers display (not working)
+- [x] Fix line numbers display (not working)
   - `loki.line_numbers(true)` in init.lua doesn't show line numbers
-  - Investigate `src/loki_core.c` line number rendering
+  - Root cause: `buffers_init()` and `buffer_create()` didn't copy `line_numbers` field
+  - Fixed in `src/loki/buffers.c`
 
 ## Medium Priority
 
