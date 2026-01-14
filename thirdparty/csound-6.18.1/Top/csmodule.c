@@ -683,8 +683,8 @@ int csoundLoadModules(CSOUND *csound)
  #if defined(__HAIKU__)
         if(!dfltdir)
  #endif
-      csound->Warning(csound, Str("Error opening plugin directory '%s': %s"),
-                               dname1, strerror(errno));
+      // csound->Warning(csound, Str("Error opening plugin directory '%s': %s"),
+      //                          dname1, strerror(errno));
       csound->Free(csound, dname1);
       continue;
     }
