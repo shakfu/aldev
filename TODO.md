@@ -2,51 +2,182 @@
 
 ## High Priority
 
-- [x] Fix line numbers display (not working)
-  - `loki.line_numbers(true)` in init.lua doesn't show line numbers
-  - Root cause: `buffers_init()` and `buffer_create()` didn't copy `line_numbers` field
-  - Fixed in `src/loki/buffers.c`
+### Testing Gaps
+
+- [ ] Add Alda parser tests
+  - Parser handles 27 AST node types
+  - Each node type should have dedicated tests
+  - Currently only `tests/alda/test_shared_suite.c` exists
+
+- [ ] Add Alda interpreter tests
+  - Test MIDI event generation (tempo, volume, polyphony, markers, variables)
+  - This is the core value proposition - needs coverage
+
+- [ ] Add audio backend tests
+  - Smoke tests for MIDI output, TinySoundFont, Csound
+  - Would catch regressions in playback
+
+- [ ] Add integration tests
+  - End-to-end: parse Alda code and verify MIDI output
+
+### Code Quality
+
+- [ ] Unify REPL and editor syntax highlighting
+  - REPL and editor have different highlighting styles
+  - REPL doesn't follow the current theme
+
+- [ ] Improve parser error recovery
+  - More robust error recovery would improve REPL experience
+  - Better error messages with context
+
+---
 
 ## Medium Priority
 
-- [x] Add support for Ableton Link
+### Editor Features
 
-- [x] Add support for midifile
+- [ ] Go-to-line command
+  - Add `:123` or `:goto 123` command
+  - Simple addition to command mode
+
+- [ ] Search and replace
+  - Extend search with `:s/old/new/` command
+
+- [ ] Alda playback visualization
+  - Highlight currently playing region
+  - Show playback progress in status bar
+
+### Architecture
+
+- [ ] Move Alda state to context
+  - Refactor `g_alda_state` in `loki_alda.c` to be per-context
+  - Enables multiple independent Alda sessions
+  - Currently prevents running multiple Alda instances
+
+- [ ] Extract magic numbers to constants
+  - Tempo bounds `20` and `400` in `loki_alda.c` should be named constants
+  - Other hardcoded limits (64 parts, 16384 events, 256 variables)
+
+### Polyglot Platform
+
+- [ ] Integrate first midi-langs DSL
+  - Implement first additional language from midi-langs project
+  - Proves polyglot architecture works
+
+- [ ] Document extension API
+  - Guide for adding third-party languages
+  - Language registration API documentation
+
+---
 
 ## Low Priority
 
+### Platform Support
+
+- [ ] Windows support
+  - Editor uses POSIX headers: `termios.h`, `unistd.h`, `pthread.h`
+  - Options:
+    - Native Windows console API
+    - Web editor using CodeMirror / WebSockets
+
+### Editor Features
+
+- [ ] Split windows
+  - Already designed for in `editor_ctx_t`
+  - Requires screen rendering changes
+
+- [ ] LSP client integration
+  - Would provide IDE-like features
+  - High complexity undertaking
+
+- [ ] Git integration
+  - Gutter diff markers
+  - Stage/commit commands
+
+- [ ] MIDI port selection from editor
+  - Currently only configurable via CLI
+
+- [ ] Tempo tap
+  - Tap key to set tempo
+
+- [ ] Metronome toggle
+
+### Build System
+
+- [ ] Add AddressSanitizer build target
+  ```cmake
+  option(PSND_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+  ```
+
+- [ ] Add code coverage target
+  ```cmake
+  option(PSND_ENABLE_COVERAGE "Enable code coverage" OFF)
+  ```
+
+- [ ] Add install target
+  - Currently no `make install` support
+
+### Documentation
+
+- [ ] Architecture diagram
+  - Visual overview of module relationships
+
+- [ ] API reference generation
+  - Consider Doxygen for generated docs
+
+- [ ] Contributing guide
+  - Contribution guidelines for external contributors
+
+- [ ] Build troubleshooting
+  - Platform-specific guidance
+
+### Test Framework
+
+- [ ] Add `ASSERT_GT`, `ASSERT_LT` macros
+
+- [ ] Add test fixture support (setup/teardown)
+
+- [ ] Add memory leak detection hooks
+
+### Future Architecture
+
+- [ ] Plugin architecture for language modules
+  - Dynamic loading of language support
+
+- [ ] JACK backend
+  - For pro audio workflows
+
+---
+
 ## Completed
 
-- [x] Lua-based keybinding customization system
-  - Added `loki.keymap(modes, key, callback, [description])` API
-  - Added `loki.keyunmap(modes, key)` API
-  - Supports modes: 'n' (normal), 'i' (insert), 'v' (visual), 'c' (command)
-  - Key notation: single chars ('a'), control keys ('<C-a>'), special keys ('<Enter>', '<Esc>', etc.)
-  - Lua callbacks are checked before built-in handlers in each mode
+- [x] Fix line numbers display
+  - `loki.line_numbers(true)` in init.lua wasn't working
+  - Root cause: `buffers_init()` and `buffer_create()` didn't copy `line_numbers` field
+  - Fixed in `src/loki/buffers.c`
+
+- [x] Add Ableton Link support
+  - Tempo synchronization with DAWs and peers
+
+- [x] Add MIDI file export
+  - Export to Standard MIDI Files via midifile library
+
+- [x] Lua-based keybinding customization
+  - `loki.keymap()` and `loki.keyunmap()` APIs
+  - Supports all modes: normal, insert, visual, command
 
 - [x] Fix `loki.get_cursor()` returning wrong position
-  - Was returning screen position (`ctx->cy`) instead of file position
-  - Fixed to return `ctx->rowoff + ctx->cy` (accounts for scroll offset)
+  - Was returning screen position instead of file position
+  - Fixed to account for scroll offset
 
-- [x] Fix Lua API using stale editor context with multiple buffers
-  - `lua_get_editor_context()` was returning a pointer stored at init time
-  - Fixed to call `buffer_get_current()` dynamically
+- [x] Fix Lua API stale context with multiple buffers
+  - Now dynamically calls `buffer_get_current()`
 
+- [x] Visual mode delete
+  - Core vim functionality
 
-## Current
+- [x] System clipboard integration
+  - OSC 52 escape sequences for terminal clipboard
 
-### Consistent Code Highlighting
-
-The repl and the editor have two different styles, and the repl doesn't follow the current theme.
-
-### Windows
-
-The editor uses `termios.h`, `unistd.h`, and `pthread.h` -- all POSIX headers which are directly supported by Windows.
-
-Everything else can work with Windows. So what the alternative solution?
-
-- Windows console code?
-- Webeditor using codemirror / websockets?
-
-
-
+- [x] Add undo/redo tests
+  - `tests/loki/test_undo.c`
