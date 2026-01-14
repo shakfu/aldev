@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(aldalog_project C CXX)
+project(psnd_project C CXX)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -160,19 +160,19 @@ if (NOT MSVC)
     target_link_libraries(libloki PUBLIC m)
 endif()
 
-# Unified aldalog binary (editor + REPL + play modes)
+# Unified psnd binary (editor + REPL + play modes)
 # Note: internal target name is alda_bin to avoid conflict with libalda
 add_executable(alda_bin
     src/main.c
     src/repl.c
 )
-set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "aldalog")
+set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "psnd")
 
 # Strip binary by default (reduces size significantly)
 if(NOT MSVC)
     add_custom_command(TARGET alda_bin POST_BUILD
         COMMAND strip $<TARGET_FILE:alda_bin>
-        COMMENT "Stripping aldalog binary"
+        COMMENT "Stripping psnd binary"
     )
 endif()
 
@@ -192,8 +192,8 @@ add_custom_target(show-config
 )
 
 enable_testing()
-add_test(NAME aldalog_version COMMAND $<TARGET_FILE:alda_bin> --version)
-add_test(NAME aldalog_help COMMAND $<TARGET_FILE:alda_bin> --help)
+add_test(NAME psnd_version COMMAND $<TARGET_FILE:alda_bin> --version)
+add_test(NAME psnd_help COMMAND $<TARGET_FILE:alda_bin> --help)
 
 # Test framework library (shared by all tests)
 add_library(test_framework STATIC tests/test_framework.c)

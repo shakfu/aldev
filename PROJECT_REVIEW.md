@@ -1,4 +1,4 @@
-# Aldalog Project Review
+# Psnd Project Review
 
 **Date:** 2026-01-13
 **Reviewer:** Claude Code (Opus 4.5)
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-Aldalog is a well-architected, self-contained text editor and REPL for the Alda music programming language. Built on the Loki editor (derived from antirez's kilo), it provides a unique combination of vim-like modal editing, embedded Lua scripting, and real-time music playback capabilities. The codebase demonstrates strong engineering practices with proper memory safety, modular design, and comprehensive testing.
+Psnd is a well-architected, self-contained text editor and REPL for the Alda music programming language. Built on the Loki editor (derived from antirez's kilo), it provides a unique combination of vim-like modal editing, embedded Lua scripting, and real-time music playback capabilities. The codebase demonstrates strong engineering practices with proper memory safety, modular design, and comprehensive testing.
 
 **Strengths:**
 - Clean modular C architecture with separation of concerns
@@ -270,7 +270,7 @@ The custom test framework (`test_framework.h`) is well-designed:
 ### 5.2 Potential Vulnerabilities
 
 1. **Lua Sandbox**
-   The embedded Lua has full standard library access (`io`, `os`). Malicious `.aldalog/init.lua` could execute arbitrary commands.
+   The embedded Lua has full standard library access (`io`, `os`). Malicious `.psnd/init.lua` could execute arbitrary commands.
 
    **Recommendation:** Add option for restricted Lua mode.
 
@@ -470,7 +470,7 @@ All dependencies are in `thirdparty/`:
 
 ## 10. Conclusion
 
-Aldalog is a well-engineered project that successfully combines a lightweight text editor with music live-coding capabilities. The codebase demonstrates professional quality with:
+Psnd is a well-engineered project that successfully combines a lightweight text editor with music live-coding capabilities. The codebase demonstrates professional quality with:
 
 - Robust error handling and memory safety
 - Clean modular architecture

@@ -20,8 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Added
 
 - **Standalone CSD File Support**: Edit and play Csound .csd files directly
-  - `aldalog song.csd` - Open CSD file in editor with syntax highlighting
-  - `aldalog play song.csd` - Play CSD file headlessly and exit
+  - `psnd song.csd` - Open CSD file in editor with syntax highlighting
+  - `psnd play song.csd` - Play CSD file headlessly and exit
   - `Ctrl-P` in editor plays the CSD file using Csound's embedded score section
   - `Ctrl-G` stops CSD playback
   - Async playback allows editing while audio plays
@@ -29,13 +29,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - `loki.alda.csound_play(path)` - Play a CSD file asynchronously
     - `loki.alda.csound_playing()` - Check if CSD playback is active
     - `loki.alda.csound_stop()` - Stop CSD playback
-  - Lua keybindings in `.aldalog/keybindings/alda_keys.lua` automatically detect .csd files
+  - Lua keybindings in `.psnd/keybindings/alda_keys.lua` automatically detect .csd files
 
 - **Csound Synthesis Backend**: Optional advanced synthesis engine as alternative to TinySoundFont
   - Full Csound 6.18.1 integration for powerful synthesis beyond sample playback
   - Independent miniaudio audio device (each backend manages its own audio output)
   - MIDI events translated to Csound score events with fractional instrument IDs
-  - Pre-defined instruments in `.aldalog/csound/default.csd` (16 GM-compatible instruments)
+  - Pre-defined instruments in `.psnd/csound/default.csd` (16 GM-compatible instruments)
   - **Build Option**: `make csound` or `-DBUILD_CSOUND_BACKEND=ON`
   - **CLI Options**:
     - `-cs PATH` - Load .csd file and enable Csound when opening an Alda file
@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Added**:
     - `src/alda/csound_backend.c`
     - `include/alda/csound_backend.h`
-    - `.aldalog/csound/default.csd`
+    - `.psnd/csound/default.csd`
 
 - **Ableton Link Integration**: Tempo synchronization with other Link-enabled applications
   - Sync tempo with Ableton Live, hardware devices, and other Link-compatible software on local network
@@ -93,7 +93,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Supports modes: 'n' (normal), 'i' (insert), 'v' (visual), 'c' (command)
   - Key notation: single chars ('a'), control keys ('<C-a>'), special keys ('<Enter>', '<Esc>', '<Tab>', etc.)
   - Lua callbacks are checked before built-in handlers in each mode
-  - Alda keybindings (Ctrl-E, Ctrl-P, Ctrl-G) now customizable via `.aldalog/keybindings/alda_keys.lua`
+  - Alda keybindings (Ctrl-E, Ctrl-P, Ctrl-G) now customizable via `.psnd/keybindings/alda_keys.lua`
 
 - **REPL Syntax Highlighting**: Real-time Alda syntax highlighting in the REPL as you type
   - Custom line editor with terminal raw mode (no external dependencies)
@@ -110,6 +110,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Renamed project to psnd instead of aldalog**.
+
 - **Project Restructure**: Reorganized source code for cleaner separation of concerns
   - Moved alda-midi library from `thirdparty/alda-midi/lib/` to `src/alda/` and `include/alda/`
   - Renamed loki source files from `src/loki_*.c` to `src/loki/*.c`
@@ -117,7 +119,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Simplified CMakeLists.txt (~360 lines to ~210 lines)
 - **Renamed project to aldalog instead of aldev**.
 - **Stripped Binary**: Binary is now stripped by default, reducing size significantly
-- **Simplified Configuration**: Renamed `.loki/` to `.aldalog/` configuration directory
+- **Simplified Configuration**: Renamed `.loki/` to `.psnd/` configuration directory
   - Removed unused modules (ai, editor, markdown, modal, languages, test, example)
   - Removed non-Alda language definitions (13 languages)
   - Kept only Alda-specific files: alda.lua (syntax), alda.lua (module), theme.lua, themes/
@@ -147,7 +149,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Now divides all audio samples by `csoundGet0dBFS()` to normalize to -1.0 to 1.0 range
   - Also increased audio buffer size from 512 to 1024 frames to reduce glitches
 
-- **Clean Ctrl-C Handling for CSD Playback**: Fixed messy exit when interrupting `aldalog play`
+- **Clean Ctrl-C Handling for CSD Playback**: Fixed messy exit when interrupting `psnd play`
   - Previously required multiple Ctrl-C presses and produced backtrace/crash output
   - Added proper SIGINT signal handler for blocking playback mode
   - Now cleanly stops playback and shows "Stopping playback" message
@@ -180,11 +182,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
-- **Unified Binary**: Merged editor, REPL, and playback into single `aldalog` binary
-  - `aldalog` (no args) - Interactive REPL for direct Alda notation input
-  - `aldalog file.alda` - Editor mode with live-coding
-  - `aldalog play file.alda` - Headless playback
-  - `aldalog -sf soundfont.sf2` - REPL with built-in synthesizer
+- **Unified Binary**: Merged editor, REPL, and playback into single `psnd` binary
+  - `psnd` (no args) - Interactive REPL for direct Alda notation input
+  - `psnd file.alda` - Editor mode with live-coding
+  - `psnd play file.alda` - Headless playback
+  - `psnd -sf soundfont.sf2` - REPL with built-in synthesizer
   - Single 1.7MB distributable binary
 
 - **Direct Alda REPL**: New interactive mode for typing Alda notation directly
@@ -202,9 +204,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Selection still takes precedence if text is visually selected
   - More musically meaningful for livecoding workflows
 
-- **Eager Language Loading**: Changed from lazy to eager loading of language definitions in `.aldalog/init.lua`
+- **Eager Language Loading**: Changed from lazy to eager loading of language definitions in `.psnd/init.lua`
   - Ensures syntax highlighting works immediately when opening files
-  - All languages in `.aldalog/languages/` are now loaded at startup
+  - All languages in `.psnd/languages/` are now loaded at startup
 
 - **Self-Contained Lua Build**: Switched from system Lua to local Lua 5.5.0 in thirdparty/
   - Project now builds without requiring system Lua installation
@@ -217,7 +219,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Removed
 
 - **Separate Binaries**: Removed `alda-editor` and `alda-repl` as separate executables
-  - Replaced by unified `aldalog` binary with mode dispatch
+  - Replaced by unified `psnd` binary with mode dispatch
   - Deleted `src/main_editor.c` and `src/main_repl.c`
 
 - **Lua REPL**: Removed standalone Lua REPL (`alda-repl`)
@@ -253,13 +255,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Automatically initializes Alda when opening `.alda` files
     - Status bar shows "ALDA" indicator when in Alda mode
     - Status bar shows "[PLAYING]" during active playback
-  - **Syntax Highlighting** (`.aldalog/languages/alda.lua`):
+  - **Syntax Highlighting** (`.psnd/languages/alda.lua`):
     - All General MIDI instruments (piano, violin, trumpet, etc.)
     - Alda attributes (tempo, volume, pan, quantization, etc.)
     - Note names (c, d, e, f, g, a, b) and rests (r)
     - Octave markers (o0-o9)
     - Line comments (#)
-  - **Lua Helper Module** (`.aldalog/modules/alda.lua`):
+  - **Lua Helper Module** (`.psnd/modules/alda.lua`):
     - `alda.play(code, [callback])` - Play Alda code asynchronously
     - `alda.play_sync(code)` - Play Alda code (blocking)
     - `alda.play_line()` - Play current line (editor only)
@@ -290,15 +292,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - `libremidi` - Cross-platform MIDI output
   - **Files Added**:
     - `src/loki_alda.c`, `src/loki_alda.h` - Core Alda integration
-    - `.aldalog/languages/alda.lua` - Syntax highlighting
-    - `.aldalog/modules/alda.lua` - Lua helper module
+    - `.psnd/languages/alda.lua` - Syntax highlighting
+    - `.psnd/modules/alda.lua` - Lua helper module
   - **Files Modified**:
     - `src/loki_internal.h` - Added `CTRL_P`, `CTRL_G` keys and `alda_mode` flag
     - `src/loki_modal.c` - Added keybinding handlers
     - `src/loki_core.c` - Added status bar indicators
     - `src/loki_editor.c` - Added auto-initialization for .alda files
     - `src/loki_lua.c` - Added Lua bindings
-    - `.aldalog/init.lua` - Load alda module
+    - `.psnd/init.lua` - Load alda module
     - `CMakeLists.txt` - Build integration
 
 ## [0.1.0] - Initial Release

@@ -48,7 +48,7 @@ The backends are completely independent - no delegation or shared audio devices.
 - `thirdparty/alda-midi/lib/src/csound_backend.c` - Csound synthesis backend
 - `thirdparty/alda-midi/lib/src/tsf_backend.c` - TSF synthesis backend
 - `thirdparty/alda-midi/lib/include/alda/csound_backend.h` - Csound API
-- `.aldalog/csound/default.csd` - Default Csound instruments
+- `.psnd/csound/default.csd` - Default Csound instruments
 
 ## Historical Notes
 
@@ -60,7 +60,7 @@ The `async.c` event dispatcher was only routing to TSF, ignoring Csound entirely
 
 ## CSD File Notes
 
-The default CSD file (`.aldalog/csound/default.csd`) was fixed for:
+The default CSD file (`.psnd/csound/default.csd`) was fixed for:
 - `endop` vs `endin` (opcodes use `endop`, instruments use `endin`)
 - FM synthesis instrument 2 (replaced `fmb3` with manual FM)
 - Added `--daemon` flag to CsOptions
@@ -74,7 +74,7 @@ make csound  # or: cmake --build build --target alda_bin
 ## Test Command
 
 ```bash
-./build/aldalog -cs .aldalog/csound/default.csd docs/examples/simple.alda
+./build/psnd -cs .psnd/csound/default.csd docs/examples/simple.alda
 # Then press Ctrl-P to play
 ```
 

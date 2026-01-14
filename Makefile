@@ -23,14 +23,14 @@ csound: configure-csound
 library: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target libloki --config Release
 
-# Primary target: unified aldalog binary
-aldalog: configure
+# Primary target: unified psnd binary
+psnd: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target alda_bin --config Release
 
 show-config: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target show-config --config Release
 
-test: aldalog
+test: psnd
 	@$(CMAKE) -E chdir $(BUILD_DIR) ctest --output-on-failure
 
 clean:

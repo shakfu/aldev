@@ -2,7 +2,7 @@
 
 ## Overview
 
-Integrate Csound 6.18.1 as an optional synthesis backend for Aldalog, driven by MIDI events from the Alda scheduler. This provides full synthesis capabilities beyond TinySoundFont's sample playback.
+Integrate Csound 6.18.1 as an optional synthesis backend for Psnd, driven by MIDI events from the Alda scheduler. This provides full synthesis capabilities beyond TinySoundFont's sample playback.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ See `docs/csound-deps.md` for manual build instructions.
 |-----------|------|
 | libsndfile.a (minimal) | ~2.5 MB |
 | libCsoundLib64.a | ~19 MB |
-| aldalog binary | ~1.6 MB |
+| psnd binary | ~1.6 MB |
 
 ## API Design
 
@@ -118,7 +118,7 @@ csoundSetControlChannel(csound, "cc1_ch1", value / 127.0);
 
 ## Default Instruments
 
-Ship `.aldalog/csound/default.csd` with GM-compatible instruments:
+Ship `.psnd/csound/default.csd` with GM-compatible instruments:
 
 ```csound
 <CsoundSynthesizer>
@@ -232,7 +232,7 @@ src/
   csound_backend.h            # Public API
   csound_backend.c            # Implementation
 
-.aldalog/
+.psnd/
   csound/
     default.csd               # Default instruments
     README.md                 # Instrument documentation

@@ -250,16 +250,16 @@ static void lua_apply_highlight_row(editor_ctx_t *ctx, t_erow *row, int default_
 /* ======================== Main Editor Function =========================== */
 
 static void print_usage(void) {
-    printf("Usage: aldalog [options] <filename>\n");
+    printf("Usage: psnd [options] <filename>\n");
     printf("\nOptions:\n");
     printf("  -h, --help          Show this help message\n");
     printf("  -v, --version       Show version information\n");
     printf("  -sf PATH            Use built-in synth with soundfont (.sf2)\n");
     printf("  -cs PATH            Use Csound synthesis with .csd file\n");
     printf("\nInteractive mode (default):\n");
-    printf("  aldalog <file.alda>           Open file in editor\n");
-    printf("  aldalog -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
-    printf("  aldalog -cs inst.csd song.alda Open with Csound synthesis\n");
+    printf("  psnd <file.alda>           Open file in editor\n");
+    printf("  psnd -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
+    printf("  psnd -cs inst.csd song.alda Open with Csound synthesis\n");
     printf("\nKeybindings:\n");
     printf("  Ctrl-E    Play current part or selection\n");
     printf("  Ctrl-P    Play entire file\n");
@@ -285,7 +285,7 @@ int loki_editor_main(int argc, char **argv) {
             exit(0);
         }
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
-            printf("aldalog %s\n", LOKI_VERSION);
+            printf("psnd %s\n", LOKI_VERSION);
             exit(0);
         }
         if (strcmp(argv[i], "-sf") == 0 && i + 1 < argc) {

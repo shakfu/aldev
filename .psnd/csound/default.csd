@@ -1,5 +1,5 @@
 <CsoundSynthesizer>
-;; Default Instruments for Aldalog
+;; Default Instruments for Psnd
 ;;
 ;; Each MIDI channel (1-16) maps to an instrument number (1-16).
 ;; Instruments receive: p4 = MIDI pitch (0-127), p5 = velocity (0-127)

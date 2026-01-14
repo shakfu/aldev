@@ -1,10 +1,10 @@
 /* loki_languages.c - Language syntax infrastructure
  *
  * This file now contains ONLY infrastructure for syntax highlighting.
- * All language definitions have been moved to Lua files in .aldalog/languages/
+ * All language definitions have been moved to Lua files in .psnd/languages/
  *
  * Minimal C keyword arrays are kept ONLY for markdown code block highlighting.
- * For actual C file editing, the full definition loads from .aldalog/languages/c.lua
+ * For actual C file editing, the full definition loads from .psnd/languages/c.lua
  */
 
 #include "internal.h"
@@ -70,7 +70,7 @@ char *Alda_HL_extensions[] = {".alda",NULL};
 
 /* ======================= Language Database (MINIMAL) ======================== */
 /* Minimal static definitions kept for backward compatibility with tests.
- * Full language definitions load dynamically from Lua (.aldalog/languages/).
+ * Full language definitions load dynamically from Lua (.psnd/languages/).
  * These entries have minimal keywords suitable for testing and markdown code blocks. */
 
 struct t_editor_syntax HLDB[] = {
@@ -496,24 +496,24 @@ int get_dynamic_language_count(void) {
  *   - Markdown (HLDB[3]) - Special handling via editor_update_syntax_markdown()
  *
  * FULL language definitions are loaded dynamically from Lua:
- *   .aldalog/languages/c.lua          - C/C++ (full keyword set, all extensions)
- *   .aldalog/languages/python.lua     - Python (full keyword set, all builtins)
- *   .aldalog/languages/lua.lua        - Lua (full keyword set, all builtins)
- *   .aldalog/languages/cython.lua     - Cython
- *   .aldalog/languages/javascript.lua - JavaScript
- *   .aldalog/languages/typescript.lua - TypeScript
- *   .aldalog/languages/rust.lua       - Rust
- *   .aldalog/languages/go.lua         - Go
- *   .aldalog/languages/java.lua       - Java
- *   .aldalog/languages/swift.lua      - Swift
- *   .aldalog/languages/sql.lua        - SQL
- *   .aldalog/languages/shell.lua      - Shell scripts
- *   .aldalog/languages/markdown.lua   - Markdown
+ *   .psnd/languages/c.lua          - C/C++ (full keyword set, all extensions)
+ *   .psnd/languages/python.lua     - Python (full keyword set, all builtins)
+ *   .psnd/languages/lua.lua        - Lua (full keyword set, all builtins)
+ *   .psnd/languages/cython.lua     - Cython
+ *   .psnd/languages/javascript.lua - JavaScript
+ *   .psnd/languages/typescript.lua - TypeScript
+ *   .psnd/languages/rust.lua       - Rust
+ *   .psnd/languages/go.lua         - Go
+ *   .psnd/languages/java.lua       - Java
+ *   .psnd/languages/swift.lua      - Swift
+ *   .psnd/languages/sql.lua        - SQL
+ *   .psnd/languages/shell.lua      - Shell scripts
+ *   .psnd/languages/markdown.lua   - Markdown
  *
  * When opening a file:
  *   1. Editor checks static HLDB for matching extension
  *   2. If found in HLDB, uses minimal static definition
- *   3. Lua module (.aldalog/modules/languages.lua) can override with full definition
+ *   3. Lua module (.psnd/modules/languages.lua) can override with full definition
  *   4. Languages are loaded on-demand (lazy loading) when needed
  *
  * Benefits of this approach:

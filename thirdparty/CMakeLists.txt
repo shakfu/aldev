@@ -91,7 +91,7 @@ if(BUILD_CSOUND_BACKEND)
     set(USE_PORTMIDI OFF CACHE BOOL "" FORCE)
     set(BUILD_STATIC_MODULES ON CACHE BOOL "" FORCE)
     set(USE_MP3 OFF CACHE BOOL "" FORCE)  # libsndfile built without MP3
-    # set(DEFAULT_USER_PLUGINDIR "${CMAKE_SOURCE_DIR}/.aldalog/csound/plugins" CACHE STRING "" FORCE)
+    # set(DEFAULT_USER_PLUGINDIR "${CMAKE_SOURCE_DIR}/.psnd/csound/plugins" CACHE STRING "" FORCE)
 
     add_subdirectory(csound-6.18.1)
 

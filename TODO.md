@@ -1,4 +1,4 @@
-# Aldalog TODO
+# Psnd TODO
 
 ## High Priority
 
@@ -33,31 +33,6 @@
 
 
 ## Current
-
-### Extend the Commandline API
-
-The current commandline api is as follows:
-
-```sh
-aldalog                           # Start REPL
-aldalog -sf gm.sf2                # REPL with built-in synth
-# editor mode
-aldalog song.alda                       # Open file in editor
-aldalog -sf gm.sf2 song.alda            # Editor with TinySoundFont synth
-aldalog -cs instruments.csd song.alda   # Editor with Csound synthesis
-# play mode (headless)
-aldalog play song.alda                # Play file and exit
-aldalog play -sf gm.sf2 song.alda     # Play with built-in synth
-```
-
-I would like to add the following to make the recent csound integration more usable:
-
-```sh
-# editor mode
-aldalog song.csd                        # Open csound file in editor
-# play mode (headless)
-aldalog play song.csd                 # Play file and exit
-```
 
 ### Consistent Code Highlighting
 

@@ -1,10 +1,10 @@
-# Aldalog Color Themes
+# Psnd Color Themes
 
-This directory contains pre-made color themes for the Aldalog editor.
+This directory contains pre-made color themes for the Psnd editor.
 
 ## Usage
 
-Load a theme in your `.aldalog/init.lua`:
+Load a theme in your `.psnd/init.lua`:
 
 ```lua
 theme = require("theme")

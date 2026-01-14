@@ -13,9 +13,9 @@ typedef void (*loki_lua_report_fn)(const char *message, void *userdata);
 struct loki_lua_opts {
     int bind_editor;           /* Non-zero to load editor bindings */
     int bind_http;             /* Unused (HTTP support removed) */
-    int load_config;           /* Non-zero to load .aldalog/init.lua and ~/.aldalog/init.lua */
+    int load_config;           /* Non-zero to load .psnd/init.lua and ~/.psnd/init.lua */
     const char *config_override; /* Optional absolute path to init.lua */
-    const char *project_root;  /* Optional project root for .aldalog/ discovery */
+    const char *project_root;  /* Optional project root for .psnd/ discovery */
     const char *extra_lua_path;/* Optional extra package.path entries */
     loki_lua_report_fn reporter; /* Optional reporter for init errors */
     void *reporter_userdata;   /* Context passed to reporter */

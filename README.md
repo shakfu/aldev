@@ -1,6 +1,6 @@
-# aldalog
+# psnd
 
-**aldalog** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
+**psnd** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
 
 It currently only works on macOS and Linux.
 
@@ -33,8 +33,8 @@ make csound       # Build with Csound synthesis backend (larger binary)
 ### REPL Mode (Interactive Composition)
 
 ```bash
-aldalog                    # Start REPL
-aldalog -sf gm.sf2         # REPL with built-in synth
+psnd                    # Start REPL
+psnd -sf gm.sf2         # REPL with built-in synth
 ```
 
 Type Alda notation directly:
@@ -66,10 +66,10 @@ REPL commands (use with or without `:` prefix):
 ### Editor Mode (Live-Coding)
 
 ```bash
-aldalog song.alda                        # Open Alda file in editor
-aldalog song.csd                         # Open Csound file in editor
-aldalog -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
-aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
+psnd song.alda                        # Open Alda file in editor
+psnd song.csd                         # Open Csound file in editor
+psnd -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
+psnd -cs instruments.csd song.alda    # Editor with Csound synthesis
 ```
 
 **Keybindings:**
@@ -89,10 +89,10 @@ aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
 ### Play Mode (Headless)
 
 ```bash
-aldalog play song.alda              # Play Alda file and exit
-aldalog play song.csd               # Play Csound file and exit
-aldalog play -sf gm.sf2 song.alda   # Play Alda with built-in synth
-aldalog play -v song.csd            # Play with verbose output
+psnd play song.alda              # Play Alda file and exit
+psnd play song.csd               # Play Csound file and exit
+psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
+psnd play -v song.csd            # Play with verbose output
 ```
 
 ## Lua Scripting (Editor)
@@ -116,7 +116,7 @@ loki.alda.set_synth(true)
 
 ## Ableton Link
 
-Aldalog supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
+Psnd supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
 
 ### Quick Start
 
@@ -191,7 +191,7 @@ end
 
 ## Csound Synthesis
 
-Aldalog optionally supports [Csound](https://csound.com/) as an advanced synthesis backend, providing full synthesis capabilities beyond TinySoundFont's sample playback.
+Psnd optionally supports [Csound](https://csound.com/) as an advanced synthesis backend, providing full synthesis capabilities beyond TinySoundFont's sample playback.
 
 ### Building with Csound
 
@@ -204,7 +204,7 @@ make csound       # Build with Csound backend (~4.4MB binary)
 **Option 1: Command-line (recommended)**
 
 ```bash
-aldalog -cs .aldalog/csound/default.csd song.alda
+psnd -cs .psnd/csound/default.csd song.alda
 ```
 
 This loads the Csound instruments and enables Csound synthesis automatically when opening the file.
@@ -225,7 +225,7 @@ Or via Lua:
 -- Check if Csound is available
 if loki.alda.csound_available() then
     -- Load Csound instruments
-    loki.alda.csound_load(".aldalog/csound/default.csd")
+    loki.alda.csound_load(".psnd/csound/default.csd")
 
     -- Switch to Csound backend
     loki.alda.set_backend("csound")
@@ -237,8 +237,8 @@ end
 You can also open and play `.csd` files directly without using them as MIDI instrument definitions:
 
 ```bash
-aldalog song.csd           # Edit CSD file, Ctrl-P to play
-aldalog play song.csd      # Headless playback
+psnd song.csd           # Edit CSD file, Ctrl-P to play
+psnd play song.csd      # Headless playback
 ```
 
 This plays the CSD file's embedded score section using Csound's native playback, not the MIDI-driven synthesis mode.
@@ -269,7 +269,7 @@ loki.alda.csound_stop()           -- Stop playback
 
 ### Default Instruments
 
-The included `.aldalog/csound/default.csd` provides 16 instruments mapped to MIDI channels, including subtractive synth, FM piano, pad, pluck, organ, bass, strings, brass, and drums.
+The included `.psnd/csound/default.csd` provides 16 instruments mapped to MIDI channels, including subtractive synth, FM piano, pad, pluck, organ, bass, strings, brass, and drums.
 
 ### Architecture Notes
 

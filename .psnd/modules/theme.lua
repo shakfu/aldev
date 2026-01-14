@@ -6,8 +6,8 @@ local M = {}
 -- Add themes directory to package.path
 local function setup_theme_path()
     local theme_paths = {
-        ".aldalog/themes/?.lua",
-        (os.getenv("HOME") or "") .. "/.aldalog/themes/?.lua"
+        ".psnd/themes/?.lua",
+        (os.getenv("HOME") or "") .. "/.psnd/themes/?.lua"
     }
 
     for _, path in ipairs(theme_paths) do
@@ -56,7 +56,7 @@ end
 -- List available themes in the themes directory
 function M.list()
     local themes = {}
-    local handle = io.popen("ls .aldalog/themes/*.lua 2>/dev/null")
+    local handle = io.popen("ls .psnd/themes/*.lua 2>/dev/null")
 
     if handle then
         for filepath in handle:lines() do
@@ -81,7 +81,7 @@ function M.print_available()
         end
         print("\nLoad with: theme.load('" .. themes[1] .. "')")
     else
-        print("No themes found in .aldalog/themes/")
+        print("No themes found in .psnd/themes/")
     end
 end
 

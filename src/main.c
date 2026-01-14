@@ -1,12 +1,12 @@
 /**
  * @file main.c
- * @brief Unified entry point for aldalog - editor, REPL, and playback.
+ * @brief Unified entry point for psnd - editor, REPL, and playback.
  *
  * Dispatch modes:
- *   aldalog              -> REPL mode (interactive Alda composition)
- *   aldalog file.alda    -> Editor mode (live-coding editor)
- *   aldalog play file    -> Play mode (headless playback)
- *   aldalog repl         -> REPL mode (explicit)
+ *   psnd              -> REPL mode (interactive Alda composition)
+ *   psnd file.alda    -> Editor mode (live-coding editor)
+ *   psnd play file    -> Play mode (headless playback)
+ *   psnd repl         -> REPL mode (explicit)
  */
 
 #include "loki/editor.h"
@@ -19,7 +19,7 @@ extern int alda_repl_main(int argc, char **argv);
 extern int alda_play_main(int argc, char **argv);
 
 static void print_unified_help(const char *prog) {
-    printf("aldalog %s - Music composition editor and REPL\n", LOKI_VERSION);
+    printf("psnd %s - Music composition editor and REPL\n", LOKI_VERSION);
     printf("\n");
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL\n", prog);
@@ -93,18 +93,18 @@ int main(int argc, char **argv) {
 
     /* Version flag */
     if (strcmp(first_arg, "-V") == 0 || strcmp(first_arg, "--version") == 0) {
-        printf("aldalog %s\n", LOKI_VERSION);
+        printf("psnd %s\n", LOKI_VERSION);
         return 0;
     }
 
     /* Explicit subcommands */
     if (strcmp(first_arg, "repl") == 0) {
-        /* Shift arguments past 'repl': aldalog repl -sf foo -> -sf foo */
+        /* Shift arguments past 'repl': psnd repl -sf foo -> -sf foo */
         return alda_repl_main(argc - 2, argv + 2);
     }
 
     if (strcmp(first_arg, "play") == 0) {
-        /* Shift arguments past 'play': aldalog play file.csd -> file.csd */
+        /* Shift arguments past 'play': psnd play file.csd -> file.csd */
         return alda_play_main(argc - 2, argv + 2);
     }
 

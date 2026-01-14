@@ -685,7 +685,7 @@ int alda_play_main(int argc, char **argv) {
     }
 
     if (!input_file) {
-        fprintf(stderr, "Usage: aldalog play [-v] [-sf soundfont.sf2] <file.alda|file.csd>\n");
+        fprintf(stderr, "Usage: psnd play [-v] [-sf soundfont.sf2] <file.alda|file.csd>\n");
         return 1;
     }
 

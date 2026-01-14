@@ -1,4 +1,4 @@
-name: Build aldalog
+name: Build psnd
 
 on: [workflow_dispatch]
   # push:
@@ -19,11 +19,11 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             artifact_suffix: linux
-            binary_path: build/aldalog
+            binary_path: build/psnd
           - name: macOS
             os: macos-latest
             artifact_suffix: macos
-            binary_path: build/aldalog
+            binary_path: build/psnd
     env:
       BUILD_DIR: build
       BUILD_TYPE: Release
@@ -40,12 +40,12 @@ jobs:
       - name: Collect artifact
         run: |
           cmake -E make_directory artifacts
-          cmake -E copy "${{ matrix.binary_path }}" "artifacts/aldalog-${{ matrix.artifact_suffix }}"
+          cmake -E copy "${{ matrix.binary_path }}" "artifacts/psnd-${{ matrix.artifact_suffix }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aldalog-${{ matrix.artifact_suffix }}
+          name: psnd-${{ matrix.artifact_suffix }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -59,11 +59,11 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             artifact_suffix: linux-csound
-            binary_path: build/aldalog
+            binary_path: build/psnd
           - name: macOS
             os: macos-latest
             artifact_suffix: macos-csound
-            binary_path: build/aldalog
+            binary_path: build/psnd
     env:
       BUILD_DIR: build
       BUILD_TYPE: Release
@@ -80,12 +80,12 @@ jobs:
       - name: Collect artifact
         run: |
           cmake -E make_directory artifacts
-          cmake -E copy "${{ matrix.binary_path }}" "artifacts/aldalog-${{ matrix.artifact_suffix }}"
+          cmake -E copy "${{ matrix.binary_path }}" "artifacts/psnd-${{ matrix.artifact_suffix }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aldalog-${{ matrix.artifact_suffix }}
+          name: psnd-${{ matrix.artifact_suffix }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -121,12 +121,12 @@ jobs:
   #       shell: pwsh
   #       run: |
   #         cmake -E make_directory artifacts
-  #         cmake -E copy "build/aldalog.exe" "artifacts/aldalog-windows.exe"
+  #         cmake -E copy "build/psnd.exe" "artifacts/psnd-windows.exe"
 
   #     - name: Upload artifact
   #       uses: actions/upload-artifact@v4
   #       with:
-  #         name: aldalog-windows
+  #         name: psnd-windows
   #         path: artifacts/*
   #         if-no-files-found: error
 
@@ -143,11 +143,11 @@ jobs:
 
       - name: Create unified archive
         run: |
-          tar -czf aldalog-all-platforms.tar.gz -C dist .
+          tar -czf psnd-all-platforms.tar.gz -C dist .
 
       - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
-          name: aldalog-cross-platform
-          path: aldalog-all-platforms.tar.gz
+          name: psnd-cross-platform
+          path: psnd-all-platforms.tar.gz
           if-no-files-found: error
