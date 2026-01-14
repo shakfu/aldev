@@ -1,25 +1,25 @@
-# psnd
+# psnd — a polyglot editor & REPL for music programming languages
 
-**psnd** is a self-contained live-coding text editor and REPL for the [Alda](https://alda.io) music programming language. It’s built on the [loki](https://github.com/shakfu/loki) editor (itself derived from antirez’s [kilo](https://github.com/antirez/kilo)) and integrates [alda-midi](https://github.com/shakfu/midi-langs) to provide a fast, expressive workflow.
+**psnd** is a self-contained modal editor, REPL, and playback environment aimed at music programming languages. The project is aiming to evolve into a polyglot platform for composing, live-coding, and rendering music DSLs from one binary.
 
-It currently only works on macOS and Linux.
+The first supported language is [Alda](https://alda.io). Alda support is already practical for daily live-coding, REPL sketches, and headless playback, reusing the MIDI core from [alda-midi](https://github.com/shakfu/midi-langs). The next milestones focus on integrating a number of mini MIDI languages from the sister [midi-langs](https://github.com/shakfu/midi-langs) project so that multiple notations can coexist within psnd. Audio output is handled by the built-in [TinySoundFont](https://github.com/schellingb/TinySoundFont) synthesizer or, optionally, a [Csound](https://csound.com/) backend for advanced synthesis. macOS and Linux are currently supported.
 
 ## Features
 
-- **Editor Mode**: Vim-style modal editing with live-coding support
-- **REPL Mode**: Interactive Alda composition—write notation and hear it immediately
-- **Play Mode**: Headless playback for scripts and automation
-- **Asynchronous playback** (non-blocking) using [libuv](https://github.com/libuv/libuv)
-- **Built-in MIDI output** powered by [libremidi](https://github.com/celtera/libremidi)
-- **MIDI file export** powered by [midifile](https://github.com/craigsapp/midifile)
-- **Integrated software synthesizer** using [TinySoundFont](https://github.com/schellingb/TinySoundFont) and [miniaudio](https://github.com/mackron/miniaudio)
-- **Optional Csound synthesis** for advanced sound design using [Csound](https://csound.com/)
-- **Networked tempo synchronization** with DAWs and other performers using [Ableton Link](https://github.com/Ableton/link)
-- **Lua scripting** for editor customization.
+- **Vim-style editor** with INSERT/NORMAL modes, live evaluation shortcuts, and Lua scripting (built on [loki](https://github.com/shakfu/loki), a fork of [kilo](https://github.com/antirez/kilo))
+- **Language-aware REPL** for interactive composition (Alda today; more DSLs on the way)
+- **Headless play mode** for batch jobs and automation
+- **Asynchronous playback** through [libuv](https://github.com/libuv/libuv)
+- **Integrated MIDI routing** powered by [libremidi](https://github.com/celtera/libremidi)
+- **MIDI file export** using [midifile](https://github.com/craigsapp/midifile)
+- **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
+- **Optional Csound backend** for deeper sound design workflows
+- **Ableton Link support** for networked tempo sync
+- **Lua APIs** for editor automation, playback control, and extensibility
 
 ## Status
 
-Early development. Core functionality works but the API is evolving.
+psnd is in active early development. Alda is the only fully integrated language right now, but the internal architecture is designed for drop-in DSL integrations so that the mini MIDI languages from [midi-langs](https://github.com/shakfu/midi-langs) and other future guests can reuse the same editor, REPL, and audio stack. Expect rapid iteration and occasional breaking changes while polyglot support takes shape.
 
 ## Building
 
@@ -30,7 +30,9 @@ make csound       # Build with Csound synthesis backend (larger binary)
 
 ## Usage
 
-### REPL Mode (Interactive Composition)
+psnd exposes three complementary workflows: REPL mode for interactive sketching, editor mode for live-coding within files, and play mode for headless rendering. Flags (soundfont, csound instruments, etc.) are shared between modes.
+
+### REPL Mode
 
 ```bash
 psnd                    # Start REPL
@@ -46,7 +48,7 @@ alda> :stop
 alda> :q
 ```
 
-REPL commands (use with or without `:` prefix):
+REPL commands (with or without `:`):
 
 | Command | Action |
 |---------|--------|
@@ -63,7 +65,7 @@ REPL commands (use with or without `:` prefix):
 | `:export FILE` | Export to MIDI file |
 | `:csd [on\|off]` | Toggle Csound synthesis |
 
-### Editor Mode (Live-Coding)
+### Editor Mode
 
 ```bash
 psnd song.alda                        # Open Alda file in editor
@@ -72,7 +74,7 @@ psnd -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
 psnd -cs instruments.csd song.alda    # Editor with Csound synthesis
 ```
 
-**Keybindings:**
+Keybindings:
 
 | Key | Action |
 |-----|--------|
@@ -86,7 +88,7 @@ psnd -cs instruments.csd song.alda    # Editor with Csound synthesis
 | `i` | Enter INSERT mode |
 | `ESC` | Return to NORMAL mode |
 
-### Play Mode (Headless)
+### Play Mode
 
 ```bash
 psnd play song.alda              # Play Alda file and exit
@@ -95,7 +97,7 @@ psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
 psnd play -v song.csd            # Play with verbose output
 ```
 
-## Lua Scripting (Editor)
+## Lua Scripting
 
 Press `Ctrl-L` in the editor to access the Lua console:
 
@@ -116,7 +118,7 @@ loki.alda.set_synth(true)
 
 ## Ableton Link
 
-Psnd supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
+psnd supports [Ableton Link](https://www.ableton.com/en/link/) for tempo synchronization with other musicians and applications on the same network.
 
 ### Quick Start
 
@@ -131,7 +133,7 @@ In the editor, use the `:link` command:
 When Link is enabled:
 - Status bar shows "ALDA LINK" instead of "ALDA NORMAL"
 - Playback tempo syncs with the Link session
-- Other Link-enabled apps (Ableton Live, etc.) will share the same tempo
+- Other Link-enabled apps (Ableton Live, etc.) share the same tempo
 
 ### Lua API
 
@@ -166,7 +168,7 @@ loki.link.cleanup()
 
 ## MIDI Export
 
-Export your Alda compositions to Standard MIDI Files (.mid) for use in DAWs and other music software.
+Export Alda compositions to Standard MIDI Files (.mid) for use in DAWs and other music software.
 
 ### Quick Start
 
@@ -191,7 +193,7 @@ end
 
 ## Csound Synthesis
 
-Psnd optionally supports [Csound](https://csound.com/) as an advanced synthesis backend, providing full synthesis capabilities beyond TinySoundFont's sample playback.
+psnd optionally supports [Csound](https://csound.com/) as an advanced synthesis backend, providing full synthesis capabilities beyond TinySoundFont's sample playback.
 
 ### Building with Csound
 
@@ -275,6 +277,14 @@ The included `.psnd/csound/default.csd` provides 16 instruments mapped to MIDI c
 
 Csound and TinySoundFont each have independent miniaudio audio devices. When you switch backends, the appropriate audio device is started/stopped. They do not share audio resources, allowing clean separation of concerns.
 
+## Roadmap
+
+- Integrate additional MIDI DSLs from [midi-langs](https://github.com/shakfu/midi-langs), giving psnd multiple interchangeable front-ends
+- Provide syntax-aware helpers per language (highlighting, evaluation scopes, etc.)
+- Experiment with additional backends (JACK, plugin bridges) where it improves workflows
+
+Feedback and experiments are welcome—polyglot support will be guided by real-world usage.
+
 ## Project Structure
 
 ```
@@ -304,13 +314,12 @@ See the `docs` folder for full technical documentation.
 - [Csound](https://csound.com/) - sound synthesis system (optional)
 - [link](https://github.com/Ableton/link) - Ableton Link
 - [midifile](https://github.com/craigsapp/midifile) - C++ library for reading/writing Standard MIDI Files
-- [libremidi](https://github.com/celtera/libremidi) - A modern C++ MIDI 1 / MIDI 2 real-time & file I/O library. Supports Windows, macOS, Linux and WebMIDI.
+- [libremidi](https://github.com/celtera/libremidi) - Modern C++ MIDI 1 / MIDI 2 real-time & file I/O library
 - [TinySoundFont](https://github.com/schellingb/TinySoundFont) - SoundFont2 synthesizer library in a single C/C++ file
-- [miniaudio](https://github.com/mackron/miniaudio) - Audio playback and capture library written in C, in a single source file.
+- [miniaudio](https://github.com/mackron/miniaudio) - Audio playback and capture library written in C, in a single source file
 
 ## License
 
 GPL-3
 
-see [docs/licenses](docs/licenses) for dependent licenses
-
+See `docs/licenses` for dependent licenses.
