@@ -16,6 +16,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 /* Cross-platform mutex */
 #ifdef _WIN32
@@ -42,7 +46,7 @@ static inline void cs_mutex_unlock(cs_mutex_t* m) { pthread_mutex_unlock(m); }
 #define CS_SAMPLE_RATE      44100
 #define CS_CHANNELS         2
 #define CS_KSMPS            64      /* Control rate samples */
-#define CS_PERIOD_FRAMES    512     /* Audio callback period size */
+#define CS_PERIOD_FRAMES    1024    /* Audio callback period size */
 #define CS_MAX_NOTES        256     /* Max simultaneous notes */
 #define CS_ERROR_BUF_SIZE   512
 
@@ -89,6 +93,7 @@ typedef struct {
     MYFLT* spout;       /* Output buffer from Csound */
     int spout_samples;  /* Samples in spout per ksmps cycle */
     int spout_pos;      /* Current position in spout buffer */
+    MYFLT zerodBFS;     /* 0dBFS scaling factor for normalization */
 
     /* Own miniaudio device for audio output */
     ma_device device;
@@ -290,6 +295,7 @@ int alda_csound_load_csd(const char* path) {
     g_cs.spin = csoundGetSpin(g_cs.csound);
     g_cs.spout_samples = csoundGetKsmps(g_cs.csound) * csoundGetNchnls(g_cs.csound);
     g_cs.spout_pos = g_cs.spout_samples;  /* Force first ksmps cycle */
+    g_cs.zerodBFS = csoundGet0dBFS(g_cs.csound);
     g_cs.started = 1;
 
     g_cs.instruments_loaded = 1;
@@ -387,6 +393,7 @@ int alda_csound_enable(void) {
         g_cs.spin = csoundGetSpin(g_cs.csound);
         g_cs.spout_samples = csoundGetKsmps(g_cs.csound) * csoundGetNchnls(g_cs.csound);
         g_cs.spout_pos = g_cs.spout_samples;  /* Force first ksmps cycle */
+        g_cs.zerodBFS = csoundGet0dBFS(g_cs.csound);
         g_cs.started = 1;
     }
 
@@ -643,16 +650,17 @@ void alda_csound_render(float* output, int frames) {
             g_cs.spout_pos = 0;
         }
 
-        /* Copy available samples from spout to output */
+        /* Copy available samples from spout to output, normalized by 0dBFS */
         int available = ksmps - g_cs.spout_pos;
         int to_copy = (frames_remaining < available) ? frames_remaining : available;
+        MYFLT scale = g_cs.zerodBFS;
 
         for (int i = 0; i < to_copy; i++) {
             int spout_frame = g_cs.spout_pos + i;
             /* Csound output is already interleaved for nchnls */
             for (int ch = 0; ch < CS_CHANNELS && ch < nchnls; ch++) {
                 output[(out_idx + i) * CS_CHANNELS + ch] =
-                    (float)g_cs.spout[spout_frame * nchnls + ch];
+                    (float)(g_cs.spout[spout_frame * nchnls + ch] / scale);
             }
             /* If Csound has fewer channels than output, fill with zero */
             for (int ch = nchnls; ch < CS_CHANNELS; ch++) {
@@ -679,6 +687,307 @@ const char* alda_csound_get_error(void) {
     return g_cs.error_msg;
 }
 
+/* ============================================================================
+ * Standalone Playback
+ *
+ * This provides a separate code path for playing CSD files with their own
+ * score sections, as opposed to the daemon mode used for MIDI-driven synthesis.
+ * ============================================================================ */
+
+/* State for standalone playback (separate from g_cs) */
+typedef struct {
+    CSOUND* csound;
+    int started;
+    int finished;
+    int active;             /* Non-zero if async playback is running */
+    cs_mutex_t mutex;
+    MYFLT* spout;
+    int spout_pos;
+    int ksmps;
+    int nchnls;
+    MYFLT zerodBFS;         /* 0dBFS scaling factor for normalization */
+    ma_device device;       /* Audio device for async playback */
+    int device_initialized;
+} PlaybackState;
+
+static PlaybackState g_play = {0};
+
+static void play_audio_callback(ma_device* device, void* output, const void* input, ma_uint32 frame_count) {
+    (void)device;
+    (void)input;
+
+    float* out = (float*)output;
+
+    if (!g_play.csound || g_play.finished || !g_play.active) {
+        memset(out, 0, (size_t)frame_count * CS_CHANNELS * sizeof(float));
+        return;
+    }
+
+    cs_mutex_lock(&g_play.mutex);
+
+    int out_idx = 0;
+    int frames_remaining = (int)frame_count;
+
+    while (frames_remaining > 0 && !g_play.finished) {
+        /* Check if we need to run another ksmps cycle */
+        if (g_play.spout_pos >= g_play.ksmps) {
+            int result = csoundPerformKsmps(g_play.csound);
+            if (result != 0) {
+                /* Performance ended */
+                g_play.finished = 1;
+                memset(&out[out_idx * CS_CHANNELS], 0,
+                       (size_t)frames_remaining * CS_CHANNELS * sizeof(float));
+                break;
+            }
+            g_play.spout = csoundGetSpout(g_play.csound);
+            g_play.spout_pos = 0;
+        }
+
+        /* Copy available samples from spout to output, normalized by 0dBFS */
+        int available = g_play.ksmps - g_play.spout_pos;
+        int to_copy = (frames_remaining < available) ? frames_remaining : available;
+        MYFLT scale = g_play.zerodBFS;
+
+        for (int i = 0; i < to_copy; i++) {
+            int spout_frame = g_play.spout_pos + i;
+            for (int ch = 0; ch < CS_CHANNELS && ch < g_play.nchnls; ch++) {
+                out[(out_idx + i) * CS_CHANNELS + ch] =
+                    (float)(g_play.spout[spout_frame * g_play.nchnls + ch] / scale);
+            }
+            for (int ch = g_play.nchnls; ch < CS_CHANNELS; ch++) {
+                out[(out_idx + i) * CS_CHANNELS + ch] = 0.0f;
+            }
+        }
+
+        g_play.spout_pos += to_copy;
+        out_idx += to_copy;
+        frames_remaining -= to_copy;
+    }
+
+    cs_mutex_unlock(&g_play.mutex);
+}
+
+/* Internal: cleanup playback resources */
+static void playback_cleanup(void) {
+    if (g_play.device_initialized) {
+        ma_device_stop(&g_play.device);
+        ma_device_uninit(&g_play.device);
+        g_play.device_initialized = 0;
+    }
+
+    if (g_play.csound) {
+        if (g_play.started) {
+            csoundStop(g_play.csound);
+            csoundCleanup(g_play.csound);
+        }
+        csoundDestroyMessageBuffer(g_play.csound);
+        csoundDestroy(g_play.csound);
+        g_play.csound = NULL;
+    }
+
+    if (g_play.started) {
+        cs_mutex_destroy(&g_play.mutex);
+    }
+
+    memset(&g_play, 0, sizeof(g_play));
+}
+
+/* Internal: start playback of a CSD file */
+static int playback_start(const char* path, int verbose) {
+    if (!path) {
+        set_error("NULL path");
+        return -1;
+    }
+
+    /* Stop any existing playback first */
+    if (g_play.active) {
+        playback_cleanup();
+    }
+
+    memset(&g_play, 0, sizeof(g_play));
+
+    if (cs_mutex_init(&g_play.mutex) != 0) {
+        set_error("Failed to create mutex");
+        return -1;
+    }
+
+    /* Create Csound instance */
+    g_play.csound = csoundCreate(NULL);
+    if (!g_play.csound) {
+        set_error("Failed to create Csound instance");
+        cs_mutex_destroy(&g_play.mutex);
+        return -1;
+    }
+
+    /* Configure for host-implemented audio I/O */
+    csoundSetHostImplementedAudioIO(g_play.csound, 1, 0);
+
+    /* Capture messages in buffer */
+    csoundCreateMessageBuffer(g_play.csound, 0);
+
+    /* Set options - NOT daemon mode, let score run naturally */
+    csoundSetOption(g_play.csound, "-n");           /* No sound output (we handle it) */
+    if (!verbose) {
+        csoundSetOption(g_play.csound, "-d");       /* Suppress displays */
+        csoundSetOption(g_play.csound, "-m0");      /* Suppress messages */
+    }
+
+    /* Compile CSD file */
+    if (verbose) {
+        printf("Compiling: %s\n", path);
+    }
+    int result = csoundCompileCsd(g_play.csound, path);
+    if (result != 0) {
+        set_error("Failed to compile CSD file");
+        csoundDestroyMessageBuffer(g_play.csound);
+        csoundDestroy(g_play.csound);
+        g_play.csound = NULL;
+        cs_mutex_destroy(&g_play.mutex);
+        return -1;
+    }
+
+    /* Start Csound */
+    result = csoundStart(g_play.csound);
+    if (result != 0) {
+        set_error("Failed to start Csound");
+        csoundDestroyMessageBuffer(g_play.csound);
+        csoundDestroy(g_play.csound);
+        g_play.csound = NULL;
+        cs_mutex_destroy(&g_play.mutex);
+        return -1;
+    }
+
+    /* Get audio buffer info */
+    g_play.spout = csoundGetSpout(g_play.csound);
+    g_play.ksmps = csoundGetKsmps(g_play.csound);
+    g_play.nchnls = csoundGetNchnls(g_play.csound);
+    g_play.zerodBFS = csoundGet0dBFS(g_play.csound);
+    g_play.spout_pos = g_play.ksmps;  /* Force first ksmps cycle */
+    g_play.started = 1;
+
+    if (verbose) {
+        printf("Playing: sr=%d, nchnls=%d, ksmps=%d, 0dBFS=%.1f\n",
+               (int)csoundGetSr(g_play.csound), g_play.nchnls, g_play.ksmps,
+               g_play.zerodBFS);
+    }
+
+    /* Initialize audio device */
+    ma_device_config config = ma_device_config_init(ma_device_type_playback);
+    config.playback.format = ma_format_f32;
+    config.playback.channels = CS_CHANNELS;
+    config.sampleRate = (int)csoundGetSr(g_play.csound);
+    config.dataCallback = play_audio_callback;
+    config.pUserData = NULL;
+    config.periodSizeInFrames = CS_PERIOD_FRAMES;
+
+    result = ma_device_init(NULL, &config, &g_play.device);
+    if (result != MA_SUCCESS) {
+        set_error("Failed to initialize audio device");
+        csoundStop(g_play.csound);
+        csoundCleanup(g_play.csound);
+        csoundDestroyMessageBuffer(g_play.csound);
+        csoundDestroy(g_play.csound);
+        g_play.csound = NULL;
+        g_play.started = 0;
+        cs_mutex_destroy(&g_play.mutex);
+        return -1;
+    }
+    g_play.device_initialized = 1;
+
+    /* Start audio playback */
+    result = ma_device_start(&g_play.device);
+    if (result != MA_SUCCESS) {
+        set_error("Failed to start audio device");
+        playback_cleanup();
+        return -1;
+    }
+
+    g_play.active = 1;
+    return 0;
+}
+
+/* Signal handler for graceful interrupt during blocking playback */
+static volatile sig_atomic_t g_interrupted = 0;
+
+static void playback_sigint_handler(int sig) {
+    (void)sig;
+    g_interrupted = 1;
+    if (g_play.active) {
+        g_play.finished = 1;
+    }
+}
+
+int alda_csound_play_file(const char* path, int verbose) {
+    int result = playback_start(path, verbose);
+    if (result != 0) {
+        return result;
+    }
+
+    /* Install signal handler for clean Ctrl-C handling */
+    g_interrupted = 0;
+#ifdef _WIN32
+    void (*old_handler)(int) = signal(SIGINT, playback_sigint_handler);
+#else
+    struct sigaction sa, old_sa;
+    sa.sa_handler = playback_sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, &old_sa);
+#endif
+
+    /* Wait for playback to finish (blocking) */
+    while (!g_play.finished && g_play.active && !g_interrupted) {
+#ifdef _WIN32
+        Sleep(100);  /* Sleep 100ms */
+#else
+        usleep(100000);  /* Sleep 100ms */
+#endif
+    }
+
+    /* Restore original signal handler */
+#ifdef _WIN32
+    signal(SIGINT, old_handler);
+#else
+    sigaction(SIGINT, &old_sa, NULL);
+#endif
+
+    if (g_interrupted) {
+        printf("\nStopping playback\n");
+    } else if (verbose) {
+        printf("Playback complete\n");
+    }
+
+    /* Cleanup */
+    playback_cleanup();
+
+    /* Interruption is not an error - user intentionally stopped */
+    return 0;
+}
+
+int alda_csound_play_file_async(const char* path) {
+    return playback_start(path, 0);
+}
+
+int alda_csound_playback_active(void) {
+    /* Check if we're still actively playing */
+    if (!g_play.active) {
+        return 0;
+    }
+    /* If finished flag is set, clean up and return inactive */
+    if (g_play.finished) {
+        playback_cleanup();
+        return 0;
+    }
+    return 1;
+}
+
+void alda_csound_stop_playback(void) {
+    if (g_play.active) {
+        g_play.finished = 1;  /* Signal the audio callback to stop */
+        playback_cleanup();
+    }
+}
+
 #else /* BUILD_CSOUND_BACKEND not defined */
 
 /* Stub implementations when Csound is disabled */
@@ -703,5 +1012,9 @@ int alda_csound_get_sample_rate(void) { return 0; }
 int alda_csound_get_channels(void) { return 0; }
 void alda_csound_render(float* o, int f) { (void)o; (void)f; }
 const char* alda_csound_get_error(void) { return "Csound backend not compiled"; }
+int alda_csound_play_file(const char* path, int verbose) { (void)path; (void)verbose; return -1; }
+int alda_csound_play_file_async(const char* path) { (void)path; return -1; }
+int alda_csound_playback_active(void) { return 0; }
+void alda_csound_stop_playback(void) {}
 
 #endif /* BUILD_CSOUND_BACKEND */

@@ -76,8 +76,8 @@ def main() -> int:
     thirdparty_dir = project_dir / "thirdparty"
     include_dir = project_dir / "include"
 
-    c_sources = list(src_dir.glob("*.c"))
-    cpp_sources = list(src_dir.glob("*.cpp"))
+    c_sources = list(src_dir.glob("**/*.c"))
+    cpp_sources = list(src_dir.glob("**/*.cpp"))
 
     if not c_sources and not cpp_sources:
         print("No source files found.")
@@ -90,9 +90,13 @@ def main() -> int:
             for path in lib.rglob("include"):
                 if path.is_dir():
                     includes.append(path)
-            # a special case for lua
+            # special cases (libs without include)
             if lib.name == "lua-5.5.0":
                 includes.append(lib / "src")
+            if lib.name == "TinySoundFont":
+                includes.append(lib)
+            if lib.name == "miniaudio":
+                includes.append(lib)
 
 
     local_inc = find_local_include()
@@ -120,6 +124,7 @@ def main() -> int:
         ]
 
         if warnings:
+            print("-"*80)
             print("\n".join(warnings))
         else:
             print("No warnings found")

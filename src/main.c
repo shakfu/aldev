@@ -23,8 +23,9 @@ static void print_unified_help(const char *prog) {
     printf("\n");
     printf("Usage:\n");
     printf("  %s                     Start interactive REPL\n", prog);
-    printf("  %s <file.alda>         Open file in editor\n", prog);
-    printf("  %s play <file.alda>    Play file (headless)\n", prog);
+    printf("  %s <file.alda>         Open Alda file in editor\n", prog);
+    printf("  %s <file.csd>          Open Csound file in editor\n", prog);
+    printf("  %s play <file>         Play file (headless)\n", prog);
     printf("  %s repl [options]      Start REPL with options\n", prog);
     printf("\n");
     printf("Editor Mode:\n");
@@ -33,7 +34,7 @@ static void print_unified_help(const char *prog) {
     printf("  Ctrl-P: Play entire file\n");
     printf("  Ctrl-G: Stop playback\n");
     printf("\n");
-    printf("Editor Options:\n");
+    printf("Editor Options (for .alda files):\n");
     printf("  -sf PATH               Use built-in TinySoundFont synth\n");
     printf("  -cs PATH               Use Csound synthesis with .csd file\n");
     printf("\n");
@@ -51,8 +52,10 @@ static void print_unified_help(const char *prog) {
     printf("  %s                     Start REPL, type: piano: c d e f g\n", prog);
     printf("  %s -sf gm.sf2          REPL with built-in synth\n", prog);
     printf("  %s song.alda           Edit song.alda\n", prog);
+    printf("  %s song.csd            Edit song.csd (Csound)\n", prog);
     printf("  %s -cs inst.csd song.alda  Edit with Csound synthesis\n", prog);
     printf("  %s play song.alda      Play song.alda and exit\n", prog);
+    printf("  %s play song.csd       Play song.csd and exit\n", prog);
     printf("\n");
 }
 
@@ -63,6 +66,15 @@ static int has_alda_extension(const char *path) {
     if (len < 5)
         return 0;
     return strcmp(path + len - 5, ".alda") == 0;
+}
+
+static int has_csd_extension(const char *path) {
+    if (!path)
+        return 0;
+    size_t len = strlen(path);
+    if (len < 4)
+        return 0;
+    return strcmp(path + len - 4, ".csd") == 0;
 }
 
 int main(int argc, char **argv) {
@@ -87,16 +99,17 @@ int main(int argc, char **argv) {
 
     /* Explicit subcommands */
     if (strcmp(first_arg, "repl") == 0) {
-        /* Shift arguments: aldalog repl -sf foo -> aldalog -sf foo */
-        return alda_repl_main(argc - 1, argv + 1);
+        /* Shift arguments past 'repl': aldalog repl -sf foo -> -sf foo */
+        return alda_repl_main(argc - 2, argv + 2);
     }
 
     if (strcmp(first_arg, "play") == 0) {
-        return alda_play_main(argc - 1, argv + 1);
+        /* Shift arguments past 'play': aldalog play file.csd -> file.csd */
+        return alda_play_main(argc - 2, argv + 2);
     }
 
-    /* Check if first arg looks like a file (has .alda extension or doesn't start with -) */
-    if (has_alda_extension(first_arg)) {
+    /* Check if first arg looks like a file (has .alda or .csd extension) */
+    if (has_alda_extension(first_arg) || has_csd_extension(first_arg)) {
         /* Definitely a file -> editor mode */
         return loki_editor_main(argc, argv);
     }

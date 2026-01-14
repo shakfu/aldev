@@ -214,6 +214,28 @@ int loki_alda_csound_is_available(void);
  */
 int loki_alda_csound_is_enabled(editor_ctx_t *ctx);
 
+/**
+ * Play a standalone CSD file asynchronously.
+ * This plays the CSD's embedded score section (not MIDI-driven).
+ * Returns immediately; use loki_alda_csound_playback_active() to check status.
+ *
+ * @param path Path to the .csd file
+ * @return 0 on success, -1 on error
+ */
+int loki_alda_csound_play_async(const char *path);
+
+/**
+ * Check if async CSD playback is currently active.
+ *
+ * @return 1 if playback is running, 0 if stopped
+ */
+int loki_alda_csound_playback_active(void);
+
+/**
+ * Stop async CSD playback.
+ */
+void loki_alda_csound_stop_playback(void);
+
 /* ======================= Main Loop Integration ======================= */
 
 /**

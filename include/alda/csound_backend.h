@@ -198,6 +198,47 @@ void alda_csound_render(float* output, int frames);
  */
 const char* alda_csound_get_error(void);
 
+/* ============================================================================
+ * Standalone Playback
+ * ============================================================================ */
+
+/**
+ * @brief Play a CSD file with its own score section (blocking).
+ *
+ * Unlike the MIDI-driven mode (load_csd + enable), this plays the CSD file's
+ * embedded score section directly. The function blocks until playback completes
+ * or an error occurs.
+ *
+ * @param path Path to the .csd file.
+ * @param verbose If non-zero, print progress messages to stdout.
+ * @return 0 on success, -1 on error.
+ */
+int alda_csound_play_file(const char* path, int verbose);
+
+/**
+ * @brief Start playing a CSD file asynchronously (non-blocking).
+ *
+ * Starts playback and returns immediately. Use alda_csound_playback_active()
+ * to check if playback is still running, and alda_csound_stop_playback() to stop.
+ *
+ * @param path Path to the .csd file.
+ * @return 0 on success, -1 on error.
+ */
+int alda_csound_play_file_async(const char* path);
+
+/**
+ * @brief Check if async playback is active.
+ * @return Non-zero if playback is running, 0 if stopped or not started.
+ */
+int alda_csound_playback_active(void);
+
+/**
+ * @brief Stop async playback.
+ *
+ * Stops any currently running async playback and cleans up resources.
+ */
+void alda_csound_stop_playback(void);
+
 #ifdef __cplusplus
 }
 #endif

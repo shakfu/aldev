@@ -31,3 +31,46 @@
   - `lua_get_editor_context()` was returning a pointer stored at init time
   - Fixed to call `buffer_get_current()` dynamically
 
+
+## Current
+
+### Extend the Commandline API
+
+The current commandline api is as follows:
+
+```sh
+aldalog                           # Start REPL
+aldalog -sf gm.sf2                # REPL with built-in synth
+# editor mode
+aldalog song.alda                       # Open file in editor
+aldalog -sf gm.sf2 song.alda            # Editor with TinySoundFont synth
+aldalog -cs instruments.csd song.alda   # Editor with Csound synthesis
+# play mode (headless)
+aldalog play song.alda                # Play file and exit
+aldalog play -sf gm.sf2 song.alda     # Play with built-in synth
+```
+
+I would like to add the following to make the recent csound integration more usable:
+
+```sh
+# editor mode
+aldalog song.csd                        # Open csound file in editor
+# play mode (headless)
+aldalog play song.csd                 # Play file and exit
+```
+
+### Consistent Code Highlighting
+
+The repl and the editor have two different styles, and the repl doesn't follow the current theme.
+
+### Windows
+
+The editor uses `termios.h`, `unistd.h`, and `pthread.h` -- all POSIX headers which are directly supported by Windows.
+
+Everything else can work with Windows. So what the alternative solution?
+
+- Windows console code?
+- Webeditor using codemirror / websockets?
+
+
+

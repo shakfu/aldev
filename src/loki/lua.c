@@ -1210,6 +1210,36 @@ static int lua_alda_set_csound(lua_State *L) {
     return 1;
 }
 
+/* Lua API: loki.alda.csound_play(path) - Play a standalone CSD file asynchronously */
+static int lua_alda_csound_play(lua_State *L) {
+    const char *path = luaL_checkstring(L, 1);
+
+    int result = loki_alda_csound_play_async(path);
+    if (result != 0) {
+        editor_ctx_t *ctx = lua_get_editor_context(L);
+        const char *err = loki_alda_get_error(ctx);
+        lua_pushnil(L);
+        lua_pushstring(L, err ? err : "Failed to start playback");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.alda.csound_playing() - Check if CSD playback is active */
+static int lua_alda_csound_playing(lua_State *L) {
+    lua_pushboolean(L, loki_alda_csound_playback_active());
+    return 1;
+}
+
+/* Lua API: loki.alda.csound_stop() - Stop CSD playback */
+static int lua_alda_csound_stop(lua_State *L) {
+    (void)L;
+    loki_alda_csound_stop_playback();
+    return 0;
+}
+
 /* Lua API: loki.alda.set_backend(name) - Set audio backend: "tsf", "csound", or "midi" */
 static int lua_alda_set_backend(lua_State *L) {
     editor_ctx_t *ctx = lua_get_editor_context(L);
@@ -1566,6 +1596,15 @@ static void lua_register_alda_module(lua_State *L) {
 
     lua_pushcfunction(L, lua_alda_set_csound);
     lua_setfield(L, -2, "set_csound");
+
+    lua_pushcfunction(L, lua_alda_csound_play);
+    lua_setfield(L, -2, "csound_play");
+
+    lua_pushcfunction(L, lua_alda_csound_playing);
+    lua_setfield(L, -2, "csound_playing");
+
+    lua_pushcfunction(L, lua_alda_csound_stop);
+    lua_setfield(L, -2, "csound_stop");
 
     lua_pushcfunction(L, lua_alda_set_backend);
     lua_setfield(L, -2, "set_backend");

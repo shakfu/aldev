@@ -66,7 +66,8 @@ REPL commands (use with or without `:` prefix):
 ### Editor Mode (Live-Coding)
 
 ```bash
-aldalog song.alda                        # Open file in editor
+aldalog song.alda                        # Open Alda file in editor
+aldalog song.csd                         # Open Csound file in editor
 aldalog -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
 aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
 ```
@@ -75,8 +76,8 @@ aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
 
 | Key | Action |
 |-----|--------|
-| `Ctrl-E` | Play current part (or selection) |
-| `Ctrl-P` | Play entire file |
+| `Ctrl-E` | Play current part (or selection) - Alda files only |
+| `Ctrl-P` | Play entire file (Alda or Csound) |
 | `Ctrl-G` | Stop playback |
 | `Ctrl-S` | Save |
 | `Ctrl-Q` | Quit |
@@ -88,8 +89,10 @@ aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
 ### Play Mode (Headless)
 
 ```bash
-aldalog play song.alda              # Play file and exit
-aldalog play -sf gm.sf2 song.alda   # Play with built-in synth
+aldalog play song.alda              # Play Alda file and exit
+aldalog play song.csd               # Play Csound file and exit
+aldalog play -sf gm.sf2 song.alda   # Play Alda with built-in synth
+aldalog play -v song.csd            # Play with verbose output
 ```
 
 ## Lua Scripting (Editor)
@@ -229,16 +232,27 @@ if loki.alda.csound_available() then
 end
 ```
 
+### Standalone CSD Playback
+
+You can also open and play `.csd` files directly without using them as MIDI instrument definitions:
+
+```bash
+aldalog song.csd           # Edit CSD file, Ctrl-P to play
+aldalog play song.csd      # Headless playback
+```
+
+This plays the CSD file's embedded score section using Csound's native playback, not the MIDI-driven synthesis mode.
+
 ### Lua API
 
 ```lua
 -- Check availability
 loki.alda.csound_available()      -- true if compiled with Csound
 
--- Load instruments from .csd file
+-- Load instruments from .csd file (for MIDI-driven synthesis)
 loki.alda.csound_load("instruments.csd")
 
--- Enable/disable Csound
+-- Enable/disable Csound (for MIDI-driven synthesis)
 loki.alda.set_csound(true)        -- Enable Csound (disables TSF)
 loki.alda.set_csound(false)       -- Disable Csound
 
@@ -246,6 +260,11 @@ loki.alda.set_csound(false)       -- Disable Csound
 loki.alda.set_backend("csound")   -- Use Csound synthesis
 loki.alda.set_backend("tsf")      -- Use TinySoundFont (SoundFont)
 loki.alda.set_backend("midi")     -- Use external MIDI only
+
+-- Standalone CSD playback (plays score section)
+loki.alda.csound_play("song.csd") -- Play CSD file asynchronously
+loki.alda.csound_playing()        -- Check if playback is active
+loki.alda.csound_stop()           -- Stop playback
 ```
 
 ### Default Instruments

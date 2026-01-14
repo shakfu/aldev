@@ -533,6 +533,30 @@ int loki_alda_csound_load_csd(editor_ctx_t *ctx, const char *path) {
     return 0;
 }
 
+int loki_alda_csound_play_async(const char *path) {
+    if (!path || !*path) {
+        set_error("Invalid CSD path");
+        return -1;
+    }
+
+    int result = alda_csound_play_file_async(path);
+    if (result != 0) {
+        const char *err = alda_csound_get_error();
+        set_error(err ? err : "Failed to start playback");
+        return -1;
+    }
+
+    return 0;
+}
+
+int loki_alda_csound_playback_active(void) {
+    return alda_csound_playback_active();
+}
+
+void loki_alda_csound_stop_playback(void) {
+    alda_csound_stop_playback();
+}
+
 /* ======================= Main Loop Integration ======================= */
 
 void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L) {

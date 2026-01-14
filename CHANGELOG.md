@@ -19,6 +19,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Standalone CSD File Support**: Edit and play Csound .csd files directly
+  - `aldalog song.csd` - Open CSD file in editor with syntax highlighting
+  - `aldalog play song.csd` - Play CSD file headlessly and exit
+  - `Ctrl-P` in editor plays the CSD file using Csound's embedded score section
+  - `Ctrl-G` stops CSD playback
+  - Async playback allows editing while audio plays
+  - **Lua API**:
+    - `loki.alda.csound_play(path)` - Play a CSD file asynchronously
+    - `loki.alda.csound_playing()` - Check if CSD playback is active
+    - `loki.alda.csound_stop()` - Stop CSD playback
+  - Lua keybindings in `.aldalog/keybindings/alda_keys.lua` automatically detect .csd files
+
 - **Csound Synthesis Backend**: Optional advanced synthesis engine as alternative to TinySoundFont
   - Full Csound 6.18.1 integration for powerful synthesis beyond sample playback
   - Independent miniaudio audio device (each backend manages its own audio output)
@@ -128,6 +140,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Binary size reduced from 1.2MB to 1.1MB
 
 ### Fixed
+
+- **Csound Audio Quality**: Fixed poor audio quality in Csound backend
+  - Root cause: Audio output was not normalized by Csound's 0dBFS scaling factor
+  - CSD files without explicit `0dbfs` setting default to 32768, causing clipping/distortion
+  - Now divides all audio samples by `csoundGet0dBFS()` to normalize to -1.0 to 1.0 range
+  - Also increased audio buffer size from 512 to 1024 frames to reduce glitches
+
+- **Clean Ctrl-C Handling for CSD Playback**: Fixed messy exit when interrupting `aldalog play`
+  - Previously required multiple Ctrl-C presses and produced backtrace/crash output
+  - Added proper SIGINT signal handler for blocking playback mode
+  - Now cleanly stops playback and shows "Stopping playback" message
+  - Exits gracefully without error codes or crash output
 
 - **Csound Audio Not Playing**: Fixed Csound synthesis producing no audio output
   - Root cause: `async.c` event dispatcher was routing MIDI events only to TSF, ignoring Csound

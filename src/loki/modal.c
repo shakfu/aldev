@@ -38,6 +38,7 @@
 #include "undo.h"
 #include "buffers.h"
 #include "alda.h"
+#include "alda/csound_backend.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -52,6 +53,14 @@
 
 /* Number of times CTRL-Q must be pressed before actually quitting */
 #define KILO_QUIT_TIMES 3
+
+/* Helper: check if a filename has .csd extension */
+static int is_csd_file(const char *filename) {
+    if (!filename) return 0;
+    size_t len = strlen(filename);
+    if (len < 4) return 0;
+    return strcmp(filename + len - 4, ".csd") == 0;
+}
 
 /* Try to dispatch a keypress to a Lua keymap callback.
  * Checks _loki_keymaps.{mode}[keycode] for a registered function.
@@ -365,8 +374,15 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             }
             break;
         case CTRL_E:
-            /* Eval selection (or current part) as Alda */
+            /* Eval selection (or current part) */
             {
+                /* Handle .csd files - partial playback not supported */
+                if (is_csd_file(ctx->filename)) {
+                    editor_set_status_msg(ctx, "Partial playback not supported for .csd files (use Ctrl-P)");
+                    break;
+                }
+
+                /* Handle .alda files with Alda interpreter */
                 char *code = get_selection_text(ctx);
                 if (!code && ctx->numrows > 0 && ctx->cy < ctx->numrows) {
                     /* No selection - use current part */
@@ -398,8 +414,37 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             }
             break;
         case CTRL_P:
-            /* Play entire file as Alda */
+            /* Play entire file */
             {
+                /* DEBUG: show filename */
+                editor_set_status_msg(ctx, "DEBUG: filename='%s' is_csd=%d",
+                    ctx->filename ? ctx->filename : "(null)",
+                    is_csd_file(ctx->filename));
+                break;
+                /* Handle .csd files with Csound backend */
+                if (is_csd_file(ctx->filename)) {
+                    if (ctx->dirty) {
+                        editor_set_status_msg(ctx, "Save file first (Ctrl-S) before playing");
+                        break;
+                    }
+                    if (!ctx->filename) {
+                        editor_set_status_msg(ctx, "No filename - save file first");
+                        break;
+                    }
+                    /* Stop any existing playback */
+                    alda_csound_stop_playback();
+                    /* Start async playback */
+                    int result = alda_csound_play_file_async(ctx->filename);
+                    if (result == 0) {
+                        editor_set_status_msg(ctx, "Playing %s (Ctrl-G to stop)", ctx->filename);
+                    } else {
+                        const char *err = alda_csound_get_error();
+                        editor_set_status_msg(ctx, "Csound error: %s", err ? err : "failed to play");
+                    }
+                    break;
+                }
+
+                /* Handle .alda files with Alda interpreter */
                 if (ctx->numrows == 0) {
                     editor_set_status_msg(ctx, "Empty file");
                     break;
@@ -441,8 +486,15 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
             }
             break;
         case CTRL_G:
-            /* Stop Alda playback */
-            if (loki_alda_is_initialized(ctx)) {
+            /* Stop playback */
+            if (is_csd_file(ctx->filename)) {
+                /* Stop Csound playback */
+                if (alda_csound_playback_active()) {
+                    alda_csound_stop_playback();
+                    editor_set_status_msg(ctx, "Stopped");
+                }
+            } else if (loki_alda_is_initialized(ctx)) {
+                /* Stop Alda playback */
                 loki_alda_stop_all(ctx);
                 editor_set_status_msg(ctx, "Stopped");
             }
@@ -519,10 +571,41 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
             break;
         case CTRL_E:
         case CTRL_P:
-            /* Play entire file as Alda */
+            /* Play file or selection */
             {
-                char *code = NULL;
                 int play_file = (c == CTRL_P);
+
+                /* Handle .csd files with Csound backend */
+                if (is_csd_file(ctx->filename)) {
+                    if (c == CTRL_E) {
+                        /* Ctrl-E: partial playback not supported for CSD */
+                        editor_set_status_msg(ctx, "Partial playback not supported for .csd files (use Ctrl-P)");
+                        break;
+                    }
+                    /* Ctrl-P: play the entire CSD file */
+                    if (ctx->dirty) {
+                        editor_set_status_msg(ctx, "Save file first (Ctrl-S) before playing");
+                        break;
+                    }
+                    if (!ctx->filename) {
+                        editor_set_status_msg(ctx, "No filename - save file first");
+                        break;
+                    }
+                    /* Stop any existing playback */
+                    alda_csound_stop_playback();
+                    /* Start async playback */
+                    int result = alda_csound_play_file_async(ctx->filename);
+                    if (result == 0) {
+                        editor_set_status_msg(ctx, "Playing %s (Ctrl-G to stop)", ctx->filename);
+                    } else {
+                        const char *err = alda_csound_get_error();
+                        editor_set_status_msg(ctx, "Csound error: %s", err ? err : "failed to play");
+                    }
+                    break;
+                }
+
+                /* Handle .alda files with Alda interpreter */
+                char *code = NULL;
 
                 if (play_file) {
                     /* Play entire file */
@@ -577,8 +660,15 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
             }
             break;
         case CTRL_G:
-            /* Stop Alda playback */
-            if (loki_alda_is_initialized(ctx)) {
+            /* Stop playback */
+            if (is_csd_file(ctx->filename)) {
+                /* Stop Csound playback */
+                if (alda_csound_playback_active()) {
+                    alda_csound_stop_playback();
+                    editor_set_status_msg(ctx, "Stopped");
+                }
+            } else if (loki_alda_is_initialized(ctx)) {
+                /* Stop Alda playback */
                 loki_alda_stop_all(ctx);
                 editor_set_status_msg(ctx, "Stopped");
             }

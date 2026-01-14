@@ -10,6 +10,7 @@
 #include "alda/context.h"
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
+#include "alda/csound_backend.h"
 #include "alda/scheduler.h"
 #include "alda/interpreter.h"
 #include "alda/async.h"
@@ -658,6 +659,14 @@ static void repl_loop(AldaContext *ctx) {
  * File Playback (headless)
  * ============================================================================ */
 
+/* Helper function to check for .csd extension */
+static int is_csd_file(const char *path) {
+    if (!path) return 0;
+    size_t len = strlen(path);
+    if (len < 4) return 0;
+    return strcmp(path + len - 4, ".csd") == 0;
+}
+
 int alda_play_main(int argc, char **argv) {
     int verbose = 0;
     const char *soundfont_path = NULL;
@@ -676,8 +685,22 @@ int alda_play_main(int argc, char **argv) {
     }
 
     if (!input_file) {
-        fprintf(stderr, "Usage: alda play [-sf soundfont.sf2] file.alda\n");
+        fprintf(stderr, "Usage: aldalog play [-v] [-sf soundfont.sf2] <file.alda|file.csd>\n");
         return 1;
+    }
+
+    /* Handle .csd files with Csound backend */
+    if (is_csd_file(input_file)) {
+        if (soundfont_path) {
+            fprintf(stderr, "Warning: -sf option ignored for .csd files\n");
+        }
+        int result = alda_csound_play_file(input_file, verbose);
+        if (result != 0) {
+            const char *err = alda_csound_get_error();
+            fprintf(stderr, "Error: %s\n", err ? err : "Failed to play CSD file");
+            return 1;
+        }
+        return 0;
     }
 
     /* Initialize */

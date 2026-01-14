@@ -11,6 +11,12 @@
 local M = {}
 
 -- Helpers
+local function is_csd_file()
+    local filename = loki.get_filename()
+    if not filename then return false end
+    return filename:sub(-4):lower() == ".csd"
+end
+
 local function get_buffer_contents()
     local lines = {}
     local num_lines = loki.get_lines()
@@ -156,8 +162,33 @@ function M.eval_part()
     dbg("eval_part() done")
 end
 
--- Play entire file as Alda (Ctrl-P)
+-- Play entire file as Alda or Csound (Ctrl-P)
 function M.play_file()
+    -- Check if this is a CSD file
+    if is_csd_file() then
+        local filename = loki.get_filename()
+        if not filename then
+            loki.status("No file to play")
+            return
+        end
+
+        -- Check if Csound is available
+        if not loki.alda.csound_available() then
+            loki.status("Csound backend not available")
+            return
+        end
+
+        -- Play the CSD file
+        local ok, err = loki.alda.csound_play(filename)
+        if ok then
+            loki.status("Playing CSD: " .. filename)
+        else
+            loki.status("Csound error: " .. (err or "playback failed"))
+        end
+        return
+    end
+
+    -- Otherwise, treat as Alda file
     local code = get_buffer_contents()
 
     if not code or code == "" then
@@ -183,13 +214,21 @@ function M.play_file()
     end
 end
 
--- Stop all Alda playback (Ctrl-G)
+-- Stop all playback (Ctrl-G)
 function M.stop()
+    -- Stop Csound playback if active
+    if loki.alda.csound_playing and loki.alda.csound_playing() then
+        loki.alda.csound_stop()
+        loki.status("Stopped")
+        return
+    end
+
+    -- Stop Alda playback
     if loki.alda.is_initialized() then
         loki.alda.stop_all()
         loki.status("Stopped")
     else
-        loki.status("Alda not initialized")
+        loki.status("Nothing playing")
     end
 end
 
