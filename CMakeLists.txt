@@ -46,30 +46,98 @@ if (LOKI_BUILD_SHARED)
     set(LOKI_LIBRARY_TYPE SHARED)
 endif()
 
+# libalda - Alda music language library (from src/alda/)
+set(LIBALDA_SOURCES
+    src/alda/tokens.c
+    src/alda/error.c
+    src/alda/scanner.c
+    src/alda/ast.c
+    src/alda/parser.c
+    src/alda/context.c
+    src/alda/instruments.c
+    src/alda/midi_backend.c
+    src/alda/tsf_backend.c
+    src/alda/csound_backend.c
+    src/alda/scheduler.c
+    src/alda/interpreter.c
+    src/alda/attributes.c
+    src/alda/async.c
+)
+
+add_library(alda STATIC ${LIBALDA_SOURCES})
+add_library(alda::alda ALIAS alda)
+
+target_include_directories(alda
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/TinySoundFont
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/miniaudio
+)
+
+target_link_libraries(alda PUBLIC libremidi uv_a)
+
+if(APPLE)
+    target_link_libraries(alda PUBLIC
+        "-framework CoreMIDI"
+        "-framework CoreFoundation"
+        "-framework CoreAudio"
+        "-framework AudioToolbox"
+    )
+elseif(UNIX AND NOT APPLE)
+    target_compile_definitions(alda PRIVATE _GNU_SOURCE)
+    find_package(ALSA)
+    if(ALSA_FOUND)
+        target_link_libraries(alda PUBLIC ${ALSA_LIBRARIES})
+        target_include_directories(alda PRIVATE ${ALSA_INCLUDE_DIRS})
+    endif()
+    target_link_libraries(alda PUBLIC pthread dl m)
+endif()
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(alda PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Csound backend for alda (optional)
+if(BUILD_CSOUND_BACKEND)
+    target_compile_definitions(alda PRIVATE BUILD_CSOUND_BACKEND)
+    target_include_directories(alda PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/H
+        ${CMAKE_BINARY_DIR}/thirdparty/csound-6.18.1/include
+    )
+    if(APPLE)
+        target_link_libraries(alda PRIVATE CsoundLib64-static)
+    else()
+        target_link_libraries(alda PRIVATE csound64-static)
+    endif()
+endif()
+
+# libloki - Editor library (from src/loki/)
 add_library(libloki ${LOKI_LIBRARY_TYPE}
-    src/loki_core.c
-    src/loki_lua.c
-    src/loki_editor.c
-    src/loki_syntax.c
-    src/loki_indent.c
-    src/loki_languages.c
-    src/loki_selection.c
-    src/loki_search.c
-    src/loki_modal.c
-    src/loki_command.c
-    src/loki_terminal.c
-    src/loki_undo.c
-    src/loki_buffers.c
-    src/loki_alda.c
-    src/loki_link.c
-    src/loki_midi_export.cpp
+    src/loki/core.c
+    src/loki/lua.c
+    src/loki/editor.c
+    src/loki/syntax.c
+    src/loki/indent.c
+    src/loki/languages.c
+    src/loki/selection.c
+    src/loki/search.c
+    src/loki/modal.c
+    src/loki/command.c
+    src/loki/terminal.c
+    src/loki/undo.c
+    src/loki/buffers.c
+    src/loki/alda.c
+    src/loki/link.c
+    src/loki/midi_export.cpp
 )
 
 target_include_directories(libloki
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${LUA_INCLUDE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/alda-midi/lib/include
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/midifile/include
 )
@@ -96,7 +164,7 @@ endif()
 # Note: internal target name is alda_bin to avoid conflict with libalda
 add_executable(alda_bin
     src/main.c
-    src/alda_repl.c
+    src/repl.c
 )
 set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "aldalog")
 
@@ -111,7 +179,7 @@ endif()
 target_include_directories(alda_bin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/alda-midi/lib/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(alda_bin PRIVATE -Wall -Wextra -pedantic)
@@ -127,161 +195,13 @@ enable_testing()
 add_test(NAME aldalog_version COMMAND $<TARGET_FILE:alda_bin> --version)
 add_test(NAME aldalog_help COMMAND $<TARGET_FILE:alda_bin> --help)
 
-# Test framework library
+# Test framework library (shared by all tests)
 add_library(test_framework STATIC tests/test_framework.c)
 target_include_directories(test_framework PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/tests
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# Unit tests for core functionality
-add_executable(test_core tests/test_core.c)
-target_include_directories(test_core PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-)
-target_link_libraries(test_core PRIVATE libloki test_framework)
-add_test(NAME test_core COMMAND test_core)
-
-# Integration tests for file I/O
-add_executable(test_file_io tests/test_file_io.c)
-target_include_directories(test_file_io PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-)
-target_link_libraries(test_file_io PRIVATE libloki test_framework)
-add_test(NAME test_file_io COMMAND test_file_io)
-
-# Integration tests for Lua API
-add_executable(test_lua_api tests/test_lua_api.c)
-target_include_directories(test_lua_api PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_lua_api PRIVATE libloki test_framework)
-add_test(NAME test_lua_api COMMAND test_lua_api)
-
-# Unit tests for language registration helpers
-add_executable(test_lang_registration tests/test_lang_registration.c)
-target_include_directories(test_lang_registration PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_lang_registration PRIVATE libloki test_framework)
-add_test(NAME test_lang_registration COMMAND test_lang_registration)
-
-# Unit tests for modal editing (vim-like modes)
-add_executable(test_modal tests/test_modal.c)
-target_include_directories(test_modal PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_modal PRIVATE libloki test_framework)
-add_test(NAME test_modal COMMAND test_modal)
-
-# Unit tests for syntax highlighting
-add_executable(test_syntax tests/test_syntax.c)
-target_include_directories(test_syntax PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_syntax PRIVATE libloki test_framework)
-add_test(NAME test_syntax COMMAND test_syntax)
-
-# Unit tests for search functionality
-add_executable(test_search tests/test_search.c)
-target_include_directories(test_search PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_search PRIVATE libloki test_framework)
-add_test(NAME test_search COMMAND test_search)
-
-# Unit tests for buffer management
-add_executable(test_buffers tests/test_buffers.c)
-target_include_directories(test_buffers PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_buffers PRIVATE libloki test_framework)
-add_test(NAME test_buffers COMMAND test_buffers)
-
-# Unit tests for auto-indentation
-add_executable(test_indent tests/test_indent.c)
-target_include_directories(test_indent PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_indent PRIVATE libloki test_framework)
-add_test(NAME test_indent COMMAND test_indent)
-
-# Unit tests for undo/redo system
-add_executable(test_undo tests/test_undo.c)
-target_include_directories(test_undo PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_undo PRIVATE libloki test_framework)
-add_test(NAME test_undo COMMAND test_undo)
-
-# Unit tests for selection and clipboard operations
-add_executable(test_selection tests/test_selection.c)
-target_include_directories(test_selection PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_selection PRIVATE libloki test_framework)
-add_test(NAME test_selection COMMAND test_selection)
-
-# Unit tests for vim-style command mode
-add_executable(test_command tests/test_command.c)
-target_include_directories(test_command PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_command PRIVATE libloki test_framework)
-add_test(NAME test_command COMMAND test_command)
-
-# Unit tests for terminal buffer operations
-add_executable(test_terminal tests/test_terminal.c)
-target_include_directories(test_terminal PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_terminal PRIVATE libloki test_framework)
-add_test(NAME test_terminal COMMAND test_terminal)
-
-# Unit tests for row operations
-add_executable(test_row_operations tests/test_row_operations.c)
-target_include_directories(test_row_operations PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${LUA_INCLUDE_DIR}
-)
-target_link_libraries(test_row_operations PRIVATE libloki test_framework)
-add_test(NAME test_row_operations COMMAND test_row_operations)
+# Test subdirectories
+add_subdirectory(tests/loki)
+add_subdirectory(tests/alda)

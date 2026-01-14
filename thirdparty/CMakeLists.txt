@@ -13,16 +13,7 @@ set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(libuv)
 
-# alda - Music notation language library
-# Note: alda's CMakeLists references TinySoundFont and miniaudio paths
-# We need to adjust the include paths for our directory structure
-add_subdirectory(alda-midi/lib)
-
-# Make TinySoundFont and miniaudio headers available to alda
-target_include_directories(alda PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/TinySoundFont
-    ${CMAKE_CURRENT_SOURCE_DIR}/miniaudio
-)
+# Note: libalda is now built from src/alda/ in main CMakeLists.txt
 
 # Ableton Link - Music synchronization library (GPL v2+)
 # Creates Ableton::Link interface target

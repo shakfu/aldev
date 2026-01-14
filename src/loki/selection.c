@@ -1,0 +1,322 @@
+/* loki_selection.c - Text selection and clipboard functionality
+ *
+ * This module handles visual text selection and clipboard operations using
+ * OSC 52 escape sequences. OSC 52 allows terminal-based clipboard access
+ * that works over SSH and doesn't require X11 or platform-specific APIs.
+ *
+ * Features:
+ * - Visual selection checking (is position within selection?)
+ * - Base64 encoding for OSC 52 clipboard protocol
+ * - Copy selection to clipboard using terminal escape sequences
+ *
+ * OSC 52 Protocol:
+ * - Sequence: ESC]52;c;<base64_text>BEL
+ * - Supported by: xterm, iTerm2, tmux, screen, kitty, alacritty
+ * - Works over SSH without X11 forwarding
+ */
+
+#include "selection.h"
+#include "internal.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdint.h>
+
+/* Base64 encoding table for OSC 52 clipboard protocol */
+static const char base64_table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/* Check if a position (row, col) is within the current selection.
+ * Returns 1 if selected, 0 otherwise.
+ * Handles both single-line and multi-line selections. */
+int is_selected(editor_ctx_t *ctx, int row, int col) {
+    if (!ctx->sel_active) return 0;
+
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
+
+    /* Ensure start comes before end */
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Check if row is in range */
+    if (row < start_y || row > end_y) return 0;
+
+    /* Single line selection */
+    if (start_y == end_y) {
+        return col >= start_x && col < end_x;
+    }
+
+    /* Multi-line selection */
+    if (row == start_y) {
+        return col >= start_x;
+    } else if (row == end_y) {
+        return col < end_x;
+    } else {
+        return 1; /* Entire line selected */
+    }
+}
+
+/* Base64 encode a string for OSC 52 clipboard protocol.
+ * Caller must free the returned string.
+ * Returns NULL on allocation failure. */
+char *base64_encode(const char *input, size_t len) {
+    size_t output_len = 4 * ((len + 2) / 3);
+    char *output = malloc(output_len + 1);
+    if (!output) return NULL;
+
+    size_t i, j;
+    for (i = 0, j = 0; i < len;) {
+        uint32_t octet_a = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t octet_b = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t octet_c = i < len ? (unsigned char)input[i++] : 0;
+        uint32_t triple = (octet_a << 16) + (octet_b << 8) + octet_c;
+
+        output[j++] = base64_table[(triple >> 18) & 0x3F];
+        output[j++] = base64_table[(triple >> 12) & 0x3F];
+        output[j++] = base64_table[(triple >> 6) & 0x3F];
+        output[j++] = base64_table[triple & 0x3F];
+    }
+
+    /* Add padding */
+    for (i = 0; i < (3 - len % 3) % 3; i++)
+        output[output_len - 1 - i] = '=';
+
+    output[output_len] = '\0';
+    return output;
+}
+
+/* Copy selected text to clipboard using OSC 52 escape sequence.
+ * This works over SSH and doesn't require X11 or platform-specific clipboard APIs.
+ * Clears the selection after successful copy. */
+void copy_selection_to_clipboard(editor_ctx_t *ctx) {
+    if (!ctx->sel_active) {
+        editor_set_status_msg(ctx, "No selection");
+        return;
+    }
+
+    /* Ensure start comes before end */
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
+
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Build selected text */
+    char *text = NULL;
+    size_t text_len = 0;
+    size_t text_capacity = 1024;
+    text = malloc(text_capacity);
+    if (!text) return;
+
+    for (int y = start_y; y <= end_y && y < ctx->numrows; y++) {
+        int x_start = (y == start_y) ? start_x : 0;
+        int x_end = (y == end_y) ? end_x : ctx->row[y].size;
+        if (x_end > ctx->row[y].size) x_end = ctx->row[y].size;
+
+        int len = x_end - x_start;
+        if (len > 0) {
+            while (text_len + len + 2 > text_capacity) {
+                text_capacity *= 2;
+                char *new_text = realloc(text, text_capacity);
+                if (!new_text) { free(text); return; }
+                text = new_text;
+            }
+            memcpy(text + text_len, ctx->row[y].chars + x_start, len);
+            text_len += len;
+        }
+        if (y < end_y) {
+            text[text_len++] = '\n';
+        }
+    }
+    text[text_len] = '\0';
+
+    /* Base64 encode */
+    char *encoded = base64_encode(text, text_len);
+    free(text);
+    if (!encoded) return;
+
+    /* Send OSC 52 sequence: ESC]52;c;<base64>BEL */
+    printf("\033]52;c;%s\007", encoded);
+    fflush(stdout);
+    free(encoded);
+
+    editor_set_status_msg(ctx, "Copied %d bytes to clipboard", (int)text_len);
+    ctx->sel_active = 0;  /* Clear selection after copy */
+}
+
+/* Forward declarations for row operations */
+void editor_row_del_char(editor_ctx_t *ctx, t_erow *row, int at);
+void editor_row_append_string(editor_ctx_t *ctx, t_erow *row, char *s, size_t len);
+void editor_del_row(editor_ctx_t *ctx, int at);
+void editor_update_row(editor_ctx_t *ctx, t_erow *row);
+
+/* Get selected text as a newly allocated string.
+ * Caller must free the returned string.
+ * Returns NULL if no selection or allocation failure. */
+char *get_selection_text(editor_ctx_t *ctx) {
+    if (!ctx->sel_active) {
+        return NULL;
+    }
+
+    /* Ensure start comes before end */
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
+
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Build selected text */
+    char *text = NULL;
+    size_t text_len = 0;
+    size_t text_capacity = 1024;
+    text = malloc(text_capacity);
+    if (!text) return NULL;
+
+    for (int y = start_y; y <= end_y && y < ctx->numrows; y++) {
+        int x_start = (y == start_y) ? start_x : 0;
+        int x_end = (y == end_y) ? end_x : ctx->row[y].size;
+        if (x_end > ctx->row[y].size) x_end = ctx->row[y].size;
+
+        int len = x_end - x_start;
+        if (len > 0) {
+            while (text_len + len + 2 > text_capacity) {
+                text_capacity *= 2;
+                char *new_text = realloc(text, text_capacity);
+                if (!new_text) { free(text); return NULL; }
+                text = new_text;
+            }
+            memcpy(text + text_len, ctx->row[y].chars + x_start, len);
+            text_len += len;
+        }
+        if (y < end_y) {
+            text[text_len++] = '\n';
+        }
+    }
+    text[text_len] = '\0';
+
+    return text;
+}
+
+/* Delete selected text from the buffer.
+ * Records undo operations for each deletion.
+ * Clears selection and positions cursor at selection start.
+ * Returns number of characters deleted, or 0 if no selection. */
+int delete_selection(editor_ctx_t *ctx) {
+    if (!ctx->sel_active || ctx->numrows == 0) {
+        return 0;
+    }
+
+    /* Normalize selection: ensure start comes before end */
+    int start_y = ctx->sel_start_y;
+    int start_x = ctx->sel_start_x;
+    int end_y = ctx->sel_end_y;
+    int end_x = ctx->sel_end_x;
+
+    if (start_y > end_y || (start_y == end_y && start_x > end_x)) {
+        int tmp;
+        tmp = start_y; start_y = end_y; end_y = tmp;
+        tmp = start_x; start_x = end_x; end_x = tmp;
+    }
+
+    /* Bounds checking */
+    if (start_y >= ctx->numrows) start_y = ctx->numrows - 1;
+    if (end_y >= ctx->numrows) end_y = ctx->numrows - 1;
+    if (start_y < 0) start_y = 0;
+    if (end_y < 0) end_y = 0;
+
+    t_erow *start_row = &ctx->row[start_y];
+    t_erow *end_row = &ctx->row[end_y];
+
+    if (start_x > start_row->size) start_x = start_row->size;
+    if (end_x > end_row->size) end_x = end_row->size;
+    if (start_x < 0) start_x = 0;
+    if (end_x < 0) end_x = 0;
+
+    int deleted_chars = 0;
+
+    /* Clear selection before modifying buffer */
+    ctx->sel_active = 0;
+
+    if (start_y == end_y) {
+        /* Single line selection: delete characters from start_x to end_x */
+        t_erow *row = &ctx->row[start_y];
+
+        /* Delete characters from end to start to avoid index shifting issues */
+        for (int i = end_x - 1; i >= start_x; i--) {
+            if (i < row->size) {
+                editor_row_del_char(ctx, row, i);
+                deleted_chars++;
+            }
+        }
+    } else {
+        /* Multi-line selection */
+
+        /* 1. Save text after end_x on end row (will be appended to start row) */
+        char *remaining = NULL;
+        int remaining_len = 0;
+        if (end_x < end_row->size) {
+            remaining_len = end_row->size - end_x;
+            remaining = malloc(remaining_len);
+            if (remaining) {
+                memcpy(remaining, end_row->chars + end_x, remaining_len);
+            }
+        }
+
+        /* 2. Truncate start row to start_x */
+        int chars_removed_start = start_row->size - start_x;
+        start_row->chars[start_x] = '\0';
+        start_row->size = start_x;
+        editor_update_row(ctx, start_row);
+        deleted_chars += chars_removed_start;
+
+        /* 3. Delete middle rows and end row (from end to start to avoid index shifting) */
+        for (int y = end_y; y > start_y; y--) {
+            deleted_chars += ctx->row[y].size + 1; /* +1 for newline */
+            editor_del_row(ctx, y);
+        }
+
+        /* 4. Append remaining text from end row to start row */
+        if (remaining && remaining_len > 0) {
+            /* Refresh start_row pointer after possible reallocation */
+            start_row = &ctx->row[start_y];
+            editor_row_append_string(ctx, start_row, remaining, remaining_len);
+        }
+        free(remaining);
+    }
+
+    /* Position cursor at start of deleted region */
+    ctx->cy = start_y - ctx->rowoff;
+    if (ctx->cy < 0) {
+        ctx->rowoff = start_y;
+        ctx->cy = 0;
+    } else if (ctx->cy >= ctx->screenrows) {
+        ctx->rowoff = start_y - ctx->screenrows + 1;
+        ctx->cy = ctx->screenrows - 1;
+    }
+
+    ctx->cx = start_x - ctx->coloff;
+    if (ctx->cx < 0) {
+        ctx->coloff = start_x;
+        ctx->cx = 0;
+    }
+
+    ctx->dirty++;
+
+    return deleted_chars;
+}

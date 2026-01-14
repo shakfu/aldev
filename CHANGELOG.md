@@ -37,10 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Dependencies**: Csound 6.18.1, libsndfile (both built from source in thirdparty/)
   - **Binary Size**: ~4.4MB with Csound vs ~1.6MB without
   - **Files Added**:
-    - `thirdparty/alda-midi/lib/src/csound_backend.c`
-    - `thirdparty/alda-midi/lib/include/alda/csound_backend.h`
+    - `src/alda/csound_backend.c`
+    - `include/alda/csound_backend.h`
     - `.aldalog/csound/default.csd`
-    - `CSOUND_PLAN.md`
 
 - **Ableton Link Integration**: Tempo synchronization with other Link-enabled applications
   - Sync tempo with Ableton Live, hardware devices, and other Link-compatible software on local network
@@ -99,6 +98,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Project Restructure**: Reorganized source code for cleaner separation of concerns
+  - Moved alda-midi library from `thirdparty/alda-midi/lib/` to `src/alda/` and `include/alda/`
+  - Renamed loki source files from `src/loki_*.c` to `src/loki/*.c`
+  - Organized tests into `tests/loki/` and `tests/alda/` subdirectories
+  - Simplified CMakeLists.txt (~360 lines to ~210 lines)
 - **Renamed project to aldalog instead of aldev**.
 - **Stripped Binary**: Binary is now stripped by default, reducing size significantly
 - **Simplified Configuration**: Renamed `.loki/` to `.aldalog/` configuration directory

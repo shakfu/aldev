@@ -256,6 +256,23 @@ The included `.aldalog/csound/default.csd` provides 16 instruments mapped to MID
 
 Csound and TinySoundFont each have independent miniaudio audio devices. When you switch backends, the appropriate audio device is started/stopped. They do not share audio resources, allowing clean separation of concerns.
 
+## Project Structure
+
+```
+src/
+  loki/           # Editor components (core, modal, syntax, lua, etc.)
+  alda/           # Alda music library (parser, interpreter, backends)
+  main.c          # Entry point
+  repl.c          # REPL mode
+include/
+  loki/           # Public loki headers
+  alda/           # Public alda headers
+tests/
+  loki/           # Editor unit tests
+  alda/           # Alda parser tests
+thirdparty/       # External dependencies (lua, libuv, libremidi, etc.)
+```
+
 ## Documentation
 
 See the `docs` folder for full technical documentation.
