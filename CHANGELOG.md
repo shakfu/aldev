@@ -19,6 +19,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Comprehensive Alda Interpreter Tests**: Unit tests for MIDI event generation (`tests/alda/test_interpreter.c`)
+  - 44 test cases covering core interpreter functionality
+  - Basic notes: pitches, accidentals, octaves, sequences
+  - Durations: note lengths, dotted, tied
+  - Chords and chord voicings with octave changes
+  - Tempo and volume/dynamics attributes
+  - Repeats and alternate endings
+  - Variables (definition, reference, redefinition)
+  - Markers (@marker jumps)
+  - Polyphonic voices (V1:, V2:, V0:)
+  - Cram expressions (time compression)
+  - Key signatures and transposition
+  - Pan and quantization
+  - Multiple parts and part groups
+  - Error handling (undefined variables, markers, missing parts)
+  - Unit tests for pitch calculation and duration functions
+
 - **Standalone CSD File Support**: Edit and play Csound .csd files directly
   - `psnd song.csd` - Open CSD file in editor with syntax highlighting
   - `psnd play song.csd` - Play CSD file headlessly and exit
