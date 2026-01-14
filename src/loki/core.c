@@ -278,6 +278,7 @@ char *editor_rows_to_string(editor_ctx_t *ctx, int *buflen) {
 /* Insert a character at the specified position in a row, moving the remaining
  * chars on the right if needed. */
 void editor_row_insert_char(editor_ctx_t *ctx, t_erow *row, int at, int c) {
+    if (!row) return;
     char *new_chars;
     if (at > row->size) {
         /* Pad the string with spaces if the insert location is outside the

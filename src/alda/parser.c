@@ -529,7 +529,9 @@ static AldaNode* parse_postfix(AldaParser* p, AldaNode* event) {
         if (parse_rep_spec(tok->lexeme, &reps, &rep_count) == 0 && rep_count > 0) {
             event = alda_node_on_reps(event, reps, rep_count, tok->pos);
         } else {
-            /* Failed to parse - create empty on_reps (will always play) */
+            /* Failed to parse or empty - free any allocated memory */
+            free(reps);
+            /* Create empty on_reps (will always play) */
             event = alda_node_on_reps(event, NULL, 0, tok->pos);
         }
     }
