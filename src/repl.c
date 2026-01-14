@@ -19,6 +19,7 @@
 #include "loki/internal.h"
 #include "loki/terminal.h"
 #include "loki/syntax.h"
+#include "loki/lua.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,10 +59,6 @@ typedef struct {
     unsigned char hl[MAX_INPUT_LENGTH]; /* Highlight types per character */
 } ReplLineEditor;
 
-/* Editor context for syntax highlighting (minimal, REPL-only) */
-static editor_ctx_t repl_syntax_ctx;
-static int repl_syntax_initialized = 0;
-
 static void repl_editor_init(ReplLineEditor *ed) {
     memset(ed, 0, sizeof(*ed));
     ed->history_idx = -1;
@@ -90,15 +87,6 @@ static void repl_add_history(ReplLineEditor *ed, const char *line) {
     }
 
     ed->history[ed->history_len++] = strdup(line);
-}
-
-static void repl_init_syntax_context(void) {
-    if (repl_syntax_initialized) return;
-
-    memset(&repl_syntax_ctx, 0, sizeof(repl_syntax_ctx));
-    syntax_init_default_colors(&repl_syntax_ctx);
-    syntax_select_for_filename(&repl_syntax_ctx, "input.alda");
-    repl_syntax_initialized = 1;
 }
 
 /* Original termios for REPL raw mode (separate from editor) */
@@ -144,8 +132,8 @@ static int repl_is_separator(int c, const char *separators) {
     return (separators && strchr(separators, c) != NULL);
 }
 
-static void repl_highlight_line(ReplLineEditor *ed) {
-    struct t_editor_syntax *syn = repl_syntax_ctx.syntax;
+static void repl_highlight_line(editor_ctx_t *syntax_ctx, ReplLineEditor *ed) {
+    struct t_editor_syntax *syn = syntax_ctx->syntax;
 
     memset(ed->hl, HL_NORMAL, ed->len);
 
@@ -242,7 +230,7 @@ static void repl_highlight_line(ReplLineEditor *ed) {
     }
 }
 
-static void repl_render_line(ReplLineEditor *ed, const char *prompt) {
+static void repl_render_line(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *prompt) {
     struct abuf ab = ABUF_INIT;
 
     /* Move to start of line, clear it */
@@ -252,14 +240,14 @@ static void repl_render_line(ReplLineEditor *ed, const char *prompt) {
     terminal_buffer_append(&ab, prompt, strlen(prompt));
 
     /* Highlight the input */
-    repl_highlight_line(ed);
+    repl_highlight_line(syntax_ctx, ed);
 
     /* Output highlighted text */
     int current_hl = -1;
     for (int i = 0; i < ed->len; i++) {
         if (ed->hl[i] != current_hl) {
             char color[32];
-            int clen = syntax_format_color(&repl_syntax_ctx, ed->hl[i], color, sizeof(color));
+            int clen = syntax_format_color(syntax_ctx, ed->hl[i], color, sizeof(color));
             terminal_buffer_append(&ab, color, clen);
             current_hl = ed->hl[i];
         }
@@ -281,7 +269,7 @@ static void repl_render_line(ReplLineEditor *ed, const char *prompt) {
     terminal_buffer_free(&ab);
 }
 
-static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
+static char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *prompt) {
     /* Reset editor state for new line */
     ed->buf[0] = '\0';
     ed->len = 0;
@@ -289,7 +277,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
     ed->history_idx = -1;
 
     /* Initial render */
-    repl_render_line(ed, prompt);
+    repl_render_line(syntax_ctx, ed, prompt);
 
     while (1) {
         fflush(stdout); /* Ensure output is flushed before blocking read */
@@ -308,7 +296,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
             ed->len = 0;
             ed->pos = 0;
             write(STDOUT_FILENO, "^C\r\n", 4);
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -323,7 +311,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
                 memmove(&ed->buf[ed->pos], &ed->buf[ed->pos + 1], ed->len - ed->pos);
                 ed->len--;
             }
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -334,7 +322,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
                 ed->pos--;
                 ed->len--;
             }
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -344,31 +332,31 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
                 memmove(&ed->buf[ed->pos], &ed->buf[ed->pos + 1], ed->len - ed->pos);
                 ed->len--;
             }
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == ARROW_LEFT) {
             if (ed->pos > 0) ed->pos--;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == ARROW_RIGHT) {
             if (ed->pos < ed->len) ed->pos++;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == HOME_KEY || c == CTRL_A) {
             ed->pos = 0;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == END_KEY || c == CTRL_E) {
             ed->pos = ed->len;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -391,7 +379,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
             strcpy(ed->buf, ed->history[ed->history_idx]);
             ed->len = strlen(ed->buf);
             ed->pos = ed->len;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -411,7 +399,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
                 ed->len = ed->saved_len;
                 ed->pos = ed->len;
             }
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -420,7 +408,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
             ed->buf[0] = '\0';
             ed->len = 0;
             ed->pos = 0;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -428,7 +416,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
             /* Kill to end of line */
             ed->len = ed->pos;
             ed->buf[ed->len] = '\0';
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -438,7 +426,7 @@ static char *repl_readline(ReplLineEditor *ed, const char *prompt) {
             ed->buf[ed->pos] = c;
             ed->pos++;
             ed->len++;
-            repl_render_line(ed, prompt);
+            repl_render_line(syntax_ctx, ed, prompt);
         }
     }
 }
@@ -503,12 +491,10 @@ static void print_repl_help(void) {
  * REPL Loop
  * ============================================================================ */
 
-static void repl_loop(AldaContext *ctx) {
+static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
 
-    /* Initialize syntax highlighting */
-    repl_init_syntax_context();
     repl_editor_init(&ed);
 
     printf("Alda REPL %s (type :h for help, :q to quit)\n", LOKI_VERSION);
@@ -520,7 +506,7 @@ static void repl_loop(AldaContext *ctx) {
     repl_enable_raw_mode();
 
     while (1) {
-        input = repl_readline(&ed, "alda> ");
+        input = repl_readline(syntax_ctx, &ed, "alda> ");
 
         if (input == NULL) {
             /* EOF - exit cleanly */
@@ -976,8 +962,26 @@ int alda_repl_main(int argc, char **argv) {
 
         result = alda_events_play(&ctx);
     } else {
-        /* REPL mode */
-        repl_loop(&ctx);
+        /* REPL mode - initialize syntax highlighting with theme support */
+        editor_ctx_t syntax_ctx;
+        editor_ctx_init(&syntax_ctx);
+        syntax_init_default_colors(&syntax_ctx);
+        syntax_select_for_filename(&syntax_ctx, "input.alda");
+
+        /* Load Lua and themes for consistent highlighting */
+        struct loki_lua_opts lua_opts = {
+            .bind_editor = 1,
+            .load_config = 1,
+            .reporter = NULL
+        };
+        syntax_ctx.L = loki_lua_bootstrap(&syntax_ctx, &lua_opts);
+
+        repl_loop(&ctx, &syntax_ctx);
+
+        /* Cleanup Lua */
+        if (syntax_ctx.L) {
+            lua_close(syntax_ctx.L);
+        }
     }
 
     /* Cleanup */

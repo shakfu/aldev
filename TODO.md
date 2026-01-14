@@ -22,10 +22,6 @@
 
 ### Code Quality
 
-- [ ] Unify REPL and editor syntax highlighting
-  - REPL and editor have different highlighting styles
-  - REPL doesn't follow the current theme
-
 - [ ] Improve parser error recovery
   - More robust error recovery would improve REPL experience
   - Better error messages with context
@@ -150,6 +146,11 @@
 ---
 
 ## Completed
+
+- [x] Unify REPL and editor syntax highlighting
+  - REPL now loads Lua themes from `.psnd/init.lua`
+  - Both use same `editor_ctx_t` colors array
+  - Refactored `repl.c` to thread context through rendering
 
 - [x] Fix line numbers display
   - `loki.line_numbers(true)` in init.lua wasn't working

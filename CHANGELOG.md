@@ -181,6 +181,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Settings from init.lua were applied to initial context but lost when buffer system initialized
   - Now properly copies `line_numbers` setting when creating buffers
 
+- **REPL Syntax Highlighting Now Uses Themes**: REPL now uses the same color theme as the editor
+  - Previously: REPL used hardcoded default colors, ignoring `.psnd/init.lua` theme settings
+  - Now: REPL initializes Lua and loads themes from `.psnd/init.lua`
+  - Both editor and REPL now share consistent syntax highlighting colors
+  - Refactored `repl.c` to thread `editor_ctx_t` through rendering functions
+
 ---
 
 ## [0.1.1]
