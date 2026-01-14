@@ -206,6 +206,14 @@ int loki_alda_csound_load_csd(editor_ctx_t *ctx, const char *path);
  */
 int loki_alda_csound_is_available(void);
 
+/**
+ * Check if Csound synthesizer is currently enabled.
+ *
+ * @param ctx Editor context
+ * @return 1 if enabled, 0 if disabled
+ */
+int loki_alda_csound_is_enabled(editor_ctx_t *ctx);
+
 /* ======================= Main Loop Integration ======================= */
 
 /**

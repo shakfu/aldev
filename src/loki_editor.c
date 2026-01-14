@@ -250,17 +250,24 @@ static void lua_apply_highlight_row(editor_ctx_t *ctx, t_erow *row, int default_
 /* ======================== Main Editor Function =========================== */
 
 static void print_usage(void) {
-    printf("Usage: loki [options] <filename>\n");
+    printf("Usage: aldalog [options] <filename>\n");
     printf("\nOptions:\n");
-    printf("  --help              Show this help message\n");
-    printf("  --version           Show version information\n");
+    printf("  -h, --help          Show this help message\n");
+    printf("  -v, --version       Show version information\n");
+    printf("  -sf PATH            Use built-in synth with soundfont (.sf2)\n");
+    printf("  -cs PATH            Use Csound synthesis with .csd file\n");
     printf("\nInteractive mode (default):\n");
-    printf("  loki <filename>     Open file in interactive editor\n");
-    printf("\nKeybindings in interactive mode:\n");
+    printf("  aldalog <file.alda>           Open file in editor\n");
+    printf("  aldalog -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
+    printf("  aldalog -cs inst.csd song.alda Open with Csound synthesis\n");
+    printf("\nKeybindings:\n");
+    printf("  Ctrl-E    Play current part or selection\n");
+    printf("  Ctrl-P    Play entire file\n");
+    printf("  Ctrl-G    Stop playback\n");
     printf("  Ctrl-S    Save file\n");
     printf("  Ctrl-Q    Quit\n");
     printf("  Ctrl-F    Find\n");
-    printf("  Ctrl-L    Toggle Lua REPL\n");
+    printf("  Ctrl-L    Lua console\n");
 }
 
 int loki_editor_main(int argc, char **argv) {
@@ -268,41 +275,51 @@ int loki_editor_main(int argc, char **argv) {
     atexit(editor_atexit);
 
     /* Parse command-line arguments */
-    if (argc < 2) {
-        print_usage();
-        exit(1);
+    const char *filename = NULL;
+    const char *soundfont_path = NULL;
+    const char *csound_path = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            print_usage();
+            exit(0);
+        }
+        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("aldalog %s\n", LOKI_VERSION);
+            exit(0);
+        }
+        if (strcmp(argv[i], "-sf") == 0 && i + 1 < argc) {
+            soundfont_path = argv[++i];
+            continue;
+        }
+        if (strcmp(argv[i], "-cs") == 0 && i + 1 < argc) {
+            csound_path = argv[++i];
+            continue;
+        }
+        if (argv[i][0] == '-') {
+            fprintf(stderr, "Error: Unknown option: %s\n", argv[i]);
+            print_usage();
+            exit(1);
+        }
+        /* Non-option argument is the filename */
+        if (filename == NULL) {
+            filename = argv[i];
+        } else {
+            fprintf(stderr, "Error: Too many arguments\n");
+            print_usage();
+            exit(1);
+        }
     }
 
-    /* Check for --help flag */
-    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-        print_usage();
-        exit(0);
-    }
-
-    /* Check for --version flag */
-    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
-        printf("loki %s\n", LOKI_VERSION);
-        exit(0);
-    }
-
-    /* Check for unknown options */
-    if (argv[1][0] == '-') {
-        fprintf(stderr, "Error: Unknown option: %s\n", argv[1]);
-        print_usage();
-        exit(1);
-    }
-
-    /* Default: interactive mode */
-    if (argc != 2) {
-        fprintf(stderr, "Error: Too many arguments\n");
+    if (filename == NULL) {
         print_usage();
         exit(1);
     }
 
     /* Initialize editor core */
     init_editor(&E);
-    syntax_select_for_filename(&E, argv[1]);
-    editor_open(&E, argv[1]);
+    syntax_select_for_filename(&E, filename);
+    editor_open(&E, (char*)filename);
 
     /* Initialize Lua */
     struct loki_lua_opts opts = {
@@ -344,12 +361,40 @@ int loki_editor_main(int argc, char **argv) {
     /* Auto-initialize Alda for .alda files (must be after buffers_init) */
     {
         editor_ctx_t *ctx = buffer_get_current();
-        size_t flen = strlen(argv[1]);
-        if (ctx && flen >= 5 && strcmp(argv[1] + flen - 5, ".alda") == 0) {
+        size_t flen = strlen(filename);
+        if (ctx && flen >= 5 && strcmp(filename + flen - 5, ".alda") == 0) {
             int ret = loki_alda_init(ctx, NULL);
             if (ret == 0) {
                 ctx->alda_mode = 1;
-                editor_set_status_msg(ctx, "ALDA: Ctrl-E part, Ctrl-P file, Ctrl-G stop");
+
+                /* Load soundfont if specified */
+                if (soundfont_path) {
+                    if (loki_alda_load_soundfont(ctx, soundfont_path) == 0) {
+                        loki_alda_set_synth_enabled(ctx, 1);
+                        editor_set_status_msg(ctx, "ALDA: Using TinySoundFont (%s)", soundfont_path);
+                    } else {
+                        editor_set_status_msg(ctx, "Failed to load soundfont: %s", soundfont_path);
+                    }
+                }
+                /* Load Csound .csd if specified (takes precedence over soundfont) */
+                else if (csound_path) {
+                    if (loki_alda_csound_is_available()) {
+                        if (loki_alda_csound_load_csd(ctx, csound_path) == 0) {
+                            if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
+                                editor_set_status_msg(ctx, "ALDA: Using Csound (%s)", csound_path);
+                            } else {
+                                editor_set_status_msg(ctx, "Failed to enable Csound");
+                            }
+                        } else {
+                            editor_set_status_msg(ctx, "Failed to load CSD: %s", csound_path);
+                        }
+                    } else {
+                        editor_set_status_msg(ctx, "Csound not available (build with make csound)");
+                    }
+                }
+                else {
+                    editor_set_status_msg(ctx, "ALDA: Ctrl-E part, Ctrl-P file, Ctrl-G stop");
+                }
             } else {
                 const char *err = loki_alda_get_error(ctx);
                 editor_set_status_msg(ctx, "Alda init failed: %s", err ? err : "unknown error");

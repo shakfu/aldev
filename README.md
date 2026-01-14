@@ -61,11 +61,14 @@ REPL commands (use with or without `:` prefix):
 | `:synth` | Switch to built-in synth |
 | `:link [on\|off]` | Toggle Ableton Link sync |
 | `:export FILE` | Export to MIDI file |
+| `:csd [on\|off]` | Toggle Csound synthesis |
 
 ### Editor Mode (Live-Coding)
 
 ```bash
-aldalog song.alda          # Open file in editor
+aldalog song.alda                        # Open file in editor
+aldalog -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
+aldalog -cs instruments.csd song.alda    # Editor with Csound synthesis
 ```
 
 **Keybindings:**
@@ -195,11 +198,31 @@ make csound       # Build with Csound backend (~4.4MB binary)
 
 ### Quick Start
 
+**Option 1: Command-line (recommended)**
+
+```bash
+aldalog -cs .aldalog/csound/default.csd song.alda
+```
+
+This loads the Csound instruments and enables Csound synthesis automatically when opening the file.
+
+**Option 2: Ex commands in editor**
+
+In the editor, use the `:csd` command after loading a .csd file:
+
+```
+:csd on        # Enable Csound synthesis
+:csd off       # Disable Csound, switch to TinySoundFont
+:csd           # Toggle between Csound and TSF
+```
+
+Or via Lua:
+
 ```lua
 -- Check if Csound is available
 if loki.alda.csound_available() then
     -- Load Csound instruments
-    loki.alda.csound_load(".aldev/csound/default.csd")
+    loki.alda.csound_load(".aldalog/csound/default.csd")
 
     -- Switch to Csound backend
     loki.alda.set_backend("csound")
@@ -227,7 +250,7 @@ loki.alda.set_backend("midi")     -- Use external MIDI only
 
 ### Default Instruments
 
-The included `.aldev/csound/default.csd` provides 16 instruments mapped to MIDI channels, including subtractive synth, FM piano, pad, pluck, organ, bass, strings, brass, and drums.
+The included `.aldalog/csound/default.csd` provides 16 instruments mapped to MIDI channels, including subtractive synth, FM piano, pad, pluck, organ, bass, strings, brass, and drums.
 
 ## Documentation
 

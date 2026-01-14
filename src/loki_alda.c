@@ -470,6 +470,11 @@ int loki_alda_csound_is_available(void) {
            (alda_csound_init() == 0);
 }
 
+int loki_alda_csound_is_enabled(editor_ctx_t *ctx) {
+    (void)ctx;
+    return g_alda_state.initialized && g_alda_state.alda_ctx.csound_enabled;
+}
+
 int loki_alda_csound_set_enabled(editor_ctx_t *ctx, int enable) {
     (void)ctx;
 

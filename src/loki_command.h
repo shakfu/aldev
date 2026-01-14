@@ -93,4 +93,7 @@ int cmd_link(editor_ctx_t *ctx, const char *args);
 /* :export <filename> - Export Alda events to MIDI file */
 int cmd_export(editor_ctx_t *ctx, const char *args);
 
+/* :csd [on|off|1|0] - Toggle or set Csound synthesis backend */
+int cmd_csd(editor_ctx_t *ctx, const char *args);
+
 #endif /* LOKI_COMMAND_H */

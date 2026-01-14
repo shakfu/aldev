@@ -1,5 +1,7 @@
 # csound dependencies
 
+see: <https://github.com/csound/csound/blob/develop/BUILD.md>
+
 ## libsndfile
 
 ```sh

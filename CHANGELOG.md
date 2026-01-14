@@ -23,8 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Full Csound 6.18.1 integration for powerful synthesis beyond sample playback
   - Host-implemented audio I/O via miniaudio (same audio stack as TSF)
   - MIDI events translated to Csound score events with fractional instrument IDs
-  - Pre-defined instruments in `.aldev/csound/default.csd` (16 GM-compatible instruments)
+  - Pre-defined instruments in `.aldalog/csound/default.csd` (16 GM-compatible instruments)
   - **Build Option**: `make csound` or `-DBUILD_CSOUND_BACKEND=ON`
+  - **CLI Options**:
+    - `-cs PATH` - Load .csd file and enable Csound when opening an Alda file
+    - `-sf PATH` - Load soundfont and enable TinySoundFont when opening an Alda file
+  - **Ex Command**: `:csd [on|off|1|0]` - Toggle or set Csound synthesis backend
   - **Lua API** (`loki.alda` extensions):
     - `loki.alda.csound_available()` - Check if Csound is compiled in
     - `loki.alda.csound_load(path)` - Load a .csd instrument file
@@ -35,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Added**:
     - `thirdparty/alda-midi/lib/src/csound_backend.c`
     - `thirdparty/alda-midi/lib/include/alda/csound_backend.h`
-    - `.aldev/csound/default.csd`
+    - `.aldalog/csound/default.csd`
     - `CSOUND_PLAN.md`
 
 - **Ableton Link Integration**: Tempo synchronization with other Link-enabled applications

@@ -33,6 +33,10 @@ static void print_unified_help(const char *prog) {
     printf("  Ctrl-P: Play entire file\n");
     printf("  Ctrl-G: Stop playback\n");
     printf("\n");
+    printf("Editor Options:\n");
+    printf("  -sf PATH               Use built-in TinySoundFont synth\n");
+    printf("  -cs PATH               Use Csound synthesis with .csd file\n");
+    printf("\n");
     printf("REPL Mode:\n");
     printf("  Interactive composition - type Alda notation directly.\n");
     printf("  Type 'help' in REPL for commands.\n");
@@ -47,6 +51,7 @@ static void print_unified_help(const char *prog) {
     printf("  %s                     Start REPL, type: piano: c d e f g\n", prog);
     printf("  %s -sf gm.sf2          REPL with built-in synth\n", prog);
     printf("  %s song.alda           Edit song.alda\n", prog);
+    printf("  %s -cs inst.csd song.alda  Edit with Csound synthesis\n", prog);
     printf("  %s play song.alda      Play song.alda and exit\n", prog);
     printf("\n");
 }
@@ -94,6 +99,24 @@ int main(int argc, char **argv) {
     if (has_alda_extension(first_arg)) {
         /* Definitely a file -> editor mode */
         return loki_editor_main(argc, argv);
+    }
+
+    /* Check for editor options (-sf, -cs) followed by a .alda file */
+    if (strcmp(first_arg, "-sf") == 0 || strcmp(first_arg, "-cs") == 0) {
+        /* Look for a .alda file in remaining args */
+        for (int i = 2; i < argc; i++) {
+            if (has_alda_extension(argv[i])) {
+                /* Found .alda file -> editor mode with options */
+                return loki_editor_main(argc, argv);
+            }
+        }
+        /* No .alda file found, treat as REPL (only -sf makes sense for REPL) */
+        if (strcmp(first_arg, "-sf") == 0) {
+            return alda_repl_main(argc, argv);
+        }
+        /* -cs without .alda file is an error */
+        fprintf(stderr, "Error: -cs requires a .alda file\n");
+        return 1;
     }
 
     /* If first arg starts with -, assume REPL options */
