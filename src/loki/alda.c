@@ -37,42 +37,47 @@ typedef struct {
     time_t start_time;           /* Start timestamp */
 } AldaPlaybackSlot;
 
-/* Global alda state (one per editor) */
-typedef struct {
+/* Per-context alda state */
+struct LokiAldaState {
     int initialized;
     AldaContext alda_ctx;        /* The alda interpreter context */
     AldaPlaybackSlot slots[LOKI_ALDA_MAX_SLOTS];
-    char last_error[256];        /* Last error message */
+    char last_error[LOKI_ALDA_ERROR_BUFSIZE];  /* Last error message */
     pthread_mutex_t mutex;       /* Protect concurrent access */
-} LokiAldaState;
+};
 
-/* Static state - could be moved to editor_ctx in the future */
-static LokiAldaState g_alda_state = {0};
+/* Get alda state from editor context, returning NULL if not initialized */
+static LokiAldaState* get_alda_state(editor_ctx_t *ctx) {
+    return ctx ? ctx->alda_state : NULL;
+}
 
 /* ======================= Helper Functions ======================= */
 
-static void set_error(const char *msg) {
+static void set_state_error(LokiAldaState *state, const char *msg) {
+    if (!state) return;
     if (msg) {
-        strncpy(g_alda_state.last_error, msg, sizeof(g_alda_state.last_error) - 1);
-        g_alda_state.last_error[sizeof(g_alda_state.last_error) - 1] = '\0';
+        strncpy(state->last_error, msg, sizeof(state->last_error) - 1);
+        state->last_error[sizeof(state->last_error) - 1] = '\0';
     } else {
-        g_alda_state.last_error[0] = '\0';
+        state->last_error[0] = '\0';
     }
 }
 
-static int find_free_slot(void) {
+static int find_free_slot(LokiAldaState *state) {
+    if (!state) return -1;
     for (int i = 0; i < LOKI_ALDA_MAX_SLOTS; i++) {
-        if (!g_alda_state.slots[i].active) {
+        if (!state->slots[i].active) {
             return i;
         }
     }
     return -1;
 }
 
-static void clear_slot(int slot_id) {
+static void clear_slot(LokiAldaState *state, int slot_id) {
+    if (!state) return;
     if (slot_id < 0 || slot_id >= LOKI_ALDA_MAX_SLOTS) return;
 
-    AldaPlaybackSlot *slot = &g_alda_state.slots[slot_id];
+    AldaPlaybackSlot *slot = &state->slots[slot_id];
     free(slot->lua_callback);
     free(slot->error_msg);
     memset(slot, 0, sizeof(AldaPlaybackSlot));
@@ -81,27 +86,40 @@ static void clear_slot(int slot_id) {
 /* ======================= Initialization ======================= */
 
 int loki_alda_init(editor_ctx_t *ctx, const char *port_name) {
-    (void)ctx;  /* May use editor context in future */
+    if (!ctx) return -1;
 
-    if (g_alda_state.initialized) {
-        set_error("Alda already initialized");
+    /* Check if already initialized for this context */
+    if (ctx->alda_state && ctx->alda_state->initialized) {
+        set_state_error(ctx->alda_state, "Alda already initialized");
         return -1;
     }
 
+    /* Allocate state if needed */
+    LokiAldaState *state = ctx->alda_state;
+    if (!state) {
+        state = (LokiAldaState *)calloc(1, sizeof(LokiAldaState));
+        if (!state) return -1;
+        ctx->alda_state = state;
+    }
+
     /* Initialize mutex */
-    if (pthread_mutex_init(&g_alda_state.mutex, NULL) != 0) {
-        set_error("Failed to initialize mutex");
+    if (pthread_mutex_init(&state->mutex, NULL) != 0) {
+        set_state_error(state, "Failed to initialize mutex");
+        free(state);
+        ctx->alda_state = NULL;
         return -1;
     }
 
     /* Initialize alda context */
-    alda_context_init(&g_alda_state.alda_ctx);
+    alda_context_init(&state->alda_ctx);
 
     /* Initialize async system (creates libuv thread) */
     if (alda_async_init() != 0) {
-        set_error("Failed to initialize async playback");
-        alda_context_cleanup(&g_alda_state.alda_ctx);
-        pthread_mutex_destroy(&g_alda_state.mutex);
+        set_state_error(state, "Failed to initialize async playback");
+        alda_context_cleanup(&state->alda_ctx);
+        pthread_mutex_destroy(&state->mutex);
+        free(state);
+        ctx->alda_state = NULL;
         return -1;
     }
 
@@ -110,11 +128,13 @@ int loki_alda_init(editor_ctx_t *ctx, const char *port_name) {
 
     /* Open MIDI output */
     const char *name = port_name ? port_name : "Loki";
-    if (alda_midi_open_auto(&g_alda_state.alda_ctx, name) != 0) {
-        set_error("Failed to open MIDI output");
+    if (alda_midi_open_auto(&state->alda_ctx, name) != 0) {
+        set_state_error(state, "Failed to open MIDI output");
         alda_async_cleanup();
-        alda_context_cleanup(&g_alda_state.alda_ctx);
-        pthread_mutex_destroy(&g_alda_state.mutex);
+        alda_context_cleanup(&state->alda_ctx);
+        pthread_mutex_destroy(&state->mutex);
+        free(state);
+        ctx->alda_state = NULL;
         return -1;
     }
 
@@ -122,18 +142,19 @@ int loki_alda_init(editor_ctx_t *ctx, const char *port_name) {
     alda_tsf_init();
 
     /* Clear all slots */
-    memset(g_alda_state.slots, 0, sizeof(g_alda_state.slots));
+    memset(state->slots, 0, sizeof(state->slots));
 
-    g_alda_state.initialized = 1;
-    set_error(NULL);
+    state->initialized = 1;
+    set_state_error(state, NULL);
 
     return 0;
 }
 
 void loki_alda_cleanup(editor_ctx_t *ctx) {
-    (void)ctx;
+    if (!ctx) return;
 
-    if (!g_alda_state.initialized) return;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return;
 
     /* Stop all playback */
     alda_async_stop();
@@ -145,78 +166,82 @@ void loki_alda_cleanup(editor_ctx_t *ctx) {
     alda_async_cleanup();
 
     /* Clean up MIDI */
-    alda_midi_cleanup(&g_alda_state.alda_ctx);
+    alda_midi_cleanup(&state->alda_ctx);
 
     /* Clean up context */
-    alda_context_cleanup(&g_alda_state.alda_ctx);
+    alda_context_cleanup(&state->alda_ctx);
 
     /* Clear all slots */
     for (int i = 0; i < LOKI_ALDA_MAX_SLOTS; i++) {
-        clear_slot(i);
+        clear_slot(state, i);
     }
 
     /* Destroy mutex */
-    pthread_mutex_destroy(&g_alda_state.mutex);
+    pthread_mutex_destroy(&state->mutex);
 
-    g_alda_state.initialized = 0;
+    state->initialized = 0;
+
+    /* Free the state structure */
+    free(state);
+    ctx->alda_state = NULL;
 }
 
 int loki_alda_is_initialized(editor_ctx_t *ctx) {
-    (void)ctx;
-    return g_alda_state.initialized;
+    LokiAldaState *state = get_alda_state(ctx);
+    return state ? state->initialized : 0;
 }
 
 /* ======================= Playback Control ======================= */
 
 int loki_alda_eval_async(editor_ctx_t *ctx, const char *code, const char *lua_callback) {
-    (void)ctx;
+    LokiAldaState *state = get_alda_state(ctx);
 
-    if (!g_alda_state.initialized) {
-        set_error("Alda not initialized");
+    if (!state || !state->initialized) {
+        if (state) set_state_error(state, "Alda not initialized");
         return -1;
     }
 
     if (!code || !*code) {
-        set_error("Empty code");
+        set_state_error(state, "Empty code");
         return -2;
     }
 
-    pthread_mutex_lock(&g_alda_state.mutex);
+    pthread_mutex_lock(&state->mutex);
 
     /* Find a free slot */
-    int slot_id = find_free_slot();
+    int slot_id = find_free_slot(state);
     if (slot_id < 0) {
-        pthread_mutex_unlock(&g_alda_state.mutex);
-        set_error("No free playback slots");
+        pthread_mutex_unlock(&state->mutex);
+        set_state_error(state, "No free playback slots");
         return -1;
     }
 
-    AldaPlaybackSlot *slot = &g_alda_state.slots[slot_id];
+    AldaPlaybackSlot *slot = &state->slots[slot_id];
 
     /* Reset context for new evaluation (keeps MIDI connection) */
-    alda_context_reset(&g_alda_state.alda_ctx);
+    alda_context_reset(&state->alda_ctx);
 
     /* Parse and interpret the code */
-    if (alda_interpret_string(&g_alda_state.alda_ctx, code, "<loki>") != 0) {
-        pthread_mutex_unlock(&g_alda_state.mutex);
-        set_error("Parse error in Alda code");
+    if (alda_interpret_string(&state->alda_ctx, code, "<loki>") != 0) {
+        pthread_mutex_unlock(&state->mutex);
+        set_state_error(state, "Parse error in Alda code");
         return -2;
     }
 
     /* Check if we have any events to play */
-    if (g_alda_state.alda_ctx.event_count == 0) {
-        pthread_mutex_unlock(&g_alda_state.mutex);
-        set_error("No events generated");
+    if (state->alda_ctx.event_count == 0) {
+        pthread_mutex_unlock(&state->mutex);
+        set_state_error(state, "No events generated");
         return -2;
     }
 
     /* Sort events for playback */
-    alda_events_sort(&g_alda_state.alda_ctx);
+    alda_events_sort(&state->alda_ctx);
 
     /* Use Link tempo if enabled */
     double effective_tempo = loki_link_effective_tempo(
-        ctx, (double)g_alda_state.alda_ctx.global_tempo);
-    g_alda_state.alda_ctx.global_tempo = (int)effective_tempo;
+        ctx, (double)state->alda_ctx.global_tempo);
+    state->alda_ctx.global_tempo = (int)effective_tempo;
 
     /* Set up slot */
     slot->active = 1;
@@ -225,77 +250,76 @@ int loki_alda_eval_async(editor_ctx_t *ctx, const char *code, const char *lua_ca
     slot->status = LOKI_ALDA_STATUS_PLAYING;
     slot->lua_callback = lua_callback ? strdup(lua_callback) : NULL;
     slot->error_msg = NULL;
-    slot->events_played = g_alda_state.alda_ctx.event_count;
+    slot->events_played = state->alda_ctx.event_count;
     slot->start_time = time(NULL);
 
     /* Start async playback */
-    if (alda_events_play_async(&g_alda_state.alda_ctx) != 0) {
+    if (alda_events_play_async(&state->alda_ctx) != 0) {
         slot->active = 0;
         slot->playing = 0;
         free(slot->lua_callback);
         slot->lua_callback = NULL;
-        pthread_mutex_unlock(&g_alda_state.mutex);
-        set_error("Failed to start playback");
+        pthread_mutex_unlock(&state->mutex);
+        set_state_error(state, "Failed to start playback");
         return -1;
     }
 
-    pthread_mutex_unlock(&g_alda_state.mutex);
-    set_error(NULL);
+    pthread_mutex_unlock(&state->mutex);
+    set_state_error(state, NULL);
 
     return slot_id;
 }
 
 int loki_alda_eval_sync(editor_ctx_t *ctx, const char *code) {
-    (void)ctx;
+    LokiAldaState *state = get_alda_state(ctx);
 
-    if (!g_alda_state.initialized) {
-        set_error("Alda not initialized");
+    if (!state || !state->initialized) {
+        if (state) set_state_error(state, "Alda not initialized");
         return -1;
     }
 
     if (!code || !*code) {
-        set_error("Empty code");
+        set_state_error(state, "Empty code");
         return -1;
     }
 
-    pthread_mutex_lock(&g_alda_state.mutex);
+    pthread_mutex_lock(&state->mutex);
 
     /* Reset context for new evaluation */
-    alda_context_reset(&g_alda_state.alda_ctx);
+    alda_context_reset(&state->alda_ctx);
 
     /* Parse and interpret */
-    if (alda_interpret_string(&g_alda_state.alda_ctx, code, "<loki>") != 0) {
-        pthread_mutex_unlock(&g_alda_state.mutex);
-        set_error("Parse error in Alda code");
+    if (alda_interpret_string(&state->alda_ctx, code, "<loki>") != 0) {
+        pthread_mutex_unlock(&state->mutex);
+        set_state_error(state, "Parse error in Alda code");
         return -1;
     }
 
     /* Sort events */
-    alda_events_sort(&g_alda_state.alda_ctx);
+    alda_events_sort(&state->alda_ctx);
 
     /* Use Link tempo if enabled */
     double effective_tempo = loki_link_effective_tempo(
-        ctx, (double)g_alda_state.alda_ctx.global_tempo);
-    g_alda_state.alda_ctx.global_tempo = (int)effective_tempo;
+        ctx, (double)state->alda_ctx.global_tempo);
+    state->alda_ctx.global_tempo = (int)effective_tempo;
 
     /* Play */
-    int result = alda_events_play(&g_alda_state.alda_ctx);
+    int result = alda_events_play(&state->alda_ctx);
 
-    pthread_mutex_unlock(&g_alda_state.mutex);
+    pthread_mutex_unlock(&state->mutex);
 
     if (result != 0) {
-        set_error("Playback error");
+        set_state_error(state, "Playback error");
         return -1;
     }
 
-    set_error(NULL);
+    set_state_error(state, NULL);
     return 0;
 }
 
 void loki_alda_stop(editor_ctx_t *ctx, int slot_id) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return;
 
     if (slot_id < 0) {
         loki_alda_stop_all(ctx);
@@ -304,9 +328,9 @@ void loki_alda_stop(editor_ctx_t *ctx, int slot_id) {
 
     if (slot_id >= LOKI_ALDA_MAX_SLOTS) return;
 
-    pthread_mutex_lock(&g_alda_state.mutex);
+    pthread_mutex_lock(&state->mutex);
 
-    AldaPlaybackSlot *slot = &g_alda_state.slots[slot_id];
+    AldaPlaybackSlot *slot = &state->slots[slot_id];
     if (slot->active && slot->playing) {
         alda_async_stop();
         slot->playing = 0;
@@ -314,21 +338,20 @@ void loki_alda_stop(editor_ctx_t *ctx, int slot_id) {
         slot->status = LOKI_ALDA_STATUS_STOPPED;
     }
 
-    pthread_mutex_unlock(&g_alda_state.mutex);
+    pthread_mutex_unlock(&state->mutex);
 }
 
 void loki_alda_stop_all(editor_ctx_t *ctx) {
-    (void)ctx;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return;
 
-    if (!g_alda_state.initialized) return;
-
-    pthread_mutex_lock(&g_alda_state.mutex);
+    pthread_mutex_lock(&state->mutex);
 
     alda_async_stop();
-    alda_midi_all_notes_off(&g_alda_state.alda_ctx);
+    alda_midi_all_notes_off(&state->alda_ctx);
 
     for (int i = 0; i < LOKI_ALDA_MAX_SLOTS; i++) {
-        AldaPlaybackSlot *slot = &g_alda_state.slots[i];
+        AldaPlaybackSlot *slot = &state->slots[i];
         if (slot->active && slot->playing) {
             slot->playing = 0;
             slot->completed = 1;
@@ -336,74 +359,72 @@ void loki_alda_stop_all(editor_ctx_t *ctx) {
         }
     }
 
-    pthread_mutex_unlock(&g_alda_state.mutex);
+    pthread_mutex_unlock(&state->mutex);
 }
 
 /* ======================= Status Queries ======================= */
 
 LokiAldaStatus loki_alda_get_status(editor_ctx_t *ctx, int slot_id) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return LOKI_ALDA_STATUS_IDLE;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return LOKI_ALDA_STATUS_IDLE;
     if (slot_id < 0 || slot_id >= LOKI_ALDA_MAX_SLOTS) return LOKI_ALDA_STATUS_IDLE;
 
-    return g_alda_state.slots[slot_id].status;
+    return state->slots[slot_id].status;
 }
 
 int loki_alda_is_playing(editor_ctx_t *ctx) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return 0;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return 0;
     return alda_async_is_playing();
 }
 
 int loki_alda_active_count(editor_ctx_t *ctx) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return 0;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return 0;
     return alda_async_active_count();
 }
 
 /* ======================= Configuration ======================= */
 
 void loki_alda_set_tempo(editor_ctx_t *ctx, int bpm) {
-    (void)ctx;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return;
 
-    if (!g_alda_state.initialized) return;
-    if (bpm < 20) bpm = 20;
-    if (bpm > 400) bpm = 400;
+    if (bpm < LOKI_ALDA_TEMPO_MIN) bpm = LOKI_ALDA_TEMPO_MIN;
+    if (bpm > LOKI_ALDA_TEMPO_MAX) bpm = LOKI_ALDA_TEMPO_MAX;
 
-    g_alda_state.alda_ctx.global_tempo = bpm;
+    state->alda_ctx.global_tempo = bpm;
 }
 
 int loki_alda_get_tempo(editor_ctx_t *ctx) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return 120;
-    return g_alda_state.alda_ctx.global_tempo;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return LOKI_ALDA_TEMPO_DEFAULT;
+    return state->alda_ctx.global_tempo;
 }
 
 /* ======================= MIDI Export Support ======================= */
 
-const AldaScheduledEvent* loki_alda_get_events(int *count) {
-    if (!g_alda_state.initialized) {
+const AldaScheduledEvent* loki_alda_get_events(editor_ctx_t *ctx, int *count) {
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) {
         if (count) *count = 0;
         return NULL;
     }
 
-    if (count) *count = g_alda_state.alda_ctx.event_count;
-    return g_alda_state.alda_ctx.events;
+    if (count) *count = state->alda_ctx.event_count;
+    return state->alda_ctx.events;
 }
 
-int loki_alda_get_channel_count(void) {
-    if (!g_alda_state.initialized || g_alda_state.alda_ctx.event_count == 0) {
+int loki_alda_get_channel_count(editor_ctx_t *ctx) {
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized || state->alda_ctx.event_count == 0) {
         return 0;
     }
 
     /* Track which channels are used with a bitmask */
     unsigned int channels_used = 0;
-    int event_count = g_alda_state.alda_ctx.event_count;
-    const AldaScheduledEvent *events = g_alda_state.alda_ctx.events;
+    int event_count = state->alda_ctx.event_count;
+    const AldaScheduledEvent *events = state->alda_ctx.events;
 
     for (int i = 0; i < event_count; i++) {
         if (events[i].channel >= 0 && events[i].channel < 16) {
@@ -422,40 +443,38 @@ int loki_alda_get_channel_count(void) {
 }
 
 int loki_alda_set_synth_enabled(editor_ctx_t *ctx, int enable) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return -1;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return -1;
 
     if (enable) {
         if (!alda_tsf_has_soundfont()) {
-            set_error("No soundfont loaded");
+            set_state_error(state, "No soundfont loaded");
             return -1;
         }
         alda_tsf_enable();
-        g_alda_state.alda_ctx.tsf_enabled = 1;
+        state->alda_ctx.tsf_enabled = 1;
     } else {
         alda_tsf_disable();
-        g_alda_state.alda_ctx.tsf_enabled = 0;
+        state->alda_ctx.tsf_enabled = 0;
     }
 
     return 0;
 }
 
 int loki_alda_load_soundfont(editor_ctx_t *ctx, const char *path) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) {
-        set_error("Alda not initialized");
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) {
+        if (state) set_state_error(state, "Alda not initialized");
         return -1;
     }
 
     if (!path || !*path) {
-        set_error("Invalid soundfont path");
+        set_state_error(state, "Invalid soundfont path");
         return -1;
     }
 
     if (alda_tsf_load_soundfont(path) != 0) {
-        set_error("Failed to load soundfont");
+        set_state_error(state, "Failed to load soundfont");
         return -1;
     }
 
@@ -471,62 +490,60 @@ int loki_alda_csound_is_available(void) {
 }
 
 int loki_alda_csound_is_enabled(editor_ctx_t *ctx) {
-    (void)ctx;
-    return g_alda_state.initialized && g_alda_state.alda_ctx.csound_enabled;
+    LokiAldaState *state = get_alda_state(ctx);
+    return state && state->initialized && state->alda_ctx.csound_enabled;
 }
 
 int loki_alda_csound_set_enabled(editor_ctx_t *ctx, int enable) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) {
-        set_error("Alda not initialized");
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) {
+        if (state) set_state_error(state, "Alda not initialized");
         return -1;
     }
 
     if (enable) {
         if (!alda_csound_has_instruments()) {
-            set_error("No Csound instruments loaded");
+            set_state_error(state, "No Csound instruments loaded");
             return -1;
         }
         /* Disable TSF first if enabled */
-        if (g_alda_state.alda_ctx.tsf_enabled) {
+        if (state->alda_ctx.tsf_enabled) {
             alda_tsf_disable();
-            g_alda_state.alda_ctx.tsf_enabled = 0;
+            state->alda_ctx.tsf_enabled = 0;
         }
         if (alda_csound_enable() != 0) {
-            set_error(alda_csound_get_error());
+            set_state_error(state, alda_csound_get_error());
             return -1;
         }
-        g_alda_state.alda_ctx.csound_enabled = 1;
+        state->alda_ctx.csound_enabled = 1;
     } else {
         alda_csound_disable();
-        g_alda_state.alda_ctx.csound_enabled = 0;
+        state->alda_ctx.csound_enabled = 0;
     }
 
     return 0;
 }
 
 int loki_alda_csound_load_csd(editor_ctx_t *ctx, const char *path) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) {
-        set_error("Alda not initialized");
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) {
+        if (state) set_state_error(state, "Alda not initialized");
         return -1;
     }
 
     if (!path || !*path) {
-        set_error("Invalid CSD path");
+        set_state_error(state, "Invalid CSD path");
         return -1;
     }
 
     /* Initialize Csound backend if not already */
     if (alda_csound_init() != 0) {
-        set_error("Csound backend not available");
+        set_state_error(state, "Csound backend not available");
         return -1;
     }
 
     if (alda_csound_load_csd(path) != 0) {
-        set_error(alda_csound_get_error());
+        set_state_error(state, alda_csound_get_error());
         return -1;
     }
 
@@ -535,14 +552,14 @@ int loki_alda_csound_load_csd(editor_ctx_t *ctx, const char *path) {
 
 int loki_alda_csound_play_async(const char *path) {
     if (!path || !*path) {
-        set_error("Invalid CSD path");
+        fprintf(stderr, "loki_alda: Invalid CSD path\n");
         return -1;
     }
 
     int result = alda_csound_play_file_async(path);
     if (result != 0) {
         const char *err = alda_csound_get_error();
-        set_error(err ? err : "Failed to start playback");
+        fprintf(stderr, "loki_alda: %s\n", err ? err : "Failed to start playback");
         return -1;
     }
 
@@ -560,18 +577,17 @@ void loki_alda_csound_stop_playback(void) {
 /* ======================= Main Loop Integration ======================= */
 
 void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L) {
-    (void)ctx;
-
-    if (!g_alda_state.initialized) return;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) return;
     if (!L) return;
 
-    pthread_mutex_lock(&g_alda_state.mutex);
+    pthread_mutex_lock(&state->mutex);
 
     /* Check if async playback has completed */
     int still_playing = alda_async_is_playing();
 
     for (int i = 0; i < LOKI_ALDA_MAX_SLOTS; i++) {
-        AldaPlaybackSlot *slot = &g_alda_state.slots[i];
+        AldaPlaybackSlot *slot = &state->slots[i];
 
         if (!slot->active) continue;
 
@@ -637,16 +653,16 @@ void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L) {
             }
 
             /* Clear the slot after callback */
-            clear_slot(i);
+            clear_slot(state, i);
         }
 
         /* Clear completed slots without callbacks */
         if (slot->completed && !slot->lua_callback) {
-            clear_slot(i);
+            clear_slot(state, i);
         }
     }
 
-    pthread_mutex_unlock(&g_alda_state.mutex);
+    pthread_mutex_unlock(&state->mutex);
 }
 
 /* ======================= Utility Functions ======================= */
@@ -662,6 +678,7 @@ int loki_alda_list_ports(editor_ctx_t *ctx, char **ports, int max_ports) {
 }
 
 const char *loki_alda_get_error(editor_ctx_t *ctx) {
-    (void)ctx;
-    return g_alda_state.last_error[0] ? g_alda_state.last_error : NULL;
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state) return NULL;
+    return state->last_error[0] ? state->last_error : NULL;
 }

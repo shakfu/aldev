@@ -17,10 +17,15 @@
 extern "C" {
 #endif
 
-/* Forward declarations */
+/* Forward declarations - conditional to avoid typedef redefinition warnings */
+#ifndef LOKI_CORE_H
 struct editor_ctx;
 typedef struct editor_ctx editor_ctx_t;
+#endif
+
+#ifndef lua_h
 struct lua_State;
+#endif
 
 /* ============================================================================
  * Initialization

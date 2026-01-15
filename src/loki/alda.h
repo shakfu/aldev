@@ -19,14 +19,34 @@
 #ifndef LOKI_ALDA_H
 #define LOKI_ALDA_H
 
-/* Forward declarations to avoid including heavy headers */
+/* Forward declarations to avoid including heavy headers.
+ * Use conditional compilation to prevent typedef redefinition warnings
+ * when this header is included after loki/core.h or lua.h */
+#ifndef LOKI_CORE_H
 struct editor_ctx;
 typedef struct editor_ctx editor_ctx_t;
+#endif
+
+#ifndef lua_h
 struct lua_State;
 typedef struct lua_State lua_State;
+#endif
+
+/* ======================= Constants ======================= */
 
 /* Maximum concurrent playback slots */
 #define LOKI_ALDA_MAX_SLOTS 8
+
+/* Tempo bounds (BPM) */
+#define LOKI_ALDA_TEMPO_MIN 20
+#define LOKI_ALDA_TEMPO_MAX 400
+#define LOKI_ALDA_TEMPO_DEFAULT 120
+
+/* Error message buffer size */
+#define LOKI_ALDA_ERROR_BUFSIZE 256
+
+/* Opaque Alda state - per-context state structure */
+typedef struct LokiAldaState LokiAldaState;
 
 /* Playback status codes */
 typedef enum {
@@ -256,19 +276,21 @@ void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L);
  * Get pointer to scheduled events for MIDI export.
  * Returns the internal event array after parsing.
  *
+ * @param ctx Editor context
  * @param count Output: number of events in array (or NULL to ignore)
  * @return Pointer to events array, or NULL if not initialized
  * @note Caller must not modify events. Valid until next eval call.
  */
-const AldaScheduledEvent* loki_alda_get_events(int *count);
+const AldaScheduledEvent* loki_alda_get_events(editor_ctx_t *ctx, int *count);
 
 /**
  * Get the number of unique channels used in current events.
  * Useful for determining Type 0 vs Type 1 MIDI export.
  *
+ * @param ctx Editor context
  * @return Number of unique channels (1-16), or 0 if no events
  */
-int loki_alda_get_channel_count(void);
+int loki_alda_get_channel_count(editor_ctx_t *ctx);
 
 /* ======================= Utility Functions ======================= */
 

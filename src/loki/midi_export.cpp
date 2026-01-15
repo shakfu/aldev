@@ -25,8 +25,6 @@ static std::string g_last_error;
 extern "C" {
 
 int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
-    (void)ctx;  /* Context passed for future use */
-
     g_last_error.clear();
 
     /* Validate filename */
@@ -37,7 +35,7 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
 
     /* Get events from Alda context */
     int event_count = 0;
-    const AldaScheduledEvent *events = loki_alda_get_events(&event_count);
+    const AldaScheduledEvent *events = loki_alda_get_events(ctx, &event_count);
 
     if (!events || event_count == 0) {
         g_last_error = "No events to export (play Alda code first)";
@@ -89,7 +87,7 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
     }
 
     /* Get initial tempo */
-    int tempo = loki_alda_get_tempo(nullptr);
+    int tempo = loki_alda_get_tempo(ctx);
 
     /* Add initial tempo to track 0 */
     midifile.addTempo(0, 0, static_cast<double>(tempo));

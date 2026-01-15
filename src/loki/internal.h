@@ -102,6 +102,9 @@ enum KEY_ACTION{
 /* Undo/redo state - opaque pointer, defined in loki_undo.c */
 struct undo_state;
 
+/* Alda state - opaque pointer, defined in loki_alda.c */
+struct LokiAldaState;
+
 /* ======================= Data Structures ================================== */
 
 /* Syntax highlighting color definition */
@@ -192,6 +195,9 @@ struct editor_ctx {
 
     /* Alda mode flag (set when .alda file opened and Alda initialized) */
     int alda_mode;
+
+    /* Alda state - per-context state (NULL until initialized) */
+    struct LokiAldaState *alda_state;
 
     /* Line numbers display flag */
     int line_numbers;

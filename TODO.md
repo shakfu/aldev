@@ -49,14 +49,15 @@
 
 ### Architecture
 
-- [ ] Move Alda state to context
-  - Refactor `g_alda_state` in `loki_alda.c` to be per-context
+- [x] Move Alda state to context
+  - Refactored `g_alda_state` in `loki_alda.c` to be per-context
+  - `LokiAldaState` is now allocated per `editor_ctx_t`
   - Enables multiple independent Alda sessions
-  - Currently prevents running multiple Alda instances
 
-- [ ] Extract magic numbers to constants
-  - Tempo bounds `20` and `400` in `loki_alda.c` should be named constants
-  - Other hardcoded limits (64 parts, 16384 events, 256 variables)
+- [x] Extract magic numbers to constants
+  - Added `LOKI_ALDA_TEMPO_MIN`, `LOKI_ALDA_TEMPO_MAX`, `LOKI_ALDA_TEMPO_DEFAULT` to `alda.h`
+  - Added `LOKI_ALDA_ERROR_BUFSIZE` to `alda.h`
+  - Alda interpreter limits already defined in `alda/context.h`: `ALDA_MAX_PARTS`, `ALDA_MAX_EVENTS`, `ALDA_MAX_MARKERS`, `ALDA_MAX_VARIABLES`
 
 ### Microtuning
 
