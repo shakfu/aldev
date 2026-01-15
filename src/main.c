@@ -29,7 +29,7 @@ static void print_unified_help(const char *prog) {
     printf("  %s <file.alda>         Open Alda file in editor\n", prog);
     printf("  %s <file.joy>          Open Joy file in editor\n", prog);
     printf("  %s <file.csd>          Open Csound file in editor\n", prog);
-    printf("  %s play <file>         Play file (headless)\n", prog);
+    printf("  %s play <file>         Play file (headless, .alda/.joy/.csd)\n", prog);
     printf("  %s repl [options]      Start Alda REPL with options\n", prog);
     printf("\n");
     printf("Languages:\n");
@@ -125,7 +125,20 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(first_arg, "play") == 0) {
-        /* Shift arguments past 'play': psnd play file.csd -> file.csd */
+        /* Shift arguments past 'play': psnd play file.alda -> file.alda */
+        if (argc < 3) {
+            fprintf(stderr, "Usage: psnd play <file.alda|file.joy|file.csd>\n");
+            return 1;
+        }
+        /* Check for .joy file - route to Joy REPL with file argument */
+        for (int i = 2; i < argc; i++) {
+            if (has_joy_extension(argv[i])) {
+                /* Create new argv for joy_repl_main: joy_repl_main(1, [file.joy]) */
+                const char *joy_argv[2] = {"joy", argv[i]};
+                return joy_repl_main(2, (char **)joy_argv);
+            }
+        }
+        /* Not a .joy file - use Alda play */
         return alda_play_main(argc - 2, argv + 2);
     }
 

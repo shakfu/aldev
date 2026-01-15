@@ -19,6 +19,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Joy Language Integration**: Full support for Joy, a concatenative (stack-based) music language from [midi-langs](https://github.com/shakfu/midi-langs)
+  - **Joy REPL**: `psnd joy` starts interactive Joy REPL with syntax highlighting
+    - Stack-based evaluation: `[c d e] play`, `c major chord`
+    - Music theory primitives: `major`, `minor`, `dom7`, `dim`, `aug`
+    - MIDI control: `tempo`, `vol`, `pan`, `midi-note`, `midi-cc`
+    - Virtual MIDI port creation: `midi-virtual` or `--virtual NAME`
+  - **Editor Support**: Full livecoding for `.joy` files
+    - `Ctrl-E` - Evaluate current line/selection
+    - `Ctrl-P` - Play entire file
+    - `Ctrl-G` - Stop playback (MIDI panic)
+    - Auto-initialization of Joy context and virtual MIDI port
+  - **Play Mode**: `psnd play file.joy` for headless playback
+  - **Syntax Highlighting**: Built-in highlighting for Joy files
+    - Stack operations (`dup`, `swap`, `pop`, `dip`, `i`, `x`)
+    - Combinators (`map`, `fold`, `filter`, `each`)
+    - Music primitives (`note`, `chord`, `play`, `rest`)
+    - Note names (`c`, `d`, `e`, `f`, `g`, `a`, `b`)
+  - **Lua API** (`loki.joy` table):
+    - `loki.joy.init()` - Initialize Joy subsystem
+    - `loki.joy.eval(code)` - Evaluate Joy code
+    - `loki.joy.load(path)` - Load Joy file
+    - `loki.joy.define(name, body)` - Define Joy word
+    - `loki.joy.stop()` - Stop playback (MIDI panic)
+    - `loki.joy.open_port(n)` - Open MIDI port by index
+    - `loki.joy.open_virtual(name)` - Create virtual MIDI port
+    - `loki.joy.list_ports()` - List available MIDI ports
+    - Stack operations: `push_int`, `push_string`, `stack_depth`, `stack_clear`, `stack_print`
+  - **Files Added**:
+    - `src/joy/` - Joy runtime (parser, primitives, MIDI backend)
+    - `src/loki/joy.c`, `include/loki/joy.h` - Loki-Joy bridge
+    - `tests/joy/` - Joy test suite (parser, primitives, MIDI)
+  - **Files Modified**:
+    - `src/loki/modal.c` - Joy keybinding handlers (Ctrl-E, Ctrl-P, Ctrl-G)
+    - `src/main.c` - Joy REPL and play mode dispatch
+    - `src/repl.c` - Joy REPL implementation
+
 - **Comprehensive Alda Interpreter Tests**: Unit tests for MIDI event generation (`tests/alda/test_interpreter.c`)
   - 44 test cases covering core interpreter functionality
   - Basic notes: pitches, accidentals, octaves, sequences

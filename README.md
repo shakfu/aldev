@@ -2,7 +2,7 @@
 
 **psnd** is a self-contained modal editor, REPL, and playback environment aimed at music programming languages. The project is aiming to evolve into a polyglot platform for composing, live-coding, and rendering music DSLs from one binary.
 
-The first supported language is [Alda](https://alda.io). Alda support is already practical for daily live-coding, REPL sketches, and headless playback, reusing the MIDI core from [alda-midi](https://github.com/shakfu/midi-langs). The next milestones focus on integrating a number of mini MIDI languages from the sister [midi-langs](https://github.com/shakfu/midi-langs) project so that multiple notations can coexist within psnd. Audio output is handled by the built-in [TinySoundFont](https://github.com/schellingb/TinySoundFont) synthesizer or, optionally, a [Csound](https://csound.com/) backend for advanced synthesis. macOS and Linux are currently supported.
+Two languages are currently supported: [Alda](https://alda.io) and [Joy](https://github.com/shakfu/midi-langs/tree/main/projects/joy-midi). Alda is a music notation language; Joy is a concatenative (stack-based) functional language for music. Both are practical for daily live-coding, REPL sketches, and headless playback. The MIDI cores are from the [midi-langs](https://github.com/shakfu/midi-langs) project. Future milestones focus on integrating additional mini MIDI languages so that multiple notations can coexist within psnd. Audio output is handled by the built-in [TinySoundFont](https://github.com/schellingb/TinySoundFont) synthesizer or, optionally, a [Csound](https://csound.com/) backend for advanced synthesis. macOS and Linux are currently supported.
 
 ## Features
 
@@ -20,7 +20,7 @@ The first supported language is [Alda](https://alda.io). Alda support is already
 
 ## Status
 
-psnd is in active early development. Alda is the only fully integrated language right now, but the internal architecture is designed for drop-in DSL integrations so that the mini MIDI languages from [midi-langs](https://github.com/shakfu/midi-langs) and other future guests can reuse the same editor, REPL, and audio stack. Expect rapid iteration and occasional breaking changes while polyglot support takes shape.
+psnd is in active early development. Alda and Joy are the two fully integrated languages, proving the polyglot architecture works. The internal design allows drop-in DSL integrations so that additional mini MIDI languages from [midi-langs](https://github.com/shakfu/midi-langs) can reuse the same editor, REPL, and audio stack. Expect rapid iteration and occasional breaking changes while polyglot support expands.
 
 ## Building
 
@@ -35,8 +35,10 @@ psnd exposes three complementary workflows: REPL mode for interactive sketching,
 
 ### REPL Mode
 
+**Alda REPL** (default):
+
 ```bash
-psnd                    # Start REPL
+psnd                    # Start Alda REPL
 psnd -sf gm.sf2         # REPL with built-in synth
 ```
 
@@ -47,6 +49,25 @@ alda> piano: c d e f g
 alda> violin: o5 a b > c d e
 alda> :stop
 alda> :q
+```
+
+**Joy REPL**:
+
+```bash
+psnd joy                # Start Joy REPL
+psnd joy --virtual out  # Joy REPL with named virtual port
+psnd joy -p 0           # Joy REPL using MIDI port 0
+```
+
+Type Joy code directly:
+
+```
+joy> midi-virtual
+joy> 120 tempo
+joy> [c d e f g] play
+joy> c major chord
+joy> [c e g] [d f a] [e g b] each chord
+joy> :q
 ```
 
 REPL commands (with or without `:`):
@@ -70,6 +91,7 @@ REPL commands (with or without `:`):
 
 ```bash
 psnd song.alda                        # Open Alda file in editor
+psnd song.joy                         # Open Joy file in editor
 psnd song.csd                         # Open Csound file in editor
 psnd -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
 psnd -cs instruments.csd song.alda    # Editor with Csound synthesis
@@ -79,8 +101,8 @@ Keybindings:
 
 | Key | Action |
 |-----|--------|
-| `Ctrl-E` | Play current part (or selection) - Alda files only |
-| `Ctrl-P` | Play entire file (Alda or Csound) |
+| `Ctrl-E` | Play current part/line (or selection) |
+| `Ctrl-P` | Play entire file |
 | `Ctrl-G` | Stop playback |
 | `Ctrl-S` | Save |
 | `Ctrl-Q` | Quit |
@@ -93,6 +115,7 @@ Keybindings:
 
 ```bash
 psnd play song.alda              # Play Alda file and exit
+psnd play song.joy               # Play Joy file and exit
 psnd play song.csd               # Play Csound file and exit
 psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
 psnd play -v song.csd            # Play with verbose output
@@ -115,6 +138,82 @@ loki.alda.stop_all()
 -- Load soundfont for built-in synth
 loki.alda.load_soundfont("path/to/soundfont.sf2")
 loki.alda.set_synth(true)
+```
+
+## Joy Language
+
+Joy is a concatenative (stack-based) language for music composition. It provides a different paradigm from Alda's notation-based approach.
+
+### Quick Start
+
+```bash
+psnd joy                    # Start Joy REPL
+psnd song.joy               # Edit Joy file
+psnd play song.joy          # Play Joy file headlessly
+```
+
+### Basic Syntax
+
+Joy uses postfix notation where operations follow their arguments:
+
+```joy
+\ Comments start with backslash
+120 tempo                   \ Set tempo to 120 BPM
+80 vol                      \ Set volume to 80
+
+\ Play notes
+c play                      \ Play middle C
+[c d e f g] play            \ Play a melody
+
+\ Chords
+[c e g] chord               \ Play C major chord
+c major chord               \ Same thing using music theory
+a minor chord               \ A minor chord
+g dom7 chord                \ G dominant 7th
+
+\ Direct MIDI control
+60 80 500 midi-note         \ Note 60, velocity 80, 500ms duration
+```
+
+### Music Theory Primitives
+
+Joy includes music theory primitives for building chords:
+
+| Primitive | Description | Example |
+|-----------|-------------|---------|
+| `major` | Major triad | `c major chord` |
+| `minor` | Minor triad | `a minor chord` |
+| `dom7` | Dominant 7th | `g dom7 chord` |
+| `maj7` | Major 7th | `c maj7 chord` |
+| `min7` | Minor 7th | `a min7 chord` |
+| `dim` | Diminished triad | `b dim chord` |
+| `aug` | Augmented triad | `c aug chord` |
+
+### Stack Operations
+
+Joy is stack-based, so values are pushed onto a stack and operations consume them:
+
+```joy
+60 dup                      \ Duplicate: [60 60]
+60 70 swap                  \ Swap: [70 60]
+60 70 pop                   \ Pop: [60]
+[1 2 3] [dup *] map         \ Map: [1 4 9]
+```
+
+### Lua API
+
+```lua
+-- Initialize Joy
+loki.joy.init()
+
+-- Evaluate Joy code
+loki.joy.eval("midi-virtual 120 tempo [c d e] play")
+
+-- Define a custom word
+loki.joy.define("cmaj", "[c e g] chord")
+
+-- Stop playback
+loki.joy.stop()
 ```
 
 ## Ableton Link
@@ -287,6 +386,7 @@ psnd provides built-in syntax highlighting for music programming languages with 
 | Extension | Language | Features |
 |-----------|----------|----------|
 | `.alda` | Alda | Instruments, attributes, note names, octave markers, comments |
+| `.joy` | Joy | Stack ops, combinators, music primitives, note names, comments |
 | `.csd` | Csound CSD | Section-aware (orchestra/score/options), opcodes, control flow |
 | `.orc` | Csound Orchestra | Full orchestra syntax |
 | `.sco` | Csound Score | Score statements, parameters |
@@ -392,14 +492,16 @@ Feedback and experiments are welcome—polyglot support will be guided by real-w
 src/
   loki/           # Editor components (core, modal, syntax, lua, etc.)
   alda/           # Alda music library (parser, interpreter, backends)
+  joy/            # Joy language runtime (parser, primitives, MIDI)
   main.c          # Entry point
-  repl.c          # REPL mode
+  repl.c          # REPL mode (Alda and Joy)
 include/
   loki/           # Public loki headers
   alda/           # Public alda headers
 tests/
   loki/           # Editor unit tests
   alda/           # Alda parser tests
+  joy/            # Joy parser and MIDI tests
 thirdparty/       # External dependencies (lua, libuv, libremidi, etc.)
 ```
 
@@ -410,6 +512,7 @@ See the `docs` folder for full technical documentation.
 ## Credits
 
 - [Alda](https://alda.io) - music programming language by Dave Yarwood
+- [Joy](https://github.com/shakfu/midi-langs/tree/main/projects/joy-midi) - concatenative music language from midi-langs
 - [kilo](https://github.com/antirez/kilo) by Salvatore Sanfilippo (antirez) - original editor
 - [loki](https://github.com/shakfu/loki) - Lua-enhanced fork
 - [Csound](https://csound.com/) - sound synthesis system (optional)

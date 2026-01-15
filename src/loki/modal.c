@@ -38,6 +38,7 @@
 #include "undo.h"
 #include "buffers.h"
 #include "alda.h"
+#include "joy.h"
 #include "alda/csound_backend.h"
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,14 @@ static int is_csd_file(const char *filename) {
     size_t len = strlen(filename);
     if (len < 4) return 0;
     return strcmp(filename + len - 4, ".csd") == 0;
+}
+
+/* Helper: check if a filename has .joy extension */
+static int is_joy_file(const char *filename) {
+    if (!filename) return 0;
+    size_t len = strlen(filename);
+    if (len < 4) return 0;
+    return strcmp(filename + len - 4, ".joy") == 0;
 }
 
 /* Try to dispatch a keypress to a Lua keymap callback.
@@ -382,31 +391,57 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
                     break;
                 }
 
-                /* Handle .alda files with Alda interpreter */
+                /* Get code to evaluate */
                 char *code = get_selection_text(ctx);
                 if (!code && ctx->numrows > 0 && ctx->cy < ctx->numrows) {
-                    /* No selection - use current part */
+                    /* No selection - use current part/line */
                     code = get_current_part(ctx);
                 }
-                if (code && *code) {
-                    if (!loki_alda_is_initialized(ctx)) {
-                        /* Auto-init if not initialized */
-                        if (loki_alda_init(ctx, NULL) != 0) {
-                            editor_set_status_msg(ctx, "Alda init failed: %s",
-                                loki_alda_get_error(ctx) ? loki_alda_get_error(ctx) : "unknown");
+                if (!code || !*code) {
+                    editor_set_status_msg(ctx, "No code to evaluate");
+                    free(code);
+                    break;
+                }
+
+                /* Handle .joy files with Joy interpreter */
+                if (is_joy_file(ctx->filename)) {
+                    if (!loki_joy_is_initialized(ctx)) {
+                        if (loki_joy_init(ctx) != 0) {
+                            editor_set_status_msg(ctx, "Joy init failed: %s",
+                                loki_joy_get_error(ctx) ? loki_joy_get_error(ctx) : "unknown");
                             free(code);
                             break;
                         }
+                        /* Open virtual MIDI port */
+                        loki_joy_open_virtual(ctx, "psnd-joy");
                     }
-                    int slot = loki_alda_eval_async(ctx, code, NULL);
-                    if (slot >= 0) {
-                        editor_set_status_msg(ctx, "Alda: playing part (slot %d)", slot);
+                    if (loki_joy_eval(ctx, code) == 0) {
+                        editor_set_status_msg(ctx, "Joy: evaluated");
                     } else {
-                        editor_set_status_msg(ctx, "Alda error: %s",
-                            loki_alda_get_error(ctx) ? loki_alda_get_error(ctx) : "eval failed");
+                        editor_set_status_msg(ctx, "Joy error: %s",
+                            loki_joy_get_error(ctx) ? loki_joy_get_error(ctx) : "eval failed");
                     }
+                    free(code);
+                    ctx->sel_active = 0;
+                    break;
+                }
+
+                /* Handle .alda files with Alda interpreter */
+                if (!loki_alda_is_initialized(ctx)) {
+                    /* Auto-init if not initialized */
+                    if (loki_alda_init(ctx, NULL) != 0) {
+                        editor_set_status_msg(ctx, "Alda init failed: %s",
+                            loki_alda_get_error(ctx) ? loki_alda_get_error(ctx) : "unknown");
+                        free(code);
+                        break;
+                    }
+                }
+                int slot = loki_alda_eval_async(ctx, code, NULL);
+                if (slot >= 0) {
+                    editor_set_status_msg(ctx, "Alda: playing part (slot %d)", slot);
                 } else {
-                    editor_set_status_msg(ctx, "No code to evaluate");
+                    editor_set_status_msg(ctx, "Alda error: %s",
+                        loki_alda_get_error(ctx) ? loki_alda_get_error(ctx) : "eval failed");
                 }
                 free(code);
                 /* Clear selection after eval */
@@ -416,11 +451,6 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_P:
             /* Play entire file */
             {
-                /* DEBUG: show filename */
-                editor_set_status_msg(ctx, "DEBUG: filename='%s' is_csd=%d",
-                    ctx->filename ? ctx->filename : "(null)",
-                    is_csd_file(ctx->filename));
-                break;
                 /* Handle .csd files with Csound backend */
                 if (is_csd_file(ctx->filename)) {
                     if (ctx->dirty) {
@@ -444,11 +474,12 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
                     break;
                 }
 
-                /* Handle .alda files with Alda interpreter */
+                /* Check for empty file */
                 if (ctx->numrows == 0) {
                     editor_set_status_msg(ctx, "Empty file");
                     break;
                 }
+
                 /* Build full buffer content */
                 size_t total_len = 0;
                 for (int i = 0; i < ctx->numrows; i++) {
@@ -467,6 +498,29 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
                 }
                 *p = '\0';
 
+                /* Handle .joy files with Joy interpreter */
+                if (is_joy_file(ctx->filename)) {
+                    if (!loki_joy_is_initialized(ctx)) {
+                        if (loki_joy_init(ctx) != 0) {
+                            editor_set_status_msg(ctx, "Joy init failed: %s",
+                                loki_joy_get_error(ctx) ? loki_joy_get_error(ctx) : "unknown");
+                            free(code);
+                            break;
+                        }
+                        /* Open virtual MIDI port */
+                        loki_joy_open_virtual(ctx, "psnd-joy");
+                    }
+                    if (loki_joy_eval(ctx, code) == 0) {
+                        editor_set_status_msg(ctx, "Joy: playing file");
+                    } else {
+                        editor_set_status_msg(ctx, "Joy error: %s",
+                            loki_joy_get_error(ctx) ? loki_joy_get_error(ctx) : "eval failed");
+                    }
+                    free(code);
+                    break;
+                }
+
+                /* Handle .alda files with Alda interpreter */
                 if (!loki_alda_is_initialized(ctx)) {
                     if (loki_alda_init(ctx, NULL) != 0) {
                         editor_set_status_msg(ctx, "Alda init failed: %s",
@@ -491,6 +545,12 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
                 /* Stop Csound playback */
                 if (alda_csound_playback_active()) {
                     alda_csound_stop_playback();
+                    editor_set_status_msg(ctx, "Stopped");
+                }
+            } else if (is_joy_file(ctx->filename)) {
+                /* Stop Joy playback */
+                if (loki_joy_is_initialized(ctx)) {
+                    loki_joy_stop(ctx);
                     editor_set_status_msg(ctx, "Stopped");
                 }
             } else if (loki_alda_is_initialized(ctx)) {
@@ -665,6 +725,12 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
                 /* Stop Csound playback */
                 if (alda_csound_playback_active()) {
                     alda_csound_stop_playback();
+                    editor_set_status_msg(ctx, "Stopped");
+                }
+            } else if (is_joy_file(ctx->filename)) {
+                /* Stop Joy playback */
+                if (loki_joy_is_initialized(ctx)) {
+                    loki_joy_stop(ctx);
                     editor_set_status_msg(ctx, "Stopped");
                 }
             } else if (loki_alda_is_initialized(ctx)) {
