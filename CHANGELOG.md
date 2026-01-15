@@ -55,6 +55,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Keywords extracted from Csound 6.18.1 lexer (`csound_orcparse.h`)
   - **Files Modified**: `internal.h`, `languages.c`, `languages.h`, `syntax.c`
 
+- **Scala Scale File Support**: Parse and use Scala tuning files (`.scl`) for microtuning
+  - **C Parser** (`include/alda/scala.h`, `src/alda/scala.c`):
+    - `scala_load(path)` - Load .scl file from disk
+    - `scala_load_string(buf, len)` - Parse from string buffer
+    - `scala_get_ratio(scale, degree)` - Get frequency ratio for scale degree
+    - `scala_get_frequency(scale, degree, base)` - Get frequency in Hz
+    - `scala_midi_to_freq(scale, midi, root, freq)` - MIDI note to frequency with octave wrapping
+    - `scala_cents_to_ratio(cents)` / `scala_ratio_to_cents(ratio)` - Unit conversions
+  - **Lua API** (`loki.scala` table):
+    - `loki.scala.load(path)` - Load scale file
+    - `loki.scala.load_string(content)` - Load from string
+    - `loki.scala.unload()` - Unload current scale
+    - `loki.scala.loaded()` - Check if scale is loaded
+    - `loki.scala.description()` - Get scale name/description
+    - `loki.scala.length()` - Number of degrees (excluding implicit 1/1)
+    - `loki.scala.ratio(degree)` - Get frequency ratio
+    - `loki.scala.frequency(degree, base_freq)` - Get frequency in Hz
+    - `loki.scala.midi_to_freq(note, [root], [freq])` - MIDI to Hz with scale
+    - `loki.scala.degrees()` - Get all degrees as Lua table
+    - `loki.scala.csound_ftable([base_freq], [fnum])` - Generate Csound f-table statement
+    - `loki.scala.cents_to_ratio(cents)` / `loki.scala.ratio_to_cents(ratio)` - Utilities
+  - **Syntax Highlighting**: `.scl` files with `!` comment highlighting and number highlighting
+  - **Sample Scales** (`.psnd/scales/`):
+    - `12tet.scl` - 12-tone equal temperament
+    - `just.scl` - 5-limit just intonation major
+    - `pythagorean.scl` - Pythagorean 12-tone chromatic
+  - Format spec: https://www.huygens-fokker.org/scala/scl_format.html
+
 - **Standalone CSD File Support**: Edit and play Csound .csd files directly
   - `psnd song.csd` - Open CSD file in editor with syntax highlighting
   - `psnd play song.csd` - Play CSD file headlessly and exit

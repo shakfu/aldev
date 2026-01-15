@@ -92,6 +92,14 @@ char *Csound_HL_keywords[] = {
 
 char *Csound_HL_extensions[] = {".csd",".orc",".sco",NULL};
 
+/* Scala scale file - minimal keywords (pitch format identifiers) */
+char *Scala_HL_keywords[] = {
+	/* No real keywords, just highlight numbers and ratios */
+	NULL
+};
+
+char *Scala_HL_extensions[] = {".scl",NULL};
+
 /* Extensions */
 char *C_HL_extensions[] = {".c",".h",".cpp",".hpp",".cc",NULL};
 char *Python_HL_extensions[] = {".py",".pyw",NULL};
@@ -158,6 +166,15 @@ struct t_editor_syntax HLDB[] = {
         ",.()+-/*=~%[]{}:;<>|",
         HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_NUMBERS,
         HL_TYPE_CSOUND
+    },
+    /* Scala scale files (.scl) - simple format with ! comments */
+    {
+        Scala_HL_extensions,
+        Scala_HL_keywords,
+        "!","","",
+        " \t/",
+        HL_HIGHLIGHT_NUMBERS,
+        HL_TYPE_C
     },
     /* Terminator */
     {NULL, NULL, "", "", "", NULL, 0, HL_TYPE_C}

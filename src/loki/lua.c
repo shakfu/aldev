@@ -35,7 +35,9 @@
 #include "alda.h"       /* Alda music language integration */
 #include "loki/link.h"       /* Ableton Link integration */
 #include "loki/midi_export.h" /* MIDI file export */
+#include "alda/scala.h"      /* Scala scale file parser */
 #include "buffers.h"    /* Buffer management for buffer_get_current() */
+#include <math.h>       /* For pow() in scala bindings */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -1540,6 +1542,277 @@ static void lua_register_midi_module(lua_State *L) {
     lua_setfield(L, -2, "midi");  /* Set as loki.midi */
 }
 
+/* ======================= Scala Scale File Bindings ======================= */
+
+/* Global scale storage (one active scale at a time for simplicity) */
+static ScalaScale *g_current_scale = NULL;
+
+/* Lua API: loki.scala.load(path) - Load a Scala scale file */
+static int lua_scala_load(lua_State *L) {
+    const char *path = luaL_checkstring(L, 1);
+
+    /* Free any existing scale */
+    if (g_current_scale) {
+        scala_free(g_current_scale);
+        g_current_scale = NULL;
+    }
+
+    g_current_scale = scala_load(path);
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, scala_get_error());
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.scala.load_string(content) - Load scale from string */
+static int lua_scala_load_string(lua_State *L) {
+    size_t len;
+    const char *content = luaL_checklstring(L, 1, &len);
+
+    /* Free any existing scale */
+    if (g_current_scale) {
+        scala_free(g_current_scale);
+        g_current_scale = NULL;
+    }
+
+    g_current_scale = scala_load_string(content, len);
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, scala_get_error());
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.scala.unload() - Unload current scale */
+static int lua_scala_unload(lua_State *L) {
+    (void)L;
+    if (g_current_scale) {
+        scala_free(g_current_scale);
+        g_current_scale = NULL;
+    }
+    return 0;
+}
+
+/* Lua API: loki.scala.loaded() - Check if a scale is loaded */
+static int lua_scala_loaded(lua_State *L) {
+    lua_pushboolean(L, g_current_scale != NULL);
+    return 1;
+}
+
+/* Lua API: loki.scala.description() - Get scale description */
+static int lua_scala_description(lua_State *L) {
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushstring(L, scala_get_description(g_current_scale));
+    return 1;
+}
+
+/* Lua API: loki.scala.length() - Get number of degrees (excluding implicit 1/1) */
+static int lua_scala_length(lua_State *L) {
+    if (!g_current_scale) {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+    lua_pushinteger(L, scala_get_length(g_current_scale));
+    return 1;
+}
+
+/* Lua API: loki.scala.ratio(degree) - Get frequency ratio for a degree */
+static int lua_scala_ratio(lua_State *L) {
+    int degree = (int)luaL_checkinteger(L, 1);
+
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, "No scale loaded");
+        return 2;
+    }
+
+    double ratio = scala_get_ratio(g_current_scale, degree);
+    if (ratio < 0) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Invalid degree");
+        return 2;
+    }
+
+    lua_pushnumber(L, ratio);
+    return 1;
+}
+
+/* Lua API: loki.scala.frequency(degree, base_freq) - Get frequency for a degree */
+static int lua_scala_frequency(lua_State *L) {
+    int degree = (int)luaL_checkinteger(L, 1);
+    double base_freq = luaL_checknumber(L, 2);
+
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, "No scale loaded");
+        return 2;
+    }
+
+    double freq = scala_get_frequency(g_current_scale, degree, base_freq);
+    if (freq < 0) {
+        lua_pushnil(L);
+        lua_pushstring(L, "Invalid degree");
+        return 2;
+    }
+
+    lua_pushnumber(L, freq);
+    return 1;
+}
+
+/* Lua API: loki.scala.midi_to_freq(midi_note, root_note, root_freq)
+ * Convert MIDI note to frequency using the loaded scale */
+static int lua_scala_midi_to_freq(lua_State *L) {
+    int midi_note = (int)luaL_checkinteger(L, 1);
+    int root_note = (int)luaL_optinteger(L, 2, 60);  /* Default C4 */
+    double root_freq = luaL_optnumber(L, 3, 261.6255653);  /* Default C4 freq */
+
+    if (!g_current_scale) {
+        /* No scale - use 12-TET */
+        double freq = root_freq * pow(2.0, (midi_note - root_note) / 12.0);
+        lua_pushnumber(L, freq);
+        return 1;
+    }
+
+    double freq = scala_midi_to_freq(g_current_scale, midi_note, root_note, root_freq);
+    lua_pushnumber(L, freq);
+    return 1;
+}
+
+/* Lua API: loki.scala.cents_to_ratio(cents) - Convert cents to ratio */
+static int lua_scala_cents_to_ratio(lua_State *L) {
+    double cents = luaL_checknumber(L, 1);
+    lua_pushnumber(L, scala_cents_to_ratio(cents));
+    return 1;
+}
+
+/* Lua API: loki.scala.ratio_to_cents(ratio) - Convert ratio to cents */
+static int lua_scala_ratio_to_cents(lua_State *L) {
+    double ratio = luaL_checknumber(L, 1);
+    lua_pushnumber(L, scala_ratio_to_cents(ratio));
+    return 1;
+}
+
+/* Lua API: loki.scala.degrees() - Get table of all degrees with details */
+static int lua_scala_degrees(lua_State *L) {
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+
+    for (int i = 0; i < g_current_scale->degree_count; i++) {
+        lua_newtable(L);
+
+        lua_pushnumber(L, g_current_scale->degrees[i].ratio);
+        lua_setfield(L, -2, "ratio");
+
+        lua_pushnumber(L, g_current_scale->degrees[i].cents);
+        lua_setfield(L, -2, "cents");
+
+        if (g_current_scale->degrees[i].cents_format) {
+            lua_pushboolean(L, 1);
+            lua_setfield(L, -2, "cents_format");
+        } else {
+            lua_pushinteger(L, g_current_scale->degrees[i].numerator);
+            lua_setfield(L, -2, "numerator");
+            lua_pushinteger(L, g_current_scale->degrees[i].denominator);
+            lua_setfield(L, -2, "denominator");
+        }
+
+        lua_rawseti(L, -2, i);  /* 0-indexed to match C API */
+    }
+
+    return 1;
+}
+
+/* Lua API: loki.scala.csound_ftable([base_freq], [fnum])
+ * Generate Csound f-table statement for the scale */
+static int lua_scala_csound_ftable(lua_State *L) {
+    double base_freq = luaL_optnumber(L, 1, 261.6255653);  /* C4 default */
+    int fnum = (int)luaL_optinteger(L, 2, 1);  /* f-table number */
+
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, "No scale loaded");
+        return 2;
+    }
+
+    /* Build f-table string with frequencies for each degree */
+    char buffer[4096];
+    int pos = 0;
+
+    /* GEN02 format: f# time size gen values... */
+    pos += snprintf(buffer + pos, sizeof(buffer) - pos,
+                    "f%d 0 %d -2", fnum, g_current_scale->degree_count);
+
+    for (int i = 0; i < g_current_scale->degree_count; i++) {
+        double freq = scala_get_frequency(g_current_scale, i, base_freq);
+        pos += snprintf(buffer + pos, sizeof(buffer) - pos, " %.6f", freq);
+        if (pos >= (int)sizeof(buffer) - 20) break;
+    }
+
+    lua_pushstring(L, buffer);
+    return 1;
+}
+
+/* Register scala module as loki.scala subtable */
+static void lua_register_scala_module(lua_State *L) {
+    /* Assumes loki table is on top of stack */
+    lua_newtable(L);  /* Create scala subtable */
+
+    lua_pushcfunction(L, lua_scala_load);
+    lua_setfield(L, -2, "load");
+
+    lua_pushcfunction(L, lua_scala_load_string);
+    lua_setfield(L, -2, "load_string");
+
+    lua_pushcfunction(L, lua_scala_unload);
+    lua_setfield(L, -2, "unload");
+
+    lua_pushcfunction(L, lua_scala_loaded);
+    lua_setfield(L, -2, "loaded");
+
+    lua_pushcfunction(L, lua_scala_description);
+    lua_setfield(L, -2, "description");
+
+    lua_pushcfunction(L, lua_scala_length);
+    lua_setfield(L, -2, "length");
+
+    lua_pushcfunction(L, lua_scala_ratio);
+    lua_setfield(L, -2, "ratio");
+
+    lua_pushcfunction(L, lua_scala_frequency);
+    lua_setfield(L, -2, "frequency");
+
+    lua_pushcfunction(L, lua_scala_midi_to_freq);
+    lua_setfield(L, -2, "midi_to_freq");
+
+    lua_pushcfunction(L, lua_scala_cents_to_ratio);
+    lua_setfield(L, -2, "cents_to_ratio");
+
+    lua_pushcfunction(L, lua_scala_ratio_to_cents);
+    lua_setfield(L, -2, "ratio_to_cents");
+
+    lua_pushcfunction(L, lua_scala_degrees);
+    lua_setfield(L, -2, "degrees");
+
+    lua_pushcfunction(L, lua_scala_csound_ftable);
+    lua_setfield(L, -2, "csound_ftable");
+
+    lua_setfield(L, -2, "scala");  /* Set as loki.scala */
+}
+
 /* Register alda module as loki.alda subtable */
 static void lua_register_alda_module(lua_State *L) {
     /* Assumes loki table is on top of stack */
@@ -1734,6 +2007,9 @@ void loki_lua_bind_editor(lua_State *L) {
 
     /* Register midi module as loki.midi */
     lua_register_midi_module(L);
+
+    /* Register scala module as loki.scala */
+    lua_register_scala_module(L);
 
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");

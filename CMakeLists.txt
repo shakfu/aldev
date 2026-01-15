@@ -62,6 +62,7 @@ set(LIBALDA_SOURCES
     src/alda/interpreter.c
     src/alda/attributes.c
     src/alda/async.c
+    src/alda/scala.c
 )
 
 add_library(alda STATIC ${LIBALDA_SOURCES})

@@ -54,6 +54,14 @@
   - Tempo bounds `20` and `400` in `loki_alda.c` should be named constants
   - Other hardcoded limits (64 parts, 16384 events, 256 variables)
 
+### Microtuning
+
+- [ ] Integrate Scala scales with Alda pitch calculation
+  - Modify interpreter to use loaded scale for MIDI-to-frequency conversion
+  - Currently `loki.scala.midi_to_freq()` is available in Lua but not wired into playback
+  - Requires changes to `src/alda/interpreter.c` pitch calculation
+  - Consider per-part scale assignment (different instruments in different tunings)
+
 ### Polyglot Platform
 
 - [ ] Integrate first midi-langs DSL

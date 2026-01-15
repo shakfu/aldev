@@ -289,6 +289,7 @@ psnd provides built-in syntax highlighting for music programming languages with 
 | `.csd` | Csound CSD | Section-aware (orchestra/score/options), opcodes, control flow |
 | `.orc` | Csound Orchestra | Full orchestra syntax |
 | `.sco` | Csound Score | Score statements, parameters |
+| `.scl` | Scala Scale | Comments, numbers (for microtuning definitions) |
 
 ### Csound CSD Section Awareness
 
@@ -310,6 +311,71 @@ CSD files contain multiple sections with different syntax. psnd detects these se
 - **`<CsOptions>`** - Command-line flag highlighting
 
 Section tags themselves are highlighted as keywords, and section state is tracked across lines.
+
+## Scala Scale Files (Microtuning)
+
+psnd supports [Scala scale files](https://www.huygens-fokker.org/scala/scl_format.html) (`.scl`) for microtuning and alternative temperaments.
+
+### Loading Scales
+
+```lua
+-- Load a scale file
+loki.scala.load(".psnd/scales/just.scl")
+
+-- Check if loaded
+if loki.scala.loaded() then
+    print(loki.scala.description())  -- "5-limit just intonation major"
+    print(loki.scala.length())       -- 7
+end
+```
+
+### Converting MIDI to Frequencies
+
+```lua
+-- Convert MIDI note to frequency using loaded scale
+-- Arguments: midi_note, root_note (default 60), root_freq (default 261.63)
+local freq = loki.scala.midi_to_freq(60)   -- C4 in the scale
+local freq = loki.scala.midi_to_freq(67, 60, 261.63)  -- G4 with explicit root
+
+-- Get ratio for a specific degree
+local ratio = loki.scala.ratio(4)  -- 4th degree ratio (e.g., 3/2 for perfect fifth)
+```
+
+### Generating Csound Pitch Tables
+
+```lua
+-- Generate Csound f-table statement for use in .csd files
+local ftable = loki.scala.csound_ftable(261.63, 1)
+-- Returns: "f1 0 8 -2 261.630000 294.328125 327.031250 ..."
+```
+
+### Sample Scales
+
+The `.psnd/scales/` directory includes example scales:
+
+| File | Description |
+|------|-------------|
+| `12tet.scl` | 12-tone equal temperament (standard Western tuning) |
+| `just.scl` | 5-limit just intonation major scale |
+| `pythagorean.scl` | Pythagorean 12-tone chromatic scale |
+
+### Lua API Reference
+
+| Function | Description |
+|----------|-------------|
+| `loki.scala.load(path)` | Load scale file, returns true or nil+error |
+| `loki.scala.load_string(content)` | Load from string |
+| `loki.scala.unload()` | Unload current scale |
+| `loki.scala.loaded()` | Check if scale is loaded |
+| `loki.scala.description()` | Get scale description |
+| `loki.scala.length()` | Number of degrees (excluding 1/1) |
+| `loki.scala.ratio(degree)` | Get frequency ratio for degree |
+| `loki.scala.frequency(degree, base)` | Get frequency in Hz |
+| `loki.scala.midi_to_freq(note, [root], [freq])` | MIDI note to Hz |
+| `loki.scala.degrees()` | Get all degrees as table |
+| `loki.scala.csound_ftable([base], [fnum])` | Generate Csound f-table |
+| `loki.scala.cents_to_ratio(cents)` | Convert cents to ratio |
+| `loki.scala.ratio_to_cents(ratio)` | Convert ratio to cents |
 
 ## Roadmap
 
