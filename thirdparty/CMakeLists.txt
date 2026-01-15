@@ -93,6 +93,12 @@ if(BUILD_CSOUND_BACKEND)
     set(USE_MP3 OFF CACHE BOOL "" FORCE)  # libsndfile built without MP3
     # set(DEFAULT_USER_PLUGINDIR "${CMAKE_SOURCE_DIR}/.psnd/csound/plugins" CACHE STRING "" FORCE)
 
+    # Fix for modern Clang: NaN/Infinity warnings are errors with fast-math
+    # Csound uses NaN in a few places, so we need to allow it
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-Wno-nan-infinity-disabled)
+    endif()
+
     add_subdirectory(csound-6.18.1)
 
     # Ensure sndfile is built before Csound links against it

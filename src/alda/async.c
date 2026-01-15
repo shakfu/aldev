@@ -12,6 +12,7 @@
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
 #include "alda/csound_backend.h"
+#include "alda/scala.h"
 #include <uv.h>
 #include <stdlib.h>
 #include <string.h>
@@ -95,9 +96,27 @@ static void send_event(AldaScheduledEvent* evt) {
     /* Route to Csound if enabled (takes highest priority) */
     if (async_sys.ctx && async_sys.ctx->csound_enabled && alda_csound_is_enabled()) {
         switch (evt->type) {
-            case ALDA_EVT_NOTE_ON:
-                alda_csound_send_note_on(channel_1based, evt->data1, evt->data2);
+            case ALDA_EVT_NOTE_ON: {
+                /* Check if this part has a Scala scale for microtuning */
+                AldaPartState* part = NULL;
+                if (evt->part_index >= 0 && evt->part_index < async_sys.ctx->part_count) {
+                    part = &async_sys.ctx->parts[evt->part_index];
+                }
+                if (part && part->scale) {
+                    /* Convert MIDI pitch to frequency using the part's scale */
+                    double freq = scala_midi_to_freq(
+                        (const ScalaScale*)part->scale,
+                        evt->data1,
+                        part->scale_root_note,
+                        part->scale_root_freq
+                    );
+                    alda_csound_send_note_on_freq(channel_1based, freq, evt->data2, evt->data1);
+                } else {
+                    /* No scale - use standard 12-TET (MIDI pitch) */
+                    alda_csound_send_note_on(channel_1based, evt->data1, evt->data2);
+                }
                 break;
+            }
             case ALDA_EVT_NOTE_OFF:
                 alda_csound_send_note_off(channel_1based, evt->data1);
                 break;

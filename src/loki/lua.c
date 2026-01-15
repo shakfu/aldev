@@ -47,6 +47,10 @@
  * its value, just that it's a unique pointer for the registry. */
 static const char editor_ctx_registry_key = 0;
 
+/* Global scale storage (one active scale at a time for simplicity).
+ * Used by Alda microtuning and Scala Lua bindings. */
+static ScalaScale *g_current_scale = NULL;
+
 /* Helper function to get current editor context.
  * Tries buffer_get_current() first for multi-buffer support.
  * Falls back to registry pointer for tests/single-buffer mode. */
@@ -1276,6 +1280,64 @@ static int lua_alda_set_backend(lua_State *L) {
     return 1;
 }
 
+/* Lua API: loki.alda.set_part_scale(part_name, [root_note], [root_freq])
+ * Set the currently loaded Scala scale on a part for microtuning.
+ * Must call loki.scala.load() first to load a scale.
+ */
+static int lua_alda_set_part_scale(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    const char *part_name = luaL_checkstring(L, 1);
+
+    /* Optional root note (default 60 = C4) */
+    int root_note = 60;
+    if (lua_gettop(L) >= 2 && lua_isnumber(L, 2)) {
+        root_note = (int)lua_tointeger(L, 2);
+    }
+
+    /* Optional root frequency (default 261.6255653 Hz = C4 at A4=440) */
+    double root_freq = 261.6255653;
+    if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) {
+        root_freq = lua_tonumber(L, 3);
+    }
+
+    /* Check if a scale is loaded */
+    if (!g_current_scale) {
+        lua_pushnil(L);
+        lua_pushstring(L, "No scale loaded. Call loki.scala.load() first.");
+        return 2;
+    }
+
+    int result = loki_alda_set_part_scale(ctx, part_name, g_current_scale, root_note, root_freq);
+    if (result != 0) {
+        const char *err = loki_alda_get_error(ctx);
+        lua_pushnil(L);
+        lua_pushstring(L, err ? err : "Failed to set part scale");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.alda.clear_part_scale(part_name)
+ * Clear the Scala scale from a part, returning it to 12-TET.
+ */
+static int lua_alda_clear_part_scale(lua_State *L) {
+    editor_ctx_t *ctx = lua_get_editor_context(L);
+    const char *part_name = luaL_checkstring(L, 1);
+
+    int result = loki_alda_clear_part_scale(ctx, part_name);
+    if (result != 0) {
+        const char *err = loki_alda_get_error(ctx);
+        lua_pushnil(L);
+        lua_pushstring(L, err ? err : "Failed to clear part scale");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 /* ======================= Ableton Link Bindings ======================= */
 
 /* Lua API: loki.link.init(bpm) - Initialize Link subsystem */
@@ -1544,8 +1606,7 @@ static void lua_register_midi_module(lua_State *L) {
 
 /* ======================= Scala Scale File Bindings ======================= */
 
-/* Global scale storage (one active scale at a time for simplicity) */
-static ScalaScale *g_current_scale = NULL;
+/* g_current_scale is declared at the top of the file */
 
 /* Lua API: loki.scala.load(path) - Load a Scala scale file */
 static int lua_scala_load(lua_State *L) {
@@ -1881,6 +1942,12 @@ static void lua_register_alda_module(lua_State *L) {
 
     lua_pushcfunction(L, lua_alda_set_backend);
     lua_setfield(L, -2, "set_backend");
+
+    lua_pushcfunction(L, lua_alda_set_part_scale);
+    lua_setfield(L, -2, "set_part_scale");
+
+    lua_pushcfunction(L, lua_alda_clear_part_scale);
+    lua_setfield(L, -2, "clear_part_scale");
 
     lua_setfield(L, -2, "alda");  /* Set as loki.alda */
 }

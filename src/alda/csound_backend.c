@@ -498,6 +498,51 @@ void alda_csound_send_note_on(int channel, int pitch, int velocity) {
     cs_mutex_unlock(&g_cs.mutex);
 }
 
+void alda_csound_send_note_on_freq(int channel, double freq, int velocity, int midi_pitch) {
+    if (!g_cs.csound || !g_cs.enabled) {
+        return;
+    }
+
+    if (channel < 1 || channel > 16) return;
+    if (freq < 20.0 || freq > 20000.0) return;  /* Audible range */
+    if (velocity < 0 || velocity > 127) return;
+
+    /* Velocity 0 is note off */
+    if (velocity == 0) {
+        alda_csound_send_note_off(channel, midi_pitch);
+        return;
+    }
+
+    cs_mutex_lock(&g_cs.mutex);
+
+    /* Turn off existing note at this pitch if any */
+    int existing = find_active_note(channel, midi_pitch);
+    if (existing >= 0) {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "i -%f 0 0", g_cs.active_notes[existing].instr);
+        csoundInputMessage(g_cs.csound, msg);
+        remove_active_note(existing);
+    }
+
+    /* Instrument number based on channel */
+    int base_instr = channel;
+
+    /* Create unique fractional ID for this note (using midi_pitch for tracking) */
+    double instr_num = make_instr_num(base_instr, channel, midi_pitch);
+
+    /* Send note on with frequency instead of MIDI pitch:
+     * i <instr> <start> <dur> <freq> <velocity>
+     * Instruments check if p4 > 200 to know it's frequency, not MIDI pitch */
+    char msg[128];
+    snprintf(msg, sizeof(msg), "i %f 0 -1 %.6f %d", instr_num, freq, velocity);
+    csoundInputMessage(g_cs.csound, msg);
+
+    /* Track the note using midi_pitch */
+    add_active_note(channel, midi_pitch, instr_num);
+
+    cs_mutex_unlock(&g_cs.mutex);
+}
+
 void alda_csound_send_note_off(int channel, int pitch) {
     if (!g_cs.csound || !g_cs.enabled) {
         return;
@@ -1003,6 +1048,7 @@ int alda_csound_enable(void) { return -1; }
 void alda_csound_disable(void) {}
 int alda_csound_is_enabled(void) { return 0; }
 void alda_csound_send_note_on(int ch, int p, int v) { (void)ch; (void)p; (void)v; }
+void alda_csound_send_note_on_freq(int ch, double f, int v, int p) { (void)ch; (void)f; (void)v; (void)p; }
 void alda_csound_send_note_off(int ch, int p) { (void)ch; (void)p; }
 void alda_csound_send_program(int ch, int p) { (void)ch; (void)p; }
 void alda_csound_send_cc(int ch, int cc, int v) { (void)ch; (void)cc; (void)v; }

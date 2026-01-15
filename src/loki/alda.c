@@ -481,6 +481,39 @@ int loki_alda_load_soundfont(editor_ctx_t *ctx, const char *path) {
     return 0;
 }
 
+/* ======================= Microtuning ======================= */
+
+int loki_alda_set_part_scale(editor_ctx_t *ctx, const char *part_name,
+                             struct ScalaScale *scale, int root_note, double root_freq) {
+    LokiAldaState *state = get_alda_state(ctx);
+    if (!state || !state->initialized) {
+        return -1;
+    }
+
+    if (!part_name) {
+        set_state_error(state, "Part name is required");
+        return -1;
+    }
+
+    /* Find the part by name */
+    AldaPartState *part = alda_find_part(&state->alda_ctx, part_name);
+    if (!part) {
+        set_state_error(state, "Part not found");
+        return -1;
+    }
+
+    /* Set the scale and tuning parameters */
+    part->scale = scale;
+    part->scale_root_note = root_note;
+    part->scale_root_freq = root_freq;
+
+    return 0;
+}
+
+int loki_alda_clear_part_scale(editor_ctx_t *ctx, const char *part_name) {
+    return loki_alda_set_part_scale(ctx, part_name, NULL, 60, 261.6255653);
+}
+
 /* ======================= Csound Backend ======================= */
 
 int loki_alda_csound_is_available(void) {

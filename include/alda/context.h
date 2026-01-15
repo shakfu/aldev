@@ -93,6 +93,11 @@ typedef struct {
 
     /* Transposition (semitones, positive = up, negative = down) */
     int transpose;
+
+    /* Microtuning (NULL = standard 12-TET) */
+    struct ScalaScale *scale;    /* Loaded Scala scale (not owned, don't free) */
+    int scale_root_note;         /* MIDI note for scale root (default 60 = C4) */
+    double scale_root_freq;      /* Frequency of root in Hz (default 261.6255653) */
 } AldaPartState;
 
 /* ============================================================================
@@ -123,6 +128,7 @@ typedef struct {
  * ============================================================================ */
 
 struct AldaNode;  /* Forward declaration */
+struct ScalaScale;  /* Forward declaration for microtuning */
 
 typedef struct {
     char name[64];           /* Variable name */

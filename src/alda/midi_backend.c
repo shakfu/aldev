@@ -8,6 +8,7 @@
 #include "alda/midi_backend.h"
 #include "alda/tsf_backend.h"
 #include "alda/csound_backend.h"
+#include "alda/scala.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -309,6 +310,24 @@ int alda_midi_is_open(AldaContext* ctx) {
 }
 
 /* ============================================================================
+ * Helper Functions
+ * ============================================================================ */
+
+/**
+ * Find a part that uses the given MIDI channel.
+ * Returns NULL if no part uses this channel.
+ */
+static AldaPartState* find_part_by_channel(AldaContext* ctx, int channel) {
+    if (!ctx) return NULL;
+    for (int i = 0; i < ctx->part_count; i++) {
+        if (ctx->parts[i].channel == channel) {
+            return &ctx->parts[i];
+        }
+    }
+    return NULL;
+}
+
+/* ============================================================================
  * MIDI Message Sending
  * ============================================================================ */
 
@@ -317,7 +336,21 @@ void alda_midi_send_note_on(AldaContext* ctx, int channel, int pitch, int veloci
 
     /* Csound synth takes highest priority when enabled */
     if (ctx->csound_enabled && alda_csound_is_enabled()) {
-        alda_csound_send_note_on(channel, pitch, velocity);
+        /* Check if this channel's part has a Scala scale for microtuning */
+        AldaPartState* part = find_part_by_channel(ctx, channel);
+        if (part && part->scale) {
+            /* Convert MIDI pitch to frequency using the part's scale */
+            double freq = scala_midi_to_freq(
+                (const ScalaScale*)part->scale,
+                pitch,
+                part->scale_root_note,
+                part->scale_root_freq
+            );
+            alda_csound_send_note_on_freq(channel, freq, velocity, pitch);
+        } else {
+            /* No scale - use standard 12-TET (MIDI pitch) */
+            alda_csound_send_note_on(channel, pitch, velocity);
+        }
         return;
     }
 

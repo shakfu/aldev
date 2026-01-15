@@ -197,6 +197,36 @@ int loki_alda_set_synth_enabled(editor_ctx_t *ctx, int enable);
  */
 int loki_alda_load_soundfont(editor_ctx_t *ctx, const char *path);
 
+/* ======================= Microtuning ======================= */
+
+/* Forward declaration for ScalaScale */
+struct ScalaScale;
+
+/**
+ * Set a Scala scale for microtuning on a specific part.
+ *
+ * When a scale is set, notes for this part will be converted from
+ * MIDI pitch to frequency using the scale before being sent to Csound.
+ *
+ * @param ctx Editor context
+ * @param part_name Name of the part (e.g., "piano")
+ * @param scale Pointer to loaded ScalaScale (NULL to clear)
+ * @param root_note MIDI note number for scale root (default 60 = C4)
+ * @param root_freq Frequency of root in Hz (default 261.6255653)
+ * @return 0 on success, -1 if part not found
+ */
+int loki_alda_set_part_scale(editor_ctx_t *ctx, const char *part_name,
+                             struct ScalaScale *scale, int root_note, double root_freq);
+
+/**
+ * Clear the Scala scale from a part (return to 12-TET).
+ *
+ * @param ctx Editor context
+ * @param part_name Name of the part
+ * @return 0 on success, -1 if part not found
+ */
+int loki_alda_clear_part_scale(editor_ctx_t *ctx, const char *part_name);
+
 /* ======================= Csound Backend ======================= */
 
 /**

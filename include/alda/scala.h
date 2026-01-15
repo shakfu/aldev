@@ -48,7 +48,7 @@ typedef struct {
 /**
  * Represents a complete musical scale loaded from a .scl file.
  */
-typedef struct {
+typedef struct ScalaScale {
     char description[SCALA_MAX_DESCRIPTION];  /* Scale description */
     int length;                               /* Number of degrees (excluding implicit 1/1) */
     ScalaDegree *degrees;                     /* Array of degrees (index 0 = implicit 1/1) */

@@ -65,6 +65,32 @@ add_test(
 )
 set_tests_properties(alda_integration_tests PROPERTIES LABELS "integration")
 
+# Microtuning tests
+add_executable(test_microtuning
+    test_microtuning.c
+    ${CMAKE_SOURCE_DIR}/tests/test_framework.c
+)
+target_link_libraries(test_microtuning PRIVATE alda)
+target_link_libraries(test_microtuning PRIVATE m)
+
+add_test(
+    NAME alda_microtuning_tests
+    COMMAND $<TARGET_FILE:test_microtuning>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(alda_microtuning_tests PROPERTIES LABELS "unit")
+
+# Csound microtuning manual test (only when Csound is enabled)
+if(BUILD_CSOUND_BACKEND)
+    add_executable(test_csound_microtuning
+        test_csound_microtuning.c
+    )
+    target_link_libraries(test_csound_microtuning PRIVATE alda)
+    target_link_libraries(test_csound_microtuning PRIVATE m)
+    target_compile_definitions(test_csound_microtuning PRIVATE BUILD_CSOUND_BACKEND)
+    # Not added to CTest - this is a manual audio test
+endif()
+
 # Shared suite test runner (Unix only - uses POSIX dirent.h)
 if(NOT WIN32)
     add_executable(test_shared_suite test_shared_suite.c)

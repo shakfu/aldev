@@ -147,6 +147,11 @@ void alda_part_init(AldaPartState* part, const char* name, int channel, int prog
 
     /* Transposition (none) */
     part->transpose = 0;
+
+    /* Microtuning (12-TET by default) */
+    part->scale = NULL;           /* NULL = standard 12-TET */
+    part->scale_root_note = 60;   /* C4 */
+    part->scale_root_freq = 261.6255653;  /* C4 in Hz (A4=440) */
 }
 
 AldaPartState* alda_find_part(AldaContext* ctx, const char* name) {

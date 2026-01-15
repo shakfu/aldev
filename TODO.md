@@ -61,11 +61,13 @@
 
 ### Microtuning
 
-- [ ] Integrate Scala scales with Alda pitch calculation
-  - Modify interpreter to use loaded scale for MIDI-to-frequency conversion
-  - Currently `loki.scala.midi_to_freq()` is available in Lua but not wired into playback
-  - Requires changes to `src/alda/interpreter.c` pitch calculation
-  - Consider per-part scale assignment (different instruments in different tunings)
+- [x] Integrate Scala scales with Alda pitch calculation
+  - Added per-part scale fields to `AldaPartState`: `scale`, `scale_root_note`, `scale_root_freq`
+  - Modified Csound backend to send frequency (via `alda_csound_send_note_on_freq`)
+  - Pitch conversion happens at dispatch in `midi_backend.c` and `async.c`
+  - Lua API: `loki.alda.set_part_scale(part_name, [root_note], [root_freq])`
+  - Lua API: `loki.alda.clear_part_scale(part_name)` - return to 12-TET
+  - Per-part scale assignment enables different instruments in different tunings
 
 ### Polyglot Platform
 

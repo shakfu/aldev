@@ -114,6 +114,22 @@ int alda_csound_is_enabled(void);
 void alda_csound_send_note_on(int channel, int pitch, int velocity);
 
 /**
+ * @brief Send a note-on message with frequency (for microtuning).
+ *
+ * Like alda_csound_send_note_on but accepts frequency in Hz instead of
+ * MIDI pitch. Used for Scala scale microtuning support.
+ *
+ * The Csound instrument receives frequency as p4 (instead of MIDI pitch).
+ * Instruments should check if p4 > 200 to distinguish frequency from pitch.
+ *
+ * @param channel MIDI channel (1-16).
+ * @param freq Frequency in Hz.
+ * @param velocity Note velocity (0-127).
+ * @param midi_pitch Original MIDI pitch (for note tracking/release).
+ */
+void alda_csound_send_note_on_freq(int channel, double freq, int velocity, int midi_pitch);
+
+/**
  * @brief Send a note-off message.
  *
  * Turns off the note with the specified pitch on the channel.
