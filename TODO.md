@@ -97,6 +97,10 @@
   - Already designed for in `editor_ctx_t`
   - Requires screen rendering changes
 
+- [ ] Tree sitter integration
+  - Would improve syntax highlighting, code handling
+  - Significantly more complex than current system
+
 - [ ] LSP client integration
   - Would provide IDE-like features
   - High complexity undertaking

@@ -15,6 +15,7 @@ The first supported language is [Alda](https://alda.io). Alda support is already
 - **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
 - **Optional Csound backend** for deeper sound design workflows
 - **Ableton Link support** for networked tempo sync
+- **Scala .scl import support** for microtuning
 - **Lua APIs** for editor automation, playback control, and extensibility
 
 ## Status
