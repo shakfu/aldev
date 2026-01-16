@@ -304,3 +304,4 @@ target_include_directories(test_framework PUBLIC
 add_subdirectory(tests/loki)
 add_subdirectory(tests/alda)
 add_subdirectory(tests/joy)
+add_subdirectory(tests/shared)

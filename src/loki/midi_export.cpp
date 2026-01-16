@@ -73,14 +73,13 @@ int loki_midi_export_shared(const char *filename) {
     smf::MidiFile midifile;
     midifile.setTicksPerQuarterNote(ticks_per_quarter);
 
-    /* Type 0: single track, Type 1: one track per channel */
+    /* Type 0: single track, Type 1: one track per channel + conductor */
     bool use_type0 = (num_channels == 1);
 
     if (!use_type0) {
-        /* Type 1: Add one track per channel (track 0 already exists for conductor) */
-        for (int i = 0; i < num_channels; i++) {
-            midifile.addTrack();
-        }
+        /* Type 1: Need track 0 (conductor) + one track per channel */
+        /* MidiFile starts with 1 track (index 0), add one more per channel */
+        midifile.addTracks(num_channels);
     }
 
     /* Map channel -> track index for Type 1 */
@@ -91,6 +90,9 @@ int loki_midi_export_shared(const char *filename) {
             channel_to_track[ch] = track_idx++;
         }
     }
+
+    /* Always add default tempo to ensure track 0 has content */
+    midifile.addTempo(0, 0, 120.0);
 
     /* Convert events */
     for (int i = 0; i < event_count; i++) {
