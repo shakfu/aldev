@@ -38,8 +38,8 @@
 #include "undo.h"
 #include "buffers.h"
 #include "lang_bridge.h"
-#ifdef LANG_ALDA
-#include "alda/csound_backend.h"  /* For CSD file playback */
+#ifdef BUILD_CSOUND_BACKEND
+#include "shared/audio/audio.h"  /* For CSD file playback */
 #endif
 #include <stdlib.h>
 #include <string.h>
@@ -426,7 +426,7 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_P:
             /* Play entire file */
             {
-#ifdef LANG_ALDA
+#ifdef BUILD_CSOUND_BACKEND
                 /* Handle .csd files with Csound backend */
                 if (is_csd_file(ctx->filename)) {
                     if (ctx->dirty) {
@@ -438,13 +438,13 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
                         break;
                     }
                     /* Stop any existing playback */
-                    alda_csound_stop_playback();
+                    shared_csound_stop_playback();
                     /* Start async playback */
-                    int result = alda_csound_play_file_async(ctx->filename);
+                    int result = shared_csound_play_file_async(ctx->filename);
                     if (result == 0) {
                         editor_set_status_msg(ctx, "Playing %s (Ctrl-G to stop)", ctx->filename);
                     } else {
-                        const char *err = alda_csound_get_error();
+                        const char *err = shared_csound_get_error();
                         editor_set_status_msg(ctx, "Csound error: %s", err ? err : "failed to play");
                     }
                     break;
@@ -495,11 +495,11 @@ static void process_normal_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_G:
             /* Stop playback */
             {
-#ifdef LANG_ALDA
+#ifdef BUILD_CSOUND_BACKEND
                 /* Handle CSD file stop separately (Csound backend) */
                 if (is_csd_file(ctx->filename)) {
-                    if (alda_csound_playback_active()) {
-                        alda_csound_stop_playback();
+                    if (shared_csound_playback_active()) {
+                        shared_csound_stop_playback();
                         editor_set_status_msg(ctx, "Stopped");
                         break;
                     }
@@ -586,7 +586,7 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
             {
                 int play_file = (c == CTRL_P);
 
-#ifdef LANG_ALDA
+#ifdef BUILD_CSOUND_BACKEND
                 /* Handle .csd files with Csound backend */
                 if (is_csd_file(ctx->filename)) {
                     if (c == CTRL_E) {
@@ -604,13 +604,13 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
                         break;
                     }
                     /* Stop any existing playback */
-                    alda_csound_stop_playback();
+                    shared_csound_stop_playback();
                     /* Start async playback */
-                    int result = alda_csound_play_file_async(ctx->filename);
+                    int result = shared_csound_play_file_async(ctx->filename);
                     if (result == 0) {
                         editor_set_status_msg(ctx, "Playing %s (Ctrl-G to stop)", ctx->filename);
                     } else {
-                        const char *err = alda_csound_get_error();
+                        const char *err = shared_csound_get_error();
                         editor_set_status_msg(ctx, "Csound error: %s", err ? err : "failed to play");
                     }
                     break;
@@ -674,11 +674,11 @@ static void process_insert_mode(editor_ctx_t *ctx, int fd, int c) {
         case CTRL_G:
             /* Stop playback */
             {
-#ifdef LANG_ALDA
+#ifdef BUILD_CSOUND_BACKEND
                 /* Handle CSD file stop separately (Csound backend) */
                 if (is_csd_file(ctx->filename)) {
-                    if (alda_csound_playback_active()) {
-                        alda_csound_stop_playback();
+                    if (shared_csound_playback_active()) {
+                        shared_csound_stop_playback();
                         editor_set_status_msg(ctx, "Stopped");
                         break;
                     }
