@@ -18,6 +18,9 @@
 #include <alda/alda.h>
 #include <alda/csound_backend.h>
 
+/* Shared audio backend (for shared_csound_is_available) */
+#include "shared/audio/audio.h"
+
 /* Lua headers for callbacks */
 #include "lua.h"
 #include "lauxlib.h"
@@ -517,9 +520,8 @@ int loki_alda_clear_part_scale(editor_ctx_t *ctx, const char *part_name) {
 /* ======================= Csound Backend ======================= */
 
 int loki_alda_csound_is_available(void) {
-    /* Check if Csound init succeeds (it returns -1 if not compiled) */
-    return alda_csound_is_enabled() || alda_csound_has_instruments() ||
-           (alda_csound_init() == 0);
+    /* Use shared Csound backend availability check */
+    return shared_csound_is_available();
 }
 
 int loki_alda_csound_is_enabled(editor_ctx_t *ctx) {

@@ -4,12 +4,11 @@
 
 ### Architecture (Shared Layer)
 
-- [ ] Move Csound backend to shared layer
-  - Currently: Real implementation in `src/alda/csound_backend.c`, stubs in `src/shared/audio/csound_backend.c`
-  - Move actual Csound implementation to `src/shared/audio/csound_backend.c`
-  - Update Alda and Joy to use `shared_csound_*` functions
-  - Update `:csd` command to use shared API instead of `loki_alda_csound_*`
-  - Enables Csound synthesis for all languages, not just Alda
+- [x] Move Csound backend to shared layer (DONE)
+  - Real implementation now in `src/shared/audio/csound_backend.c`
+  - `src/alda/csound_backend.c` contains thin wrappers calling `shared_csound_*`
+  - Joy uses shared backend via alda wrappers
+  - Csound synthesis available to all languages
 
 - [ ] Move MIDI export to shared layer
   - Currently: `src/loki/midi_export.cpp` uses Alda's internal event model

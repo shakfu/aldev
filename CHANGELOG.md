@@ -19,6 +19,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Shared Csound Backend**: Moved Csound synthesis to shared layer
+  - Real implementation now in `src/shared/audio/csound_backend.c`
+  - `src/alda/csound_backend.c` provides thin wrappers calling `shared_csound_*` functions
+  - Csound synthesis now available to all languages (Alda, Joy) through the shared backend
+  - CMakeLists.txt updated to add Csound dependency to shared library
+
+- **Language-agnostic `:csd` Command**: Refactored Csound command to be language-independent
+  - New `src/loki/csound.c` provides editor-level Csound control
+  - `:csd` command no longer requires Alda initialization
+  - Works regardless of whether editing Alda or Joy files
+
 - **Modular Command System**: Refactored editor ex-commands into separate files
   - New `src/loki/command/` directory with one file per command category
   - `command_impl.h` - Shared header with documentation on adding new commands

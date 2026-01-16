@@ -2,49 +2,38 @@
  *
  * Toggle Csound synthesis backend.
  *
- * NOTE: Currently uses loki_alda_csound_* functions because the actual
- * Csound implementation lives in src/alda/csound_backend.c. The shared
- * backend (src/shared/audio/csound_backend.c) contains only stubs.
- *
- * TODO: Once Csound is moved to the shared layer, this command should
- * use shared_csound_* functions instead, making Csound available to
- * all languages (Alda, Joy, etc.), not just Alda.
- * See TODO.md "Move Csound backend to shared layer".
+ * Uses the editor-level loki_csound_* functions which call the shared
+ * Csound backend directly. This command is language-agnostic and works
+ * regardless of whether Alda or Joy is active.
  */
 
 #include "command_impl.h"
-#include "loki/alda.h"  /* TODO: Replace with shared/audio/audio.h */
+#include "loki/csound.h"
 
 /* :csd - Toggle Csound synthesis */
 int cmd_csd(editor_ctx_t *ctx, const char *args) {
     /* Check if Csound backend is available */
-    if (!loki_alda_csound_is_available()) {
+    if (!loki_csound_is_available()) {
         editor_set_status_msg(ctx, "Csound not available (build with -DBUILD_CSOUND_BACKEND=ON)");
         return 0;
     }
 
-    /* Initialize Alda if needed */
-    if (!loki_alda_is_initialized(ctx)) {
-        if (loki_alda_init(ctx, NULL) != 0) {
-            editor_set_status_msg(ctx, "Failed to initialize Alda");
-            return 0;
-        }
-    }
-
     if (!args || !args[0]) {
         /* Toggle Csound */
-        int csound_enabled = loki_alda_csound_is_enabled(ctx);
-        if (csound_enabled) {
+        if (loki_csound_is_enabled()) {
             /* Switch to TSF */
-            loki_alda_csound_set_enabled(ctx, 0);
-            loki_alda_set_synth_enabled(ctx, 1);
-            editor_set_status_msg(ctx, "Switched to TinySoundFont");
+            loki_csound_disable();
+            editor_set_status_msg(ctx, "Csound disabled");
         } else {
             /* Switch to Csound */
-            if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
-                editor_set_status_msg(ctx, "Switched to Csound");
+            if (!loki_csound_has_instruments()) {
+                editor_set_status_msg(ctx, "No Csound instruments loaded (use :cs <file.csd> first)");
+                return 0;
+            }
+            if (loki_csound_enable() == 0) {
+                editor_set_status_msg(ctx, "Csound enabled");
             } else {
-                editor_set_status_msg(ctx, "Failed to enable Csound (load .csd first)");
+                editor_set_status_msg(ctx, "Failed to enable Csound");
                 return 0;
             }
         }
@@ -63,17 +52,20 @@ int cmd_csd(editor_ctx_t *ctx, const char *args) {
     }
 
     if (enable) {
-        if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
+        if (!loki_csound_has_instruments()) {
+            editor_set_status_msg(ctx, "No Csound instruments loaded (use :cs <file.csd> first)");
+            return 0;
+        }
+        if (loki_csound_enable() == 0) {
             editor_set_status_msg(ctx, "Csound enabled");
             return 1;
         } else {
-            editor_set_status_msg(ctx, "Failed to enable Csound (load .csd first)");
+            editor_set_status_msg(ctx, "Failed to enable Csound");
             return 0;
         }
     } else {
-        loki_alda_csound_set_enabled(ctx, 0);
-        loki_alda_set_synth_enabled(ctx, 1);
-        editor_set_status_msg(ctx, "Csound disabled, using TinySoundFont");
+        loki_csound_disable();
+        editor_set_status_msg(ctx, "Csound disabled");
         return 1;
     }
 }

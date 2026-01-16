@@ -66,6 +66,21 @@ target_include_directories(shared
 
 target_link_libraries(shared PUBLIC libremidi abl_link Threads::Threads)
 
+# Csound backend for shared library (optional)
+if(BUILD_CSOUND_BACKEND)
+    target_compile_definitions(shared PRIVATE BUILD_CSOUND_BACKEND)
+    target_include_directories(shared PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/H
+        ${CMAKE_BINARY_DIR}/thirdparty/csound-6.18.1/include
+    )
+    if(APPLE)
+        target_link_libraries(shared PRIVATE CsoundLib64-static)
+    else()
+        target_link_libraries(shared PRIVATE csound64-static)
+    endif()
+endif()
+
 if(APPLE)
     target_link_libraries(shared PUBLIC
         "-framework CoreMIDI"
@@ -148,20 +163,8 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(alda PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# Csound backend for alda (optional)
-if(BUILD_CSOUND_BACKEND)
-    target_compile_definitions(alda PRIVATE BUILD_CSOUND_BACKEND)
-    target_include_directories(alda PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/H
-        ${CMAKE_BINARY_DIR}/thirdparty/csound-6.18.1/include
-    )
-    if(APPLE)
-        target_link_libraries(alda PRIVATE CsoundLib64-static)
-    else()
-        target_link_libraries(alda PRIVATE csound64-static)
-    endif()
-endif()
+# Note: Csound backend is now in shared library (src/shared/audio/csound_backend.c)
+# alda/csound_backend.c provides thin wrappers that call shared_csound_*
 
 # libjoy - Joy concatenative language library (from src/joy/)
 set(LIBJOY_SOURCES
@@ -217,6 +220,7 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki/alda.c
     src/loki/joy.c
     src/loki/link.c
+    src/loki/csound.c
     src/loki/midi_export.cpp
 )
 
