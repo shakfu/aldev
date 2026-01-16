@@ -35,6 +35,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - TR7 refactored to use the same shared launcher pattern
   - Reduced ~350 lines of duplicate code between Joy and TR7
 
+- **Centralized Constants**: New `include/psnd.h` replaces hardcoded strings throughout codebase
+  - `PSND_NAME` - Program name ("psnd")
+  - `PSND_VERSION` - Version string ("0.1.2")
+  - `PSND_CONFIG_DIR` - Configuration directory (".psnd")
+  - `PSND_MIDI_PORT_NAME` - Default virtual MIDI port name ("PSND_MIDI")
+  - Updated 12 source files to use these constants
+  - Removed `include/version.h` (superseded by `psnd.h`)
+
 - **Shared Csound Backend**: Moved Csound synthesis to shared layer
   - Real implementation now in `src/shared/audio/csound_backend.c`
   - `src/alda/csound_backend.c` provides thin wrappers calling `shared_csound_*` functions

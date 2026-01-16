@@ -79,11 +79,55 @@ def main() -> int:
     c_sources = list(src_dir.glob("**/*.c"))
     cpp_sources = list(src_dir.glob("**/*.cpp"))
 
+    # Exclude files that have header organization issues with clang-tidy
+    # (forward declarations vs full struct definitions)
+    exclude_patterns = [
+        "*/lang/*/register.c",  # Language register files use conditional forward decls
+    ]
+
+    def should_exclude(path: Path) -> bool:
+        for pattern in exclude_patterns:
+            if path.match(pattern):
+                return True
+        return False
+
+    c_sources = [f for f in c_sources if not should_exclude(f)]
+    cpp_sources = [f for f in cpp_sources if not should_exclude(f)]
+
     if not c_sources and not cpp_sources:
         print("No source files found.")
         return 1
 
-    includes = [include_dir, src_dir]
+    # Order matters: src directories first (full definitions), then include (public API)
+    includes = []
+
+    # Loki editor includes first (internal.h has full struct definitions)
+    loki_dir = src_dir / 'loki'
+    includes.append(loki_dir)
+
+    # Shared backend includes
+    shared_dir = src_dir / 'shared'
+    includes.append(shared_dir)
+
+    # Language-specific includes
+    alda_include = src_dir / 'lang' / 'alda' / 'include'
+    includes.append(alda_include)
+
+    # Joy language includes
+    joy_dir = src_dir / 'lang' / 'joy'
+    includes.append(joy_dir)
+    includes.append(joy_dir / 'impl')
+    includes.append(joy_dir / 'music')
+    includes.append(joy_dir / 'midi')
+
+    # TR7 language includes
+    tr7_dir = src_dir / 'lang' / 'tr7'
+    includes.append(tr7_dir)
+
+    # General src and include directories
+    includes.append(src_dir)
+    includes.append(include_dir)
+
     for lib in thirdparty_dir.iterdir():
         if lib.is_dir():
             includes.append(lib)
@@ -96,6 +140,8 @@ def main() -> int:
             if lib.name == "TinySoundFont":
                 includes.append(lib)
             if lib.name == "miniaudio":
+                includes.append(lib)
+            if lib.name == "tr7":
                 includes.append(lib)
 
 
