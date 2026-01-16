@@ -48,6 +48,7 @@ set(LIBSHARED_SOURCES
     src/shared/audio/tsf_backend.c
     src/shared/audio/csound_backend.c
     src/shared/midi/midi.c
+    src/shared/midi/events.c
     src/shared/link/link.c
 )
 

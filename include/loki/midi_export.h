@@ -1,11 +1,15 @@
-/* loki/midi_export.h - MIDI file export for Alda compositions
+/* loki/midi_export.h - MIDI file export
  *
- * Provides functionality to export Alda music notation to Standard MIDI Files.
+ * Provides functionality to export MIDI events to Standard MIDI Files.
  * Uses the midifile library (BSD-2-Clause) for MIDI file generation.
  *
  * Usage:
  *   - From ex-command: :export filename.mid
  *   - From Lua: loki.midi.export("filename.mid")
+ *
+ * The export system reads from the shared MIDI event buffer
+ * (src/shared/midi/events.h). Languages populate this buffer
+ * before calling the export function.
  */
 
 #ifndef LOKI_MIDI_EXPORT_H
@@ -20,11 +24,22 @@ extern "C" {
 #endif
 
 /**
- * Export current Alda events to a Standard MIDI File.
+ * Export shared MIDI event buffer to a Standard MIDI File.
  *
- * Converts the AldaScheduledEvent array from the current Alda context
- * into a MIDI file. Exports as Type 0 (single track) for single-channel
+ * Reads events from shared_midi_events_get() and writes them
+ * to a MIDI file. Exports as Type 0 (single track) for single-channel
  * compositions, or Type 1 (multi-track) for multi-channel compositions.
+ *
+ * @param filename Output filename (should end in .mid)
+ * @return 0 on success, -1 on error
+ */
+int loki_midi_export_shared(const char *filename);
+
+/**
+ * Export Alda events directly to a Standard MIDI File.
+ *
+ * Legacy function that reads from Alda's internal event buffer.
+ * Prefer using loki_midi_export_shared() with the shared event buffer.
  *
  * @param ctx Editor context (used for Alda state access)
  * @param filename Output filename (should end in .mid)
@@ -36,7 +51,7 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename);
  * Get the last error message from a failed export.
  *
  * @return Error message string, or NULL if no error
- * @note String is valid until next loki_midi_export() call
+ * @note String is valid until next export call
  */
 const char *loki_midi_export_error(void);
 

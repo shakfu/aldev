@@ -10,11 +10,13 @@
   - Joy uses shared backend via alda wrappers
   - Csound synthesis available to all languages
 
-- [ ] Move MIDI export to shared layer
-  - [x] `:export` command is now language-agnostic (`src/loki/export.c`)
-  - [ ] Define a common `SharedMidiEvent` format in `src/shared/`
-  - [ ] Languages populate shared event buffer during playback/evaluation
-  - Currently only Alda has exportable events (Joy uses immediate playback)
+- [x] Move MIDI export to shared layer (DONE)
+  - [x] `:export` command is language-agnostic (`src/loki/export.c`)
+  - [x] `SharedMidiEvent` format defined in `src/shared/midi/events.h`
+  - [x] Shared event buffer API (`shared_midi_events_*`)
+  - [x] Export reads from shared buffer (`loki_midi_export_shared`)
+  - Alda events converted to shared format at export time
+  - Joy uses immediate playback (could add recording in future)
 
 - [ ] Modular language selection via CMake options
   - Add `BUILD_ALDA_LANGUAGE` and `BUILD_JOY_LANGUAGE` options (default ON)

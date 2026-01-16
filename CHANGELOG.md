@@ -30,9 +30,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `:csd` command no longer requires Alda initialization
   - Works regardless of whether editing Alda or Joy files
 
+- **Shared MIDI Event Buffer**: Added common event format for MIDI export
+  - New `SharedMidiEvent` type in `src/shared/midi/events.h`
+  - Shared event buffer API (`shared_midi_events_*`)
+  - Languages convert their events to shared format at export time
+  - New `loki_midi_export_shared()` reads from shared buffer
+  - Enables future languages to support MIDI export
+
 - **Language-agnostic `:export` Command**: Refactored MIDI export command to be language-independent
   - New `src/loki/export.c` provides editor-level export control
-  - `:export` command detects which language has exportable events
+  - Converts Alda events to shared format before export
   - Generic error messages (not Alda-specific)
 
 - **Modular Command System**: Refactored editor ex-commands into separate files

@@ -1,11 +1,15 @@
 /* loki_midi_export.cpp - MIDI file export implementation
  *
- * Converts AldaScheduledEvent arrays to Standard MIDI Files using midifile library.
+ * Exports MIDI events to Standard MIDI Files using midifile library.
+ * Supports both:
+ *   - Shared event buffer (loki_midi_export_shared)
+ *   - Legacy Alda events (loki_midi_export)
  */
 
 extern "C" {
 #include "loki/midi_export.h"
 #include "alda.h"
+#include "midi/events.h"
 #include <alda/context.h>
 }
 
@@ -19,10 +23,126 @@ extern "C" {
 /* Last error message (static storage) */
 static std::string g_last_error;
 
-/* MIDI CC number for pan */
-#define MIDI_CC_PAN 10
-
 extern "C" {
+
+/* ============================================================================
+ * Export from Shared Event Buffer
+ * ============================================================================ */
+
+int loki_midi_export_shared(const char *filename) {
+    g_last_error.clear();
+
+    /* Validate filename */
+    if (!filename || !*filename) {
+        g_last_error = "No filename specified";
+        return -1;
+    }
+
+    /* Get events from shared buffer */
+    int event_count = 0;
+    const SharedMidiEvent *events = shared_midi_events_get(&event_count);
+
+    if (!events || event_count == 0) {
+        g_last_error = "No events to export";
+        return -1;
+    }
+
+    int ticks_per_quarter = shared_midi_events_ticks_per_quarter();
+    if (ticks_per_quarter <= 0) {
+        ticks_per_quarter = 480;  /* Default fallback */
+    }
+
+    /* Determine unique channels to decide Type 0 vs Type 1 */
+    std::set<int> channels_used;
+    for (int i = 0; i < event_count; i++) {
+        if (events[i].type == SHARED_MIDI_NOTE_ON ||
+            events[i].type == SHARED_MIDI_NOTE_OFF ||
+            events[i].type == SHARED_MIDI_PROGRAM ||
+            events[i].type == SHARED_MIDI_CC) {
+            channels_used.insert(events[i].channel);
+        }
+    }
+
+    int num_channels = static_cast<int>(channels_used.size());
+    if (num_channels == 0) {
+        g_last_error = "No channel events to export";
+        return -1;
+    }
+
+    /* Create MIDI file */
+    smf::MidiFile midifile;
+    midifile.setTicksPerQuarterNote(ticks_per_quarter);
+
+    /* Type 0: single track, Type 1: one track per channel */
+    bool use_type0 = (num_channels == 1);
+
+    if (!use_type0) {
+        /* Type 1: Add one track per channel (track 0 already exists for conductor) */
+        for (int i = 0; i < num_channels; i++) {
+            midifile.addTrack();
+        }
+    }
+
+    /* Map channel -> track index for Type 1 */
+    std::map<int, int> channel_to_track;
+    if (!use_type0) {
+        int track_idx = 1;
+        for (int ch : channels_used) {
+            channel_to_track[ch] = track_idx++;
+        }
+    }
+
+    /* Convert events */
+    for (int i = 0; i < event_count; i++) {
+        const SharedMidiEvent &evt = events[i];
+        int tick = evt.tick;
+        int channel = evt.channel;
+
+        /* Determine target track */
+        int track = 0;
+        if (!use_type0 && channel_to_track.count(channel)) {
+            track = channel_to_track[channel];
+        }
+
+        switch (evt.type) {
+            case SHARED_MIDI_NOTE_ON:
+                midifile.addNoteOn(track, tick, channel, evt.data1, evt.data2);
+                break;
+
+            case SHARED_MIDI_NOTE_OFF:
+                midifile.addNoteOff(track, tick, channel, evt.data1, 0);
+                break;
+
+            case SHARED_MIDI_PROGRAM:
+                midifile.addPatchChange(track, tick, channel, evt.data1);
+                break;
+
+            case SHARED_MIDI_CC:
+                midifile.addController(track, tick, channel, evt.data1, evt.data2);
+                break;
+
+            case SHARED_MIDI_TEMPO:
+                /* Tempo events go to track 0 (conductor track) */
+                midifile.addTempo(0, tick, static_cast<double>(evt.data1));
+                break;
+        }
+    }
+
+    /* Sort tracks (ensures events are in correct order) */
+    midifile.sortTracks();
+
+    /* Write the file */
+    if (!midifile.write(filename)) {
+        g_last_error = "Failed to write MIDI file";
+        return -1;
+    }
+
+    return 0;
+}
+
+/* ============================================================================
+ * Legacy: Export from Alda Events
+ * ============================================================================ */
 
 int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
     g_last_error.clear();
@@ -67,11 +187,7 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
     /* Type 0: single track, Type 1: one track per channel */
     bool use_type0 = (num_channels == 1);
 
-    /* MidiFile constructor creates track 0 by default.
-     * For Type 0: use the existing track 0
-     * For Type 1: track 0 is conductor, add tracks 1-N for channels */
     if (!use_type0) {
-        /* Type 1: Add one track per channel (track 0 already exists for conductor) */
         for (int i = 0; i < num_channels; i++) {
             midifile.addTrack();
         }
@@ -88,8 +204,6 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
 
     /* Get initial tempo */
     int tempo = loki_alda_get_tempo(ctx);
-
-    /* Add initial tempo to track 0 */
     midifile.addTempo(0, 0, static_cast<double>(tempo));
 
     /* Convert events */
@@ -98,7 +212,6 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
         int tick = evt.tick;
         int channel = evt.channel;
 
-        /* Determine target track */
         int track = 0;
         if (!use_type0 && channel_to_track.count(channel)) {
             track = channel_to_track[channel];
@@ -122,25 +235,20 @@ int loki_midi_export(editor_ctx_t *ctx, const char *filename) {
                 break;
 
             case ALDA_EVT_PAN:
-                /* Pan is CC #10 */
-                midifile.addController(track, tick, channel, MIDI_CC_PAN, evt.data1);
+                midifile.addController(track, tick, channel, 10, evt.data1);
                 break;
 
             case ALDA_EVT_TEMPO:
-                /* Tempo events go to track 0 (conductor track) */
                 midifile.addTempo(0, tick, static_cast<double>(evt.data1));
                 break;
 
             default:
-                /* Unknown event type, skip */
                 break;
         }
     }
 
-    /* Sort tracks (ensures events are in correct order) */
     midifile.sortTracks();
 
-    /* Write the file */
     if (!midifile.write(filename)) {
         g_last_error = "Failed to write MIDI file";
         return -1;
