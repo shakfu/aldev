@@ -8,10 +8,10 @@ CMAKE ?= cmake
 all: build
 
 configure:
-	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR)
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_TESTING=ON
 
 configure-csound:
-	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_CSOUND_BACKEND=ON
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_CSOUND_BACKEND=ON -DBUILD_TESTING=ON
 
 build: configure
 	@$(CMAKE) --build $(BUILD_DIR) --config Release
@@ -30,7 +30,7 @@ psnd: configure
 show-config: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target show-config --config Release
 
-test: psnd
+test: build
 	@$(CMAKE) -E chdir $(BUILD_DIR) ctest --output-on-failure
 
 clean:

@@ -59,6 +59,9 @@ typedef struct LokiLangOps {
 
     /* Error handling */
     const char *(*get_error)(editor_ctx_t *ctx);        /* Get last error */
+
+    /* Backend configuration (optional) */
+    int (*configure_backend)(editor_ctx_t *ctx, const char *sf_path, const char *csd_path);
 } LokiLangOps;
 
 /* ======================= Registration ======================= */
@@ -171,5 +174,16 @@ int loki_lang_populate_shared_buffer(editor_ctx_t *ctx);
  * @return Error string or NULL
  */
 const char *loki_lang_get_error(editor_ctx_t *ctx);
+
+/**
+ * Configure audio backend for language.
+ * Dispatches to appropriate language based on ctx->filename.
+ *
+ * @param ctx Editor context
+ * @param sf_path Soundfont path (NULL if not specified)
+ * @param csd_path Csound CSD path (NULL if not specified)
+ * @return 0 on success, -1 on error, 1 if no language or not supported
+ */
+int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path);
 
 #endif /* LOKI_LANG_BRIDGE_H */

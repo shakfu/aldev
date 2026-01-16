@@ -345,6 +345,32 @@ const char *loki_joy_get_error(editor_ctx_t *ctx) {
 
 /* ======================= Language Bridge Registration ======================= */
 
+/* Wrapper for backend configuration */
+static int joy_bridge_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path) {
+    (void)ctx;  /* Joy uses global backend state */
+
+    /* CSD takes precedence over soundfont */
+    if (csd_path && *csd_path) {
+        if (joy_csound_load(csd_path) == 0) {
+            if (joy_csound_enable() == 0) {
+                return 0;  /* Success with Csound */
+            }
+        }
+        return -1;  /* Csound requested but failed */
+    }
+
+    if (sf_path && *sf_path) {
+        if (joy_tsf_load_soundfont(sf_path) == 0) {
+            if (joy_tsf_enable() == 0) {
+                return 0;  /* Success with TSF */
+            }
+        }
+        return -1;  /* Soundfont requested but failed */
+    }
+
+    return 1;  /* No backend requested */
+}
+
 /* Language operations for Joy */
 static const LokiLangOps joy_lang_ops = {
     .name = "joy",
@@ -369,6 +395,9 @@ static const LokiLangOps joy_lang_ops = {
 
     /* Error */
     .get_error = loki_joy_get_error,
+
+    /* Backend configuration */
+    .configure_backend = joy_bridge_configure_backend,
 };
 
 /* Register Joy with the language bridge at startup */

@@ -809,6 +809,32 @@ static void alda_bridge_stop(editor_ctx_t *ctx) {
     loki_alda_stop_all(ctx);
 }
 
+/* Wrapper for backend configuration */
+static int alda_bridge_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path) {
+    /* CSD takes precedence over soundfont */
+    if (csd_path && *csd_path) {
+        if (loki_alda_csound_is_available()) {
+            if (loki_alda_csound_load_csd(ctx, csd_path) == 0) {
+                if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
+                    return 0;  /* Success with Csound */
+                }
+            }
+        }
+        return -1;  /* Csound requested but failed */
+    }
+
+    if (sf_path && *sf_path) {
+        if (loki_alda_load_soundfont(ctx, sf_path) == 0) {
+            if (loki_alda_set_synth_enabled(ctx, 1) == 0) {
+                return 0;  /* Success with TSF */
+            }
+        }
+        return -1;  /* Soundfont requested but failed */
+    }
+
+    return 1;  /* No backend requested */
+}
+
 /* Language operations for Alda */
 static const LokiLangOps alda_lang_ops = {
     .name = "alda",
@@ -833,6 +859,9 @@ static const LokiLangOps alda_lang_ops = {
 
     /* Error */
     .get_error = loki_alda_get_error,
+
+    /* Backend configuration */
+    .configure_backend = alda_bridge_configure_backend,
 };
 
 /* Register Alda with the language bridge at startup */

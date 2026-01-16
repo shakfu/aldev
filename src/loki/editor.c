@@ -29,9 +29,6 @@
 #include "buffers.h"
 #include "syntax.h"
 #include "lang_bridge.h"
-#ifdef LANG_ALDA
-#include "alda.h"  /* For Alda-specific backend config (soundfont, csound) */
-#endif
 #include "loki/link.h"
 
 /* ======================== Main Editor Instance ============================ */
@@ -369,43 +366,25 @@ int loki_editor_main(int argc, char **argv) {
             if (ret == 0) {
                 const LokiLangOps *lang = loki_lang_for_file(ctx->filename);
                 if (lang) {
-#ifdef LANG_ALDA
-                    /* Alda-specific backend configuration */
-                    if (strcmp(lang->name, "alda") == 0) {
-                        ctx->alda_mode = 1;
-
-                        /* Load soundfont if specified */
-                        if (soundfont_path) {
-                            if (loki_alda_load_soundfont(ctx, soundfont_path) == 0) {
-                                loki_alda_set_synth_enabled(ctx, 1);
-                                editor_set_status_msg(ctx, "ALDA: Using TinySoundFont (%s)", soundfont_path);
-                            } else {
-                                editor_set_status_msg(ctx, "Failed to load soundfont: %s", soundfont_path);
-                            }
+                    /* Configure audio backend if requested via CLI */
+                    int backend_ret = loki_lang_configure_backend(ctx, soundfont_path, csound_path);
+                    if (backend_ret == 0) {
+                        /* Backend configured successfully */
+                        if (csound_path) {
+                            editor_set_status_msg(ctx, "%s: Using Csound (%s)", lang->name, csound_path);
+                        } else if (soundfont_path) {
+                            editor_set_status_msg(ctx, "%s: Using TinySoundFont (%s)", lang->name, soundfont_path);
                         }
-                        /* Load Csound .csd if specified (takes precedence over soundfont) */
-                        else if (csound_path) {
-                            if (loki_alda_csound_is_available()) {
-                                if (loki_alda_csound_load_csd(ctx, csound_path) == 0) {
-                                    if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
-                                        editor_set_status_msg(ctx, "ALDA: Using Csound (%s)", csound_path);
-                                    } else {
-                                        editor_set_status_msg(ctx, "Failed to enable Csound");
-                                    }
-                                } else {
-                                    editor_set_status_msg(ctx, "Failed to load CSD: %s", csound_path);
-                                }
-                            } else {
-                                editor_set_status_msg(ctx, "Csound not available (build with make csound)");
-                            }
+                    } else if (backend_ret == -1) {
+                        /* Backend requested but failed */
+                        const char *err = loki_lang_get_error(ctx);
+                        if (csound_path) {
+                            editor_set_status_msg(ctx, "Failed to load CSD: %s", err ? err : csound_path);
+                        } else if (soundfont_path) {
+                            editor_set_status_msg(ctx, "Failed to load soundfont: %s", err ? err : soundfont_path);
                         }
-                        else {
-                            editor_set_status_msg(ctx, "ALDA: Ctrl-E part, Ctrl-P file, Ctrl-G stop");
-                        }
-                    } else
-#endif /* LANG_ALDA */
-                    {
-                        /* Generic language init message */
+                    } else {
+                        /* No backend requested - show default message */
                         editor_set_status_msg(ctx, "%s: Ctrl-E eval, Ctrl-G stop", lang->name);
                     }
                 }

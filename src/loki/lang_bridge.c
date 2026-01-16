@@ -191,3 +191,14 @@ const char *loki_lang_get_error(editor_ctx_t *ctx) {
     }
     return NULL;
 }
+
+int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path) {
+    if (!ctx) return -1;
+
+    const LokiLangOps *ops = loki_lang_for_file(ctx->filename);
+    if (!ops) return 1;  /* No language for this file type */
+
+    if (!ops->configure_backend) return 1;  /* Language doesn't support backend config */
+
+    return ops->configure_backend(ctx, sf_path, csd_path);
+}

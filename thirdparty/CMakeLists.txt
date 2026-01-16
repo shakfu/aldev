@@ -1,5 +1,8 @@
 # Thirdparty dependencies for Loki
 
+# Save parent project's BUILD_TESTING before thirdparty libs override it
+set(PSND_BUILD_TESTING ${BUILD_TESTING})
+
 # Lua 5.5.0 - Embedded scripting language
 add_subdirectory(lua-5.5.0)
 
@@ -118,3 +121,6 @@ if(BUILD_CSOUND_BACKEND)
 else()
     message(STATUS "Csound backend disabled (use -DBUILD_CSOUND_BACKEND=ON to enable)")
 endif()
+
+# Restore parent project's BUILD_TESTING
+set(BUILD_TESTING ${PSND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)
