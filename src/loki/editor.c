@@ -28,7 +28,9 @@
 #include "terminal.h"
 #include "buffers.h"
 #include "syntax.h"
+#ifdef LANG_ALDA
 #include "alda.h"
+#endif
 #include "loki/link.h"
 
 /* ======================== Main Editor Instance ============================ */
@@ -358,6 +360,7 @@ int loki_editor_main(int argc, char **argv) {
         exit(1);
     }
 
+#ifdef LANG_ALDA
     /* Auto-initialize Alda for .alda files (must be after buffers_init) */
     {
         editor_ctx_t *ctx = buffer_get_current();
@@ -401,6 +404,7 @@ int loki_editor_main(int argc, char **argv) {
             }
         }
     }
+#endif /* LANG_ALDA */
 
     /* Enable terminal raw mode and start main loop */
     terminal_enable_raw_mode(&E, STDIN_FILENO);
@@ -422,10 +426,12 @@ int loki_editor_main(int argc, char **argv) {
             loki_link_check_callbacks(ctx, ctx->L);
         }
 
+#ifdef LANG_ALDA
         /* Process any pending alda playback callbacks */
         if (ctx->L) {
             loki_alda_check_callbacks(ctx, ctx->L);
         }
+#endif
 
         editor_refresh_screen(ctx);
         editor_process_keypress(ctx, STDIN_FILENO);
@@ -438,8 +444,10 @@ int loki_editor_main(int argc, char **argv) {
 void editor_cleanup_resources(editor_ctx_t *ctx) {
     if (!ctx) return;
 
+#ifdef LANG_ALDA
     /* Clean up alda subsystem (stops all playback) */
     loki_alda_cleanup(ctx);
+#endif
 
     /* Clean up Lua REPL */
     lua_repl_free(&ctx->repl);

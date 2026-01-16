@@ -6,14 +6,18 @@
  */
 
 #include "export.h"
-#include "alda.h"
 #include "loki/midi_export.h"
 #include "midi/events.h"
+#include <stddef.h>  /* NULL */
 
+#ifdef LANG_ALDA
+#include "alda.h"
 #include <alda/context.h>  /* For AldaScheduledEvent, ALDA_TICKS_PER_QUARTER */
+#endif
 
 static const char *g_export_error = NULL;
 
+#ifdef LANG_ALDA
 /* Convert Alda events to shared MIDI event buffer */
 static int populate_from_alda(editor_ctx_t *ctx) {
     int event_count = 0;
@@ -71,8 +75,10 @@ static int populate_from_alda(editor_ctx_t *ctx) {
     shared_midi_events_sort();
     return 0;
 }
+#endif /* LANG_ALDA */
 
 int loki_export_available(editor_ctx_t *ctx) {
+#ifdef LANG_ALDA
     /* Check Alda - has event-based model */
     if (loki_alda_is_initialized(ctx)) {
         int event_count = 0;
@@ -81,6 +87,9 @@ int loki_export_available(editor_ctx_t *ctx) {
             return 1;
         }
     }
+#else
+    (void)ctx;
+#endif
 
     /* Check shared buffer - might have events from other sources */
     if (shared_midi_events_count() > 0) {
@@ -101,6 +110,7 @@ int loki_export_midi(editor_ctx_t *ctx, const char *filename) {
         return -1;
     }
 
+#ifdef LANG_ALDA
     /* Try to populate from Alda if available */
     if (loki_alda_is_initialized(ctx)) {
         int event_count = 0;
@@ -112,6 +122,9 @@ int loki_export_midi(editor_ctx_t *ctx, const char *filename) {
             }
         }
     }
+#else
+    (void)ctx;
+#endif
 
     /* Check if we have events to export */
     if (shared_midi_events_count() == 0) {

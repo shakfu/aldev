@@ -1,15 +1,18 @@
 cmake_minimum_required(VERSION 3.18)
 project(psnd_project C CXX)
 
+set(PSND_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+list(APPEND CMAKE_MODULE_PATH "${PSND_ROOT_DIR}/scripts/cmake")
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-# C++ needed for libremidi (alda dependency)
+# C++ is needed for libremidi (alda dependency)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
@@ -17,13 +20,18 @@ option(LOKI_BUILD_SHARED "Build libloki as a shared library" OFF)
 option(ENABLE_LTO_IPO "Enable Link-time interprocedural optimization" OFF)
 option(BUILD_CSOUND_BACKEND "Build with Csound synthesis backend (requires libsndfile)" OFF)
 
+# default on
+option(BUILD_TESTING "Build tests (default on)" ON)
+option(LANG_ALDA "Include the Alda language" ON)
+option(LANG_JOY "Include the Joy language" ON)
+
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
     message(STATUS "Found ccache in ${CCACHE_PROGRAM}")
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
 endif()
 
-if (ENABLE_LTO_IPO)
+if(ENABLE_LTO_IPO)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT ipo_lto_supported OUTPUT check_lto_ipo_error)
     if(ipo_lto_supported)
@@ -34,285 +42,27 @@ if (ENABLE_LTO_IPO)
     endif()
 endif()
 
-# set(THIRDPARTY_DIR ${CMAKE_SOURCE_DIR}/thirdparty)
-# set(LUA_INCLUDE_DIR ${THIRDPARTY_DIR}/lua-5.5.0/src)
-
 find_package(Threads REQUIRED)
 
-add_subdirectory(thirdparty)
+add_subdirectory(${PSND_ROOT_DIR}/thirdparty ${CMAKE_BINARY_DIR}/thirdparty)
 
+# common
+include(psnd_shared_library)
+include(psnd_loki_library)
 
-# -----------------------------------------------------------------------------
-# libshared - Language-agnostic audio/MIDI/Link backend
-
-set(LIBSHARED_SOURCES
-    src/shared/context.c
-    src/shared/repl_commands.c
-    src/shared/audio/tsf_backend.c
-    src/shared/audio/csound_backend.c
-    src/shared/midi/midi.c
-    src/shared/midi/events.c
-    src/shared/link/link.c
-)
-
-add_library(shared STATIC ${LIBSHARED_SOURCES})
-add_library(shared::shared ALIAS shared)
-
-target_include_directories(shared
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/TinySoundFont
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/miniaudio
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
-)
-
-target_link_libraries(shared PUBLIC libremidi abl_link Threads::Threads)
-
-# Csound backend for shared library (optional)
-if(BUILD_CSOUND_BACKEND)
-    target_compile_definitions(shared PRIVATE BUILD_CSOUND_BACKEND)
-    target_include_directories(shared PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/csound-6.18.1/H
-        ${CMAKE_BINARY_DIR}/thirdparty/csound-6.18.1/include
-    )
-    if(APPLE)
-        target_link_libraries(shared PRIVATE CsoundLib64-static)
-    else()
-        target_link_libraries(shared PRIVATE csound64-static)
-    endif()
+# langs
+if(LANG_ALDA)
+    include(psnd_alda_library)
 endif()
 
-if(APPLE)
-    target_link_libraries(shared PUBLIC
-        "-framework CoreMIDI"
-        "-framework CoreFoundation"
-        "-framework CoreAudio"
-        "-framework AudioToolbox"
-    )
-elseif(UNIX AND NOT APPLE)
-    target_compile_definitions(shared PRIVATE _GNU_SOURCE)
-    find_package(ALSA)
-    if(ALSA_FOUND)
-        target_link_libraries(shared PUBLIC ${ALSA_LIBRARIES})
-        target_include_directories(shared PRIVATE ${ALSA_INCLUDE_DIRS})
-    endif()
-    target_link_libraries(shared PUBLIC pthread dl m)
+
+if(LANG_JOY)
+    include(psnd_joy_library)
 endif()
 
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(shared PRIVATE -Wall -Wextra -Wpedantic)
+# binary
+include(psnd_psnd_binary)
+
+if(BUILD_TESTING)
+    include(psnd_tests)
 endif()
-
-# -----------------------------------------------------------------------------
-# libalda - Alda music language library (from src/alda/)
-# Note: tsf_backend.c is now in shared library (src/shared/audio/tsf_backend.c)
-# alda/tsf_backend.c provides thin wrappers that call shared_tsf_*
-
-set(LIBALDA_SOURCES
-    src/alda/tokens.c
-    src/alda/error.c
-    src/alda/scanner.c
-    src/alda/ast.c
-    src/alda/parser.c
-    src/alda/context.c
-    src/alda/instruments.c
-    src/alda/midi_backend.c
-    src/alda/tsf_backend_wrapper.c
-    src/alda/csound_backend.c
-    src/alda/scheduler.c
-    src/alda/interpreter.c
-    src/alda/attributes.c
-    src/alda/async.c
-    src/alda/scala.c
-)
-
-add_library(alda STATIC ${LIBALDA_SOURCES})
-add_library(alda::alda ALIAS alda)
-
-target_include_directories(alda
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/TinySoundFont
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/miniaudio
-)
-
-target_link_libraries(alda PUBLIC shared libremidi uv_a)
-
-if(APPLE)
-    target_link_libraries(alda PUBLIC
-        "-framework CoreMIDI"
-        "-framework CoreFoundation"
-        "-framework CoreAudio"
-        "-framework AudioToolbox"
-    )
-elseif(UNIX AND NOT APPLE)
-    target_compile_definitions(alda PRIVATE _GNU_SOURCE)
-    find_package(ALSA)
-    if(ALSA_FOUND)
-        target_link_libraries(alda PUBLIC ${ALSA_LIBRARIES})
-        target_include_directories(alda PRIVATE ${ALSA_INCLUDE_DIRS})
-    endif()
-    target_link_libraries(alda PUBLIC pthread dl m)
-endif()
-
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(alda PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-# -----------------------------------------------------------------------------
-# libjoy - Joy concatenative language library (from src/joy/)
-
-set(LIBJOY_SOURCES
-    src/joy/joy_runtime.c
-    src/joy/joy_parser.c
-    src/joy/joy_primitives.c
-    src/joy/joy_midi_backend.c
-    src/joy/midi_primitives.c
-    src/joy/music_notation.c
-    src/joy/music_context.c
-    src/joy/music_theory.c
-)
-
-add_library(joy STATIC ${LIBJOY_SOURCES})
-add_library(joy::joy ALIAS joy)
-
-target_include_directories(joy
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/joy
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
-)
-
-target_link_libraries(joy PUBLIC shared libremidi alda)
-
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(joy PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-# -----------------------------------------------------------------------------
-# libloki - Editor library (from src/loki/)
-
-set(LOKI_LIBRARY_TYPE STATIC)
-if (LOKI_BUILD_SHARED)
-    set(LOKI_LIBRARY_TYPE SHARED)
-endif()
-
-add_library(libloki ${LOKI_LIBRARY_TYPE}
-    src/loki/core.c
-    src/loki/lua.c
-    src/loki/editor.c
-    src/loki/syntax.c
-    src/loki/indent.c
-    src/loki/languages.c
-    src/loki/selection.c
-    src/loki/search.c
-    src/loki/modal.c
-    src/loki/command.c
-    src/loki/command/file.c
-    src/loki/command/basic.c
-    src/loki/command/goto.c
-    src/loki/command/substitute.c
-    src/loki/command/link.c
-    src/loki/command/csd.c
-    src/loki/command/export.c
-    src/loki/terminal.c
-    src/loki/undo.c
-    src/loki/buffers.c
-    src/loki/alda.c
-    src/loki/joy.c
-    src/loki/link.c
-    src/loki/csound.c
-    src/loki/export.c
-    src/loki/midi_export.cpp
-)
-
-target_include_directories(libloki
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        # ${LUA_INCLUDE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/midifile/include
-)
-
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(libloki PRIVATE -Wall -Wextra -pedantic)
-endif()
-
-target_link_libraries(libloki
-    PUBLIC
-        lua
-        Threads::Threads
-        ${CMAKE_DL_LIBS}
-        alda
-        joy
-        abl_link
-        midifile
-)
-
-set_target_properties(libloki PROPERTIES 
-    OUTPUT_NAME "loki" # so you don't get liblibloki.a 
-)
-
-if (NOT MSVC)
-    target_link_libraries(libloki PUBLIC m)
-endif()
-
-# -----------------------------------------------------------------------------
-# Unified psnd binary (editor + REPL + play modes)
-# Note: internal target name is psnd_bin to avoid conflict with libalda
-
-add_executable(psnd_bin
-    src/main.c
-    src/repl.c
-)
-set_target_properties(psnd_bin PROPERTIES OUTPUT_NAME "psnd")
-
-# Strip binary by default (reduces size significantly)
-if(NOT MSVC)
-    add_custom_command(TARGET psnd_bin POST_BUILD
-        COMMAND strip $<TARGET_FILE:psnd_bin>
-        COMMENT "Stripping psnd binary"
-    )
-endif()
-
-target_include_directories(psnd_bin PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(psnd_bin PRIVATE -Wall -Wextra -pedantic)
-endif()
-target_link_libraries(psnd_bin PRIVATE libloki)
-
-# -----------------------------------------------------------------------------
-# testing
-
-# add_custom_target(show-config
-#     COMMAND ${CMAKE_COMMAND} -E echo "Lua include: ${LUA_INCLUDE_DIR} - local 5.5.0"
-#     COMMAND ${CMAKE_COMMAND} -E echo "Lua libraries: lua - local static"
-# )
-
-enable_testing()
-add_test(NAME psnd_version COMMAND $<TARGET_FILE:psnd_bin> --version)
-add_test(NAME psnd_help COMMAND $<TARGET_FILE:psnd_bin> --help)
-
-# Test framework library (shared by all tests)
-add_library(test_framework STATIC tests/test_framework.c)
-target_include_directories(test_framework PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-
-# Test subdirectories
-add_subdirectory(tests/loki)
-add_subdirectory(tests/alda)
-add_subdirectory(tests/joy)
-add_subdirectory(tests/shared)

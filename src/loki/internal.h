@@ -196,14 +196,18 @@ struct editor_ctx {
     /* Indentation configuration */
     struct indent_config *indent_config;  /* Auto-indent settings */
 
+#ifdef LANG_ALDA
     /* Alda mode flag (set when .alda file opened and Alda initialized) */
     int alda_mode;
 
     /* Alda state - per-context state (NULL until initialized) */
     struct LokiAldaState *alda_state;
+#endif
 
+#ifdef LANG_JOY
     /* Joy state - per-context state (NULL until initialized) */
     struct LokiJoyState *joy_state;
+#endif
 
     /* Line numbers display flag */
     int line_numbers;

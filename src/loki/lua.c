@@ -32,11 +32,17 @@
 #include "terminal.h"  /* Terminal functions */
 #include "languages.h"  /* Language definitions and dynamic registration */
 #include "command.h"  /* Command mode and ex-style commands */
+#ifdef LANG_ALDA
 #include "alda.h"       /* Alda music language integration */
+#endif
+#ifdef LANG_JOY
 #include "joy.h"        /* Joy concatenative music language */
+#endif
 #include "loki/link.h"       /* Ableton Link integration */
-#include "loki/midi_export.h" /* MIDI file export */
+#include "export.h"          /* MIDI export control */
+#ifdef LANG_ALDA
 #include "alda/scala.h"      /* Scala scale file parser */
+#endif
 #include "buffers.h"    /* Buffer management for buffer_get_current() */
 #include <math.h>       /* For pow() in scala bindings */
 
@@ -48,9 +54,11 @@
  * its value, just that it's a unique pointer for the registry. */
 static const char editor_ctx_registry_key = 0;
 
+#ifdef LANG_ALDA
 /* Global scale storage (one active scale at a time for simplicity).
  * Used by Alda microtuning and Scala Lua bindings. */
 static ScalaScale *g_current_scale = NULL;
+#endif
 
 /* Helper function to get current editor context.
  * Tries buffer_get_current() first for multi-buffer support.
@@ -1003,6 +1011,7 @@ static int lua_loki_keyunmap(lua_State *L) {
     return 0;
 }
 
+#ifdef LANG_ALDA
 /* ======================= Alda Music Language Bindings ======================= */
 
 /* Lua API: loki.alda.init(port_name) - Initialize alda subsystem */
@@ -1338,7 +1347,9 @@ static int lua_alda_clear_part_scale(lua_State *L) {
     lua_pushboolean(L, 1);
     return 1;
 }
+#endif /* LANG_ALDA */
 
+#ifdef LANG_JOY
 /* ======================= Joy Language Bindings ======================== */
 
 /* Lua API: loki.joy.init() - Initialize Joy subsystem */
@@ -1566,6 +1577,7 @@ static void lua_register_joy_module(lua_State *L) {
 
     lua_setfield(L, -2, "joy");  /* Set as loki.joy */
 }
+#endif /* LANG_JOY */
 
 /* ======================= Ableton Link Bindings ======================= */
 
@@ -1805,18 +1817,18 @@ static void lua_register_link_module(lua_State *L) {
 
 /* ======================= MIDI Export Lua Bindings ======================= */
 
-/* Lua API: loki.midi.export(filename) - Export Alda events to MIDI file
+/* Lua API: loki.midi.export(filename) - Export events to MIDI file
  * Returns: true on success, nil + error message on failure */
 static int lua_midi_export(lua_State *L) {
     editor_ctx_t *ctx = lua_get_editor_context(L);
     const char *filename = luaL_checkstring(L, 1);
 
-    if (loki_midi_export(ctx, filename) == 0) {
+    if (loki_export_midi(ctx, filename) == 0) {
         lua_pushboolean(L, 1);
         return 1;
     } else {
         lua_pushnil(L);
-        const char *err = loki_midi_export_error();
+        const char *err = loki_export_error();
         lua_pushstring(L, err ? err : "unknown error");
         return 2;
     }
@@ -1833,6 +1845,7 @@ static void lua_register_midi_module(lua_State *L) {
     lua_setfield(L, -2, "midi");  /* Set as loki.midi */
 }
 
+#ifdef LANG_ALDA
 /* ======================= Scala Scale File Bindings ======================= */
 
 /* g_current_scale is declared at the top of the file */
@@ -2180,6 +2193,7 @@ static void lua_register_alda_module(lua_State *L) {
 
     lua_setfield(L, -2, "alda");  /* Set as loki.alda */
 }
+#endif /* LANG_ALDA */
 
 void loki_lua_bind_minimal(lua_State *L) {
     lua_getglobal(L, "loki");
@@ -2296,10 +2310,14 @@ void loki_lua_bind_editor(lua_State *L) {
     lua_setfield(L, -2, "hl");
 
     /* Register alda module as loki.alda */
+#ifdef LANG_ALDA
     lua_register_alda_module(L);
+#endif
 
     /* Register joy module as loki.joy */
+#ifdef LANG_JOY
     lua_register_joy_module(L);
+#endif
 
     /* Register link module as loki.link */
     lua_register_link_module(L);
@@ -2308,7 +2326,9 @@ void loki_lua_bind_editor(lua_State *L) {
     lua_register_midi_module(L);
 
     /* Register scala module as loki.scala */
+#ifdef LANG_ALDA
     lua_register_scala_module(L);
+#endif
 
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");

@@ -15,10 +15,6 @@
 #ifndef LOKI_MIDI_EXPORT_H
 #define LOKI_MIDI_EXPORT_H
 
-/* Forward declarations */
-struct editor_ctx;
-typedef struct editor_ctx editor_ctx_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,18 +30,6 @@ extern "C" {
  * @return 0 on success, -1 on error
  */
 int loki_midi_export_shared(const char *filename);
-
-/**
- * Export Alda events directly to a Standard MIDI File.
- *
- * Legacy function that reads from Alda's internal event buffer.
- * Prefer using loki_midi_export_shared() with the shared event buffer.
- *
- * @param ctx Editor context (used for Alda state access)
- * @param filename Output filename (should end in .mid)
- * @return 0 on success, -1 on error
- */
-int loki_midi_export(editor_ctx_t *ctx, const char *filename);
 
 /**
  * Get the last error message from a failed export.

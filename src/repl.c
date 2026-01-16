@@ -6,6 +6,8 @@
  * Uses custom line editor with terminal raw mode for colored input.
  */
 
+/* Alda language headers */
+#ifdef LANG_ALDA
 #include "alda/alda.h"
 #include "alda/context.h"
 #include "alda/midi_backend.h"
@@ -14,6 +16,8 @@
 #include "alda/scheduler.h"
 #include "alda/interpreter.h"
 #include "alda/async.h"
+#endif
+
 #include "version.h"
 #include "loki/core.h"
 #include "loki/internal.h"
@@ -25,12 +29,14 @@
 #include "shared/repl_commands.h"
 
 /* Joy language headers */
+#ifdef LANG_JOY
 #include "joy_runtime.h"
 #include "joy_parser.h"
 #include "joy_midi_backend.h"
 #include "music_notation.h"
 #include "music_context.h"
 #include "midi_primitives.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -442,8 +448,9 @@ static char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const c
     }
 }
 
+#ifdef LANG_ALDA
 /* ============================================================================
- * Usage and Help
+ * Alda Usage and Help
  * ============================================================================ */
 
 static void print_repl_usage(const char *prog) {
@@ -977,7 +984,9 @@ int alda_repl_main(int argc, char **argv) {
 
     return result < 0 ? 1 : 0;
 }
+#endif /* LANG_ALDA */
 
+#ifdef LANG_JOY
 /* ============================================================================
  * Joy REPL
  * ============================================================================ */
@@ -1310,3 +1319,4 @@ int joy_repl_main(int argc, char **argv) {
 
     return result;
 }
+#endif /* LANG_JOY */

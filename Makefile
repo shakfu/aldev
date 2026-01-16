@@ -25,7 +25,7 @@ library: configure
 
 # Primary target: unified psnd binary
 psnd: configure
-	@$(CMAKE) --build $(BUILD_DIR) --target alda_bin --config Release
+	@$(CMAKE) --build $(BUILD_DIR) --target psnd_bin --config Release
 
 show-config: configure
 	@$(CMAKE) --build $(BUILD_DIR) --target show-config --config Release
