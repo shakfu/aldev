@@ -1,10 +1,10 @@
 /* loki_languages.c - Language syntax infrastructure
  *
- * This file now contains ONLY infrastructure for syntax highlighting.
- * All language definitions have been moved to Lua files in .psnd/languages/
+ * This file contains syntax highlighting infrastructure and the HLDB.
+ * Language definitions (keywords, extensions) are in languages/*.h headers.
  *
- * Minimal C keyword arrays are kept ONLY for markdown code block highlighting.
- * For actual C file editing, the full definition loads from .psnd/languages/c.lua
+ * Minimal keyword arrays are kept for markdown code block highlighting.
+ * For actual file editing, Lua-defined languages can extend these.
  */
 
 #include "internal.h"
@@ -13,152 +13,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <strings.h>  /* for strncasecmp */
 
-/* ======================= Minimal Keywords for Markdown ==================== */
-/* These are ONLY used for syntax highlighting within markdown code blocks.
- * For editing actual source files, full definitions load from Lua. */
+/* ======================= Language Definitions ============================= */
+/* Language-specific keywords and extensions are defined in separate headers
+ * in the syntax/ subdirectory for better organization. */
 
-/* Minimal C keywords (for markdown code blocks) */
-char *C_HL_keywords[] = {
-	"if","else","for","while","return","break","continue","NULL",
-	"int|","char|","void|","float|","double|",NULL
-};
-
-/* Minimal Python keywords (for markdown code blocks) */
-char *Python_HL_keywords[] = {
-	"def","class","if","else","elif","for","while","return","import","from",
-	"str|","int|","float|","bool|","list|","dict|",NULL
-};
-
-/* Minimal Lua keywords (for markdown code blocks) */
-char *Lua_HL_keywords[] = {
-	"function","if","else","elseif","for","while","return","local","end",
-	"string|","number|","boolean|","table|",NULL
-};
-
-/* Minimal Cython keywords (for markdown code blocks) */
-char *Cython_HL_keywords[] = {
-	"cdef","cpdef","def","class","if","else","for","while","return",
-	"int|","float|","double|","str|",NULL
-};
-
-/* Alda music notation keywords */
-char *Alda_HL_keywords[] = {
-	/* Common instruments */
-	"piano","violin","viola","cello","contrabass","guitar","bass",
-	"trumpet","trombone","tuba","french-horn","flute","clarinet",
-	"oboe","bassoon","saxophone","alto-sax","tenor-sax",
-	"harpsichord","organ","accordion","harmonica",
-	"synth","percussion","drums","midi-percussion",
-	/* Attributes */
-	"tempo","quant","quantize","quantization","vol","volume",
-	"track-vol","track-volume","pan","panning","key-sig","key-signature",
-	"transpose","octave","voice",
-	/* Note names (types - highlighted differently) */
-	"c|","d|","e|","f|","g|","a|","b|","r|",
-	/* Octave markers */
-	"o0|","o1|","o2|","o3|","o4|","o5|","o6|","o7|","o8|","o9|",
-	NULL
-};
-
-/* Csound orchestra keywords (from csound_orcparse.h token definitions) */
-char *Csound_HL_keywords[] = {
-	/* Control flow */
-	"if","then","ithen","kthen","elseif","else","endif","fi",
-	"while","do","od","endwhile","until","goto","igoto","kgoto",
-	/* Structure */
-	"instr","endin","opcode","endop",
-	/* Header variables (types - highlighted differently) */
-	"sr|","kr|","ksmps|","nchnls|","nchnls_i|","0dbfs|","A4|",
-	/* Common opcodes (subset - there are thousands) */
-	"oscili","oscil","poscil","vco2","vco","lfo",
-	"moogladder","moogvcf","lowpass2","butterlp","butterhp","butterbp",
-	"noise","rand","random","rnd","birnd",
-	"linen","linenr","linseg","linsegr","expseg","expsegr","expon",
-	"madsr","adsr","mxadsr","xadsr",
-	"pluck","wgbow","wgflute","wgclar","wgbrass",
-	"reverb","freeverb","reverb2","nreverb",
-	"delay","delayr","delayw","deltap","deltapi","deltapn",
-	"chnget","chnset","chnexport","chnclear",
-	"in","ins","inch","out","outs","outch","outh","outq",
-	"cpsmidinn","cpspch","octpch","pchmidi","cpsmidi","ampmidi",
-	"tablei","table","tablew","ftgen","ftgentmp",
-	"init","=",
-	"print","prints","printks","printf",
-	"xin","xout","setksmps",
-	"sprintf","strcat","strcmp","strlen",
-	NULL
-};
-
-char *Csound_HL_extensions[] = {".csd",".orc",".sco",NULL};
-
-/* Scala scale file - minimal keywords (pitch format identifiers) */
-char *Scala_HL_keywords[] = {
-	/* No real keywords, just highlight numbers and ratios */
-	NULL
-};
-
-char *Scala_HL_extensions[] = {".scl",NULL};
-
-/* Joy concatenative language keywords */
-char *Joy_HL_keywords[] = {
-	/* Stack operations */
-	"dup","swap","pop","drop","dip","i","x","unit","cons","uncons",
-	"first","rest","second","third","size","null","small",
-	/* Combinators */
-	"map","fold","filter","each","ifte","branch","cond","while","times",
-	"linrec","binrec","primrec","genrec",
-	/* Arithmetic */
-	"add","sub","mul","div","mod","neg","abs","sign",
-	/* Comparison */
-	"eq","ne","lt","gt","le","ge","and","or","not",
-	/* MIDI/Music primitives */
-	"note","chord","seq","rest","play","stop","panic",
-	"midi-port","midi-virtual","midi-list","midi-channel",
-	"tempo","volume","velocity","octave","transpose",
-	"program","cc","pitchbend",
-	/* Definition */
-	"DEFINE",
-	/* Note names (types - highlighted differently) */
-	"c|","d|","e|","f|","g|","a|","b|","r|",
-	NULL
-};
-
-char *Joy_HL_extensions[] = {".joy",NULL};
-
-/* Scheme R7RS keywords */
-char *Scheme_HL_keywords[] = {
-	/* Special forms */
-	"define","define-syntax","define-library","define-record-type",
-	"lambda","let","let*","letrec","letrec*","let-values","let*-values",
-	"if","cond","case","else","when","unless",
-	"and","or","not","begin","do","set!",
-	"quote","quasiquote","unquote","unquote-splicing",
-	"import","export","include","syntax-rules",
-	/* Common functions */
-	"apply","map","for-each","filter","fold","append","reverse",
-	"list","cons","car","cdr","cadr","caddr","length",
-	"display","newline","write","read","load","eval",
-	/* TR7 music primitives */
-	"play-note","note-on","note-off","play-chord",
-	"set-tempo","set-octave","set-velocity","set-channel",
-	"tempo","octave","velocity","channel",
-	"midi-list","midi-open","midi-virtual","midi-panic",
-	"tsf-load","sleep-ms","program-change","control-change",
-	/* Type predicates (highlighted as types) */
-	"null?|","pair?|","list?|","symbol?|","number?|","string?|",
-	"boolean?|","procedure?|","vector?|","zero?|","positive?|","negative?|",
-	NULL
-};
-
-char *Scheme_HL_extensions[] = {".scm",".ss",".scheme",".sld",NULL};
-
-/* Extensions */
-char *C_HL_extensions[] = {".c",".h",".cpp",".hpp",".cc",NULL};
-char *Python_HL_extensions[] = {".py",".pyw",NULL};
-char *Lua_HL_extensions[] = {".lua",NULL};
-char *MD_HL_extensions[] = {".md",".markdown",NULL};
-char *Alda_HL_extensions[] = {".alda",NULL};
+#include "syntax/lang_c.h"
+#include "syntax/lang_python.h"
+#include "syntax/lang_lua.h"
+#include "syntax/lang_alda.h"
+#include "syntax/lang_csound.h"
+#include "syntax/lang_joy.h"
+#include "syntax/lang_scheme.h"
+#include "syntax/lang_scala.h"
+#include "syntax/lang_markdown.h"
 
 /* ======================= Language Database (MINIMAL) ======================== */
 /* Minimal static definitions kept for backward compatibility with tests.
