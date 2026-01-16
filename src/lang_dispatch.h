@@ -44,11 +44,13 @@ typedef struct {
 /**
  * @brief Register a language for dispatch.
  *
- * Called during static initialization by each language's dispatch.c file.
+ * Called by lang_dispatch_init() for each compiled-in language.
  *
  * @param entry Pointer to static dispatch entry (must remain valid).
+ * @return 0 on success, -1 on error (NULL entry or limit reached).
+ *         Errors are logged to stderr.
  */
-void lang_dispatch_register(const LangDispatchEntry *entry);
+int lang_dispatch_register(const LangDispatchEntry *entry);
 
 /**
  * @brief Find a language by command name.
@@ -88,5 +90,27 @@ const LangDispatchEntry **lang_dispatch_get_all(int *count);
  * Prints registered languages and their descriptions for --help output.
  */
 void lang_dispatch_print_help(void);
+
+/**
+ * @brief Initialize the language dispatch system.
+ *
+ * Registers all compiled-in languages. Must be called before any
+ * dispatch operations (find_by_command, find_by_extension, etc.).
+ *
+ * This replaces the previous __attribute__((constructor)) approach
+ * which is not portable to MSVC.
+ */
+void lang_dispatch_init(void);
+
+/* Language-specific init functions (called by lang_dispatch_init) */
+#ifdef LANG_ALDA
+void alda_dispatch_init(void);
+#endif
+#ifdef LANG_JOY
+void joy_dispatch_init(void);
+#endif
+#ifdef LANG_TR7
+void tr7_dispatch_init(void);
+#endif
 
 #endif /* PSND_LANG_DISPATCH_H */

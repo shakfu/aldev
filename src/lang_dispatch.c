@@ -11,10 +11,19 @@
 static const LangDispatchEntry *g_langs[LANG_DISPATCH_MAX_LANGS];
 static int g_lang_count = 0;
 
-void lang_dispatch_register(const LangDispatchEntry *entry) {
-    if (g_lang_count < LANG_DISPATCH_MAX_LANGS && entry) {
-        g_langs[g_lang_count++] = entry;
+int lang_dispatch_register(const LangDispatchEntry *entry) {
+    if (!entry) {
+        fprintf(stderr, "lang_dispatch: attempted to register NULL entry\n");
+        return -1;
     }
+    if (g_lang_count >= LANG_DISPATCH_MAX_LANGS) {
+        fprintf(stderr, "lang_dispatch: cannot register '%s' - limit of %d languages reached\n",
+                entry->display_name ? entry->display_name : "(unknown)",
+                LANG_DISPATCH_MAX_LANGS);
+        return -1;
+    }
+    g_langs[g_lang_count++] = entry;
+    return 0;
 }
 
 const LangDispatchEntry *lang_dispatch_find_by_command(const char *command) {
@@ -71,4 +80,17 @@ void lang_dispatch_print_help(void) {
                entry->commands[0],
                entry->description ? entry->description : entry->display_name);
     }
+}
+
+void lang_dispatch_init(void) {
+    /* Register all compiled-in languages */
+#ifdef LANG_ALDA
+    alda_dispatch_init();
+#endif
+#ifdef LANG_JOY
+    joy_dispatch_init();
+#endif
+#ifdef LANG_TR7
+    tr7_dispatch_init();
+#endif
 }

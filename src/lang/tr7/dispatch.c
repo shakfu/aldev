@@ -20,8 +20,7 @@ static const LangDispatchEntry tr7_dispatch = {
     .play_main = tr7_play_main,
 };
 
-/* Register at program startup */
-__attribute__((constructor))
-static void tr7_dispatch_init(void) {
+/* Register TR7 language - called from lang_dispatch_init() */
+void tr7_dispatch_init(void) {
     lang_dispatch_register(&tr7_dispatch);
 }

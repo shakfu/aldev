@@ -48,22 +48,26 @@
 
 ### Dispatch System Robustness
 
-- [ ] Replace GCC/Clang-specific constructors with explicit init
-  - `__attribute__((constructor))` in `src/lang/*/dispatch.c` never runs under MSVC
-  - Windows builds would ship with no languages registered
-  - Fix: Export registration calls through `lang_dispatch_init()` invoked from `main()`
+- [x] Replace GCC/Clang-specific constructors with explicit init (DONE)
+  - Removed `__attribute__((constructor))` from all dispatch.c files
+  - Added `lang_dispatch_init()` in `src/lang_dispatch.c` that calls language-specific init functions
+  - Each language exports `*_dispatch_init()` (alda, joy, tr7)
+  - `main()` calls `lang_dispatch_init()` before any dispatch operations
+  - CMake passes `LANG_ALDA`, `LANG_JOY`, `LANG_TR7` defines for conditional compilation
 
-- [ ] Fix silent failures when language registration limit is hit
-  - `g_langs[LANG_DISPATCH_MAX_LANGS]` in `src/lang_dispatch.c:10-18`
-  - `g_languages[LOKI_MAX_LANGUAGES]` in `src/loki/lang_bridge.c:14-35`
-  - Adding a 9th language silently drops registration with no warning
-  - Fix: Log failures or grow containers dynamically
+- [x] Fix silent failures when language registration limit is hit (DONE)
+  - `lang_dispatch_register()` now returns int (0 success, -1 error) and logs to stderr
+  - `loki_lang_register()` now logs to stderr on failure
+  - Both report the language name and the limit when registration fails
 
-- [ ] Consolidate dispatch systems
-  - `lang_dispatch` (CLI routing) and `loki_lang_bridge` (editor integration) are separate
-  - Each has its own static caps and registration semantics
-  - Risk of mismatched capabilities between CLI and editor
-  - Fix: Share registration data structure or consolidate into one system
+- [x] Consolidate dispatch systems (DONE)
+  - Both `lang_dispatch` (CLI) and `loki_lang_bridge` (editor) now use explicit init pattern
+  - Added `loki_lang_init()` in `src/loki/lang_bridge.c` that calls per-language init functions
+  - Removed `__attribute__((constructor))` from all `register.c` files
+  - Each language exports `*_loki_lang_init()` (alda, joy, tr7)
+  - `loki_editor_main()` calls `loki_lang_init()` before any language operations
+  - CMake passes `LANG_ALDA`, `LANG_JOY`, `LANG_TR7` defines for conditional compilation
+  - Both systems now portable to MSVC (no more GCC/Clang-specific attributes)
 
 ---
 

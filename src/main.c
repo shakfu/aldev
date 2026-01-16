@@ -8,8 +8,9 @@
  *   psnd file.ext     -> Editor mode (live-coding editor)
  *   psnd play file    -> Play mode (headless playback)
  *
- * Languages register themselves via lang_dispatch.h - no hardcoded language
- * names or #ifdef blocks in this file.
+ * Languages are registered via lang_dispatch_init() which is called at
+ * startup. This explicit initialization replaces the previous
+ * __attribute__((constructor)) approach for MSVC compatibility.
  */
 
 #include "lang_dispatch.h"
@@ -93,6 +94,9 @@ static void print_unified_help(const char *prog) {
 }
 
 int main(int argc, char **argv) {
+    /* Initialize language dispatch system */
+    lang_dispatch_init();
+
     /* No arguments -> Show help and exit */
     if (argc == 1) {
         print_unified_help(argv[0]);

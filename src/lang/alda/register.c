@@ -1390,8 +1390,7 @@ static const LokiLangOps alda_lang_ops = {
     .register_lua_api = alda_register_lua_api,
 };
 
-/* Register Alda with the language bridge at startup */
-__attribute__((constructor))
-static void alda_register_language(void) {
+/* Register Alda with the language bridge - called from loki_lang_init() */
+void alda_loki_lang_init(void) {
     loki_lang_register(&alda_lang_ops);
 }

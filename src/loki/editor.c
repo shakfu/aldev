@@ -271,6 +271,9 @@ static void print_usage(void) {
 }
 
 int loki_editor_main(int argc, char **argv) {
+    /* Initialize language bridge system */
+    loki_lang_init();
+
     /* Register cleanup handler early to ensure terminal is always restored */
     atexit(editor_atexit);
 

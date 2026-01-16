@@ -901,8 +901,7 @@ static const LokiLangOps tr7_lang_ops = {
     .register_lua_api = tr7_register_lua_api,
 };
 
-/* Auto-register at startup */
-__attribute__((constructor))
-static void tr7_register_language(void) {
+/* Register TR7 with the language bridge - called from loki_lang_init() */
+void tr7_loki_lang_init(void) {
     loki_lang_register(&tr7_lang_ops);
 }

@@ -20,8 +20,7 @@ static const LangDispatchEntry joy_dispatch = {
     .play_main = joy_play_main,
 };
 
-/* Register at program startup */
-__attribute__((constructor))
-static void joy_dispatch_init(void) {
+/* Register Joy language - called from lang_dispatch_init() */
+void joy_dispatch_init(void) {
     lang_dispatch_register(&joy_dispatch);
 }

@@ -8,6 +8,7 @@
 #include "internal.h"  /* For editor_ctx_t full definition */
 #include <string.h>
 #include <stddef.h>
+#include <stdio.h>
 
 /* ======================= Internal State ======================= */
 
@@ -18,9 +19,12 @@ static int g_language_count = 0;
 
 int loki_lang_register(const LokiLangOps *ops) {
     if (!ops || !ops->name) {
+        fprintf(stderr, "loki_lang: attempted to register NULL or unnamed language\n");
         return -1;
     }
     if (g_language_count >= LOKI_MAX_LANGUAGES) {
+        fprintf(stderr, "loki_lang: cannot register '%s' - limit of %d languages reached\n",
+                ops->name, LOKI_MAX_LANGUAGES);
         return -1;
     }
 
@@ -212,4 +216,17 @@ void loki_lang_register_lua_apis(lua_State *L) {
             ops->register_lua_api(L);
         }
     }
+}
+
+void loki_lang_init(void) {
+    /* Register all compiled-in languages */
+#ifdef LANG_ALDA
+    alda_loki_lang_init();
+#endif
+#ifdef LANG_JOY
+    joy_loki_lang_init();
+#endif
+#ifdef LANG_TR7
+    tr7_loki_lang_init();
+#endif
 }

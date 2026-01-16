@@ -20,8 +20,7 @@ static const LangDispatchEntry alda_dispatch = {
     .play_main = alda_play_main,
 };
 
-/* Register at program startup */
-__attribute__((constructor))
-static void alda_dispatch_init(void) {
+/* Register Alda language - called from lang_dispatch_init() */
+void alda_dispatch_init(void) {
     lang_dispatch_register(&alda_dispatch);
 }
