@@ -34,14 +34,17 @@ if (ENABLE_LTO_IPO)
     endif()
 endif()
 
-# Use local Lua 5.5.0 from thirdparty (self-contained build)
-set(LUA_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/lua-5.5.0/src)
+# set(THIRDPARTY_DIR ${CMAKE_SOURCE_DIR}/thirdparty)
+# set(LUA_INCLUDE_DIR ${THIRDPARTY_DIR}/lua-5.5.0/src)
 
 find_package(Threads REQUIRED)
 
 add_subdirectory(thirdparty)
 
+
+# -----------------------------------------------------------------------------
 # libshared - Language-agnostic audio/MIDI/Link backend
+
 set(LIBSHARED_SOURCES
     src/shared/context.c
     src/shared/repl_commands.c
@@ -103,14 +106,11 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(shared PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-set(LOKI_LIBRARY_TYPE STATIC)
-if (LOKI_BUILD_SHARED)
-    set(LOKI_LIBRARY_TYPE SHARED)
-endif()
-
+# -----------------------------------------------------------------------------
 # libalda - Alda music language library (from src/alda/)
 # Note: tsf_backend.c is now in shared library (src/shared/audio/tsf_backend.c)
 # alda/tsf_backend.c provides thin wrappers that call shared_tsf_*
+
 set(LIBALDA_SOURCES
     src/alda/tokens.c
     src/alda/error.c
@@ -164,10 +164,9 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(alda PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# Note: Csound backend is now in shared library (src/shared/audio/csound_backend.c)
-# alda/csound_backend.c provides thin wrappers that call shared_csound_*
-
+# -----------------------------------------------------------------------------
 # libjoy - Joy concatenative language library (from src/joy/)
+
 set(LIBJOY_SOURCES
     src/joy/joy_runtime.c
     src/joy/joy_parser.c
@@ -196,7 +195,14 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(joy PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# -----------------------------------------------------------------------------
 # libloki - Editor library (from src/loki/)
+
+set(LOKI_LIBRARY_TYPE STATIC)
+if (LOKI_BUILD_SHARED)
+    set(LOKI_LIBRARY_TYPE SHARED)
+endif()
+
 add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki/core.c
     src/loki/lua.c
@@ -230,7 +236,7 @@ target_include_directories(libloki
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${LUA_INCLUDE_DIR}
+        # ${LUA_INCLUDE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/midifile/include
 )
@@ -258,40 +264,45 @@ if (NOT MSVC)
     target_link_libraries(libloki PUBLIC m)
 endif()
 
+# -----------------------------------------------------------------------------
 # Unified psnd binary (editor + REPL + play modes)
-# Note: internal target name is alda_bin to avoid conflict with libalda
-add_executable(alda_bin
+# Note: internal target name is psnd_bin to avoid conflict with libalda
+
+add_executable(psnd_bin
     src/main.c
     src/repl.c
 )
-set_target_properties(alda_bin PROPERTIES OUTPUT_NAME "psnd")
+set_target_properties(psnd_bin PROPERTIES OUTPUT_NAME "psnd")
 
 # Strip binary by default (reduces size significantly)
 if(NOT MSVC)
-    add_custom_command(TARGET alda_bin POST_BUILD
-        COMMAND strip $<TARGET_FILE:alda_bin>
+    add_custom_command(TARGET psnd_bin POST_BUILD
+        COMMAND strip $<TARGET_FILE:psnd_bin>
         COMMENT "Stripping psnd binary"
     )
 endif()
 
-target_include_directories(alda_bin PRIVATE
+target_include_directories(psnd_bin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(alda_bin PRIVATE -Wall -Wextra -pedantic)
+    target_compile_options(psnd_bin PRIVATE -Wall -Wextra -pedantic)
 endif()
-target_link_libraries(alda_bin PRIVATE libloki)
+target_link_libraries(psnd_bin PRIVATE libloki)
 
-add_custom_target(show-config
-    COMMAND ${CMAKE_COMMAND} -E echo "Lua include: ${LUA_INCLUDE_DIR} - local 5.5.0"
-    COMMAND ${CMAKE_COMMAND} -E echo "Lua libraries: lua - local static"
-)
+# -----------------------------------------------------------------------------
+# testing
+
+# add_custom_target(show-config
+#     COMMAND ${CMAKE_COMMAND} -E echo "Lua include: ${LUA_INCLUDE_DIR} - local 5.5.0"
+#     COMMAND ${CMAKE_COMMAND} -E echo "Lua libraries: lua - local static"
+# )
 
 enable_testing()
-add_test(NAME psnd_version COMMAND $<TARGET_FILE:alda_bin> --version)
-add_test(NAME psnd_help COMMAND $<TARGET_FILE:alda_bin> --help)
+add_test(NAME psnd_version COMMAND $<TARGET_FILE:psnd_bin> --version)
+add_test(NAME psnd_help COMMAND $<TARGET_FILE:psnd_bin> --help)
 
 # Test framework library (shared by all tests)
 add_library(test_framework STATIC tests/test_framework.c)
