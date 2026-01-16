@@ -331,6 +331,7 @@ static void joy_cb_repl_loop(void *lang_ctx, editor_ctx_t *syntax_ctx) {
 static const SharedReplCallbacks joy_repl_callbacks = {
     .name = "joy",
     .file_ext = ".joy",
+    .prog_name = "psnd",
     .print_usage = print_joy_repl_usage,
     .list_ports = joy_cb_list_ports,
     .init = joy_cb_init,

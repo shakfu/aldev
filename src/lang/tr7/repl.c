@@ -806,6 +806,7 @@ static void tr7_cb_repl_loop(void *lang_ctx, editor_ctx_t *syntax_ctx) {
 static const SharedReplCallbacks tr7_repl_callbacks = {
     .name = "tr7",
     .file_ext = ".scm",
+    .prog_name = "psnd",
     .print_usage = print_tr7_repl_usage,
     .list_ports = tr7_cb_list_ports,
     .init = tr7_cb_init,

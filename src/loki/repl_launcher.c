@@ -98,6 +98,11 @@ static void cleanup_syntax_context(editor_ctx_t *syntax_ctx) {
     }
 }
 
+/* Get program name from callbacks, defaulting to "psnd" */
+static const char *get_prog_name(const SharedReplCallbacks *callbacks) {
+    return callbacks->prog_name ? callbacks->prog_name : "psnd";
+}
+
 /* ============================================================================
  * Public API
  * ============================================================================ */
@@ -114,10 +119,11 @@ int shared_lang_repl_main(const SharedReplCallbacks *callbacks, int argc, char *
 
     /* Handle --help */
     if (parsed.show_help) {
+        const char *prog = get_prog_name(callbacks);
         if (callbacks->print_usage) {
-            callbacks->print_usage("psnd");
+            callbacks->print_usage(prog);
         } else {
-            printf("Usage: psnd %s [options] [file]\n", callbacks->name);
+            printf("Usage: %s %s [options] [file]\n", prog, callbacks->name);
         }
         return 0;
     }
@@ -187,7 +193,8 @@ int shared_lang_play_main(const SharedReplCallbacks *callbacks, int argc, char *
     parse_play_args(&parsed, argc, argv);
 
     if (!parsed.input_file) {
-        fprintf(stderr, "Usage: psnd play [-v] [-sf soundfont.sf2] <file%s>\n",
+        fprintf(stderr, "Usage: %s play [-v] [-sf soundfont.sf2] <file%s>\n",
+                get_prog_name(callbacks),
                 callbacks->file_ext ? callbacks->file_ext : "");
         return 1;
     }

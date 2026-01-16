@@ -39,11 +39,14 @@ typedef struct SharedReplArgs {
  * The launcher handles CLI parsing and common flow control.
  */
 typedef struct SharedReplCallbacks {
-    /** Language name for messages (e.g., "Joy", "TR7") */
+    /** Language name for messages (e.g., "joy", "tr7") */
     const char *name;
 
     /** File extension for syntax highlighting (e.g., ".joy", ".scm") */
     const char *file_ext;
+
+    /** Program name for usage messages (e.g., "psnd"). If NULL, defaults to "psnd". */
+    const char *prog_name;
 
     /**
      * Print language-specific usage/help.
