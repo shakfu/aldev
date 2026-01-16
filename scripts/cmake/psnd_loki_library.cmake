@@ -34,13 +34,13 @@ set(LOKI_CORE_SOURCES
     ${PSND_ROOT_DIR}/src/loki/lang_bridge.c
 )
 
-# Language-specific sources
+# Language-specific sources (in src/loki/lang/)
 set(LOKI_LANG_SOURCES)
 if(LANG_ALDA)
-    list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/loki/alda.c)
+    list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/loki/lang/alda.c)
 endif()
 if(LANG_JOY)
-    list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/loki/joy.c)
+    list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/loki/lang/joy.c)
 endif()
 
 add_library(libloki ${LOKI_LIBRARY_TYPE}

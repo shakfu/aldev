@@ -11,9 +11,9 @@
 #include <time.h>
 
 #include "alda.h"
-#include "internal.h"
+#include "../internal.h"
 #include "loki/link.h"
-#include "lang_bridge.h"
+#include "../lang_bridge.h"
 
 /* Alda library headers */
 #include <alda/alda.h>
