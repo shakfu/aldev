@@ -1,26 +1,32 @@
 # psnd — a polyglot editor & REPL for music programming languages
 
-**psnd** is a self-contained modal editor, REPL, and playback environment aimed at music programming languages. The project is aiming to evolve into a polyglot platform for composing, live-coding, and rendering music DSLs from one binary.
+**psnd** is a self-contained modal editor, REPL, and playback environment aimed at music programming languages. The project is a polyglot platform for composing, live-coding, and rendering music DSLs from one binary.
 
-Two languages are currently supported: [Alda](https://alda.io) and [Joy](https://github.com/shakfu/midi-langs/tree/main/projects/joy-midi). Alda is a music notation language; Joy is a concatenative (stack-based) functional language for music. Both are practical for daily live-coding, REPL sketches, and headless playback. The MIDI cores are from the [midi-langs](https://github.com/shakfu/midi-langs) project. Future milestones focus on integrating additional mini MIDI languages so that multiple notations can coexist within psnd. Audio output is handled by the built-in [TinySoundFont](https://github.com/schellingb/TinySoundFont) synthesizer or, optionally, a [Csound](https://csound.com/) backend for advanced synthesis. macOS and Linux are currently supported.
+Three languages are currently supported:
+
+- **[Alda](https://alda.io)** - Declarative music notation language
+- **[Joy](https://github.com/shakfu/midi-langs/tree/main/projects/joy-midi)** - Concatenative (stack-based) functional language for music
+- **[TR7](https://gitlab.com/jobol/tr7)** - R7RS-small Scheme with music extensions
+
+All are practical for daily live-coding, REPL sketches, and headless playback. The Alda and Joy MIDI cores are from the [midi-langs](https://github.com/shakfu/midi-langs) project. Languages register themselves via a modular dispatch system, allowing additional DSLs to be integrated without modifying core dispatch logic. Audio output is handled by the built-in [TinySoundFont](https://github.com/schellingb/TinySoundFont) synthesizer or, optionally, a [Csound](https://csound.com/) backend for advanced synthesis. macOS and Linux are currently supported.
 
 ## Features
 
 - **Vim-style editor** with INSERT/NORMAL modes, live evaluation shortcuts, and Lua scripting (built on [loki](https://github.com/shakfu/loki), a fork of [kilo](https://github.com/antirez/kilo))
-- **Language-aware REPL** for interactive composition (Alda today; more DSLs on the way)
+- **Language-aware REPLs** for interactive composition (Alda, Joy, TR7 Scheme)
 - **Headless play mode** for batch jobs and automation
 - **Asynchronous playback** through [libuv](https://github.com/libuv/libuv)
 - **Integrated MIDI routing** powered by [libremidi](https://github.com/celtera/libremidi)
 - **MIDI file export** using [midifile](https://github.com/craigsapp/midifile)
 - **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
-- **Optional Csound backend** for deeper sound design workflows
-- **Ableton Link support** for networked tempo sync
-- **Scala .scl import support** for microtuning
+- **Optional [csound](ttps://csound.com/) backend** for deeper sound design workflows
+- **[Ableton](https://github.com/Ableton/link) Link support** for networked tempo sync
+- **[Scala .scl](https://www.huygens-fokker.org/scala/scl_format.html) import support** for microtuning
 - **Lua APIs** for editor automation, playback control, and extensibility
 
 ## Status
 
-psnd is in active early development. Alda and Joy are the two fully integrated languages, proving the polyglot architecture works. The internal design allows drop-in DSL integrations so that additional mini MIDI languages from [midi-langs](https://github.com/shakfu/midi-langs) can reuse the same editor, REPL, and audio stack. Expect rapid iteration and occasional breaking changes while polyglot support expands.
+psnd is in active development. Alda, Joy, and TR7 Scheme are the three fully integrated languages, demonstrating the polyglot architecture. Languages register via a modular dispatch system (`lang_dispatch.h`), allowing new DSLs to be added without modifying core dispatch logic. Additional mini MIDI languages from [midi-langs](https://github.com/shakfu/midi-langs) can reuse the same editor, REPL, and audio stack. Expect iteration and occasional breaking changes as polyglot support expands.
 
 ## Building
 
@@ -31,7 +37,7 @@ make csound       # Build with Csound synthesis backend (larger binary)
 
 ## Usage
 
-psnd exposes three complementary workflows: REPL mode for interactive sketching, editor mode for live-coding within files, and play mode for headless rendering. Flags (soundfont, csound instruments, etc.) are shared between modes.
+psnd exposes three complementary workflows: REPL mode for interactive sketching, editor mode for live-coding within files, and play mode for headless rendering. Running `psnd` with no arguments displays help. Flags (soundfont, csound instruments, etc.) are shared between modes.
 
 ### REPL Mode
 
@@ -70,7 +76,28 @@ joy> [c e g] [d f a] [e g b] each chord
 joy> :q
 ```
 
-**Shared REPL Commands** (work in both Alda and Joy, with or without `:`):
+**TR7 Scheme REPL**:
+
+```bash
+psnd tr7                # Start TR7 Scheme REPL
+psnd scheme             # Alias for tr7
+psnd tr7 -sf gm.sf2     # REPL with built-in synth
+psnd tr7 --virtual out  # TR7 REPL with named virtual port
+psnd tr7 song.scm       # Run Scheme file
+```
+
+Type Scheme code directly:
+
+```
+tr7> (midi-virtual "TR7Out")
+tr7> (set-tempo 120)
+tr7> (play-note 60 80 500)      ; note 60, velocity 80, 500ms
+tr7> (play-chord '(60 64 67) 80 500)  ; C major chord
+tr7> (set-octave 5)
+tr7> :q
+```
+
+**Shared REPL Commands** (work in Alda, Joy, and TR7, with or without `:`):
 
 | Command | Action |
 |---------|--------|
@@ -111,6 +138,7 @@ joy> :q
 ```bash
 psnd song.alda                        # Open Alda file in editor
 psnd song.joy                         # Open Joy file in editor
+psnd song.scm                         # Open Scheme file in editor
 psnd song.csd                         # Open Csound file in editor
 psnd -sf gm.sf2 song.alda             # Editor with TinySoundFont synth
 psnd -cs instruments.csd song.alda    # Editor with Csound synthesis
@@ -153,6 +181,7 @@ Ex Commands (press `:` in NORMAL mode):
 ```bash
 psnd play song.alda              # Play Alda file and exit
 psnd play song.joy               # Play Joy file and exit
+psnd play song.scm               # Play Scheme file and exit
 psnd play song.csd               # Play Csound file and exit
 psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
 psnd play -v song.csd            # Play with verbose output
@@ -160,7 +189,7 @@ psnd play -v song.csd            # Play with verbose output
 
 ### Piped Input
 
-Both REPLs support non-interactive piped input for scripting and automation:
+All REPLs support non-interactive piped input for scripting and automation:
 
 ```bash
 # Alda REPL
@@ -170,6 +199,9 @@ echo -e 'piano: c d e\n:q' | psnd alda
 # Joy REPL
 echo '[c d e] play' | psnd joy
 printf ':cs synth.csd\n:cs-status\n:q\n' | psnd joy
+
+# TR7 Scheme REPL
+echo '(play-note 60 80 500)' | psnd tr7
 ```
 
 This is useful for testing, CI/CD pipelines, and batch processing.
@@ -268,6 +300,69 @@ loki.joy.define("cmaj", "[c e g] chord")
 
 -- Stop playback
 loki.joy.stop()
+```
+
+## TR7 Scheme Language
+
+TR7 is an R7RS-small Scheme interpreter with music extensions. It provides a Lisp-based approach to music composition.
+
+### Quick Start
+
+```bash
+psnd tr7                    # Start TR7 REPL
+psnd tr7 song.scm           # Run Scheme file
+psnd song.scm               # Edit Scheme file
+psnd play song.scm          # Play Scheme file headlessly
+```
+
+### Music Primitives
+
+TR7 extends R7RS-small Scheme with music-specific procedures:
+
+| Procedure | Description |
+|-----------|-------------|
+| `(play-note pitch velocity duration-ms)` | Play a single note |
+| `(play-chord '(p1 p2 ...) velocity duration-ms)` | Play a chord |
+| `(note-on pitch velocity)` | Send note-on message |
+| `(note-off pitch)` | Send note-off message |
+| `(set-tempo bpm)` | Set tempo |
+| `(set-octave n)` | Set octave (0-9) |
+| `(set-velocity v)` | Set velocity (0-127) |
+| `(set-channel ch)` | Set MIDI channel (0-15) |
+| `(program-change prog)` | Change instrument |
+| `(control-change cc value)` | Send CC message |
+| `(note name [octave])` | Convert note name to MIDI number |
+
+### MIDI Control
+
+| Procedure | Description |
+|-----------|-------------|
+| `(midi-list)` | List available MIDI ports |
+| `(midi-open port)` | Open MIDI port by index |
+| `(midi-virtual name)` | Create virtual MIDI port |
+| `(midi-panic)` | All notes off |
+| `(tsf-load path)` | Load soundfont for built-in synth |
+| `(sleep-ms ms)` | Sleep for milliseconds |
+
+### Example
+
+```scheme
+; TR7 music composition example
+(midi-virtual "TR7Out")
+(set-tempo 120)
+(set-velocity 80)
+
+; Play a C major scale
+(define (play-scale)
+  (for-each (lambda (n)
+              (play-note n 80 250))
+            '(60 62 64 65 67 69 71 72)))
+
+; Play a chord progression
+(play-chord '(60 64 67) 80 500)  ; C major
+(play-chord '(65 69 72) 80 500)  ; F major
+(play-chord '(67 71 74) 80 500)  ; G major
+(play-chord '(60 64 67) 80 1000) ; C major
 ```
 
 ## Ableton Link
@@ -441,6 +536,7 @@ psnd provides built-in syntax highlighting for music programming languages with 
 |-----------|----------|----------|
 | `.alda` | Alda | Instruments, attributes, note names, octave markers, comments |
 | `.joy` | Joy | Stack ops, combinators, music primitives, note names, comments |
+| `.scm` `.ss` `.scheme` | TR7 Scheme | Keywords, special forms, music primitives, comments |
 | `.csd` | Csound CSD | Section-aware (orchestra/score/options), opcodes, control flow |
 | `.orc` | Csound Orchestra | Full orchestra syntax |
 | `.sco` | Csound Score | Score statements, parameters |
@@ -534,29 +630,33 @@ The `.psnd/scales/` directory includes example scales:
 
 ## Roadmap
 
-- Integrate additional MIDI DSLs from [midi-langs](https://github.com/shakfu/midi-langs), giving psnd multiple interchangeable front-ends
-- Provide syntax-aware helpers per language (highlighting, evaluation scopes, etc.)
+- Integrate additional MIDI DSLs from [midi-langs](https://github.com/shakfu/midi-langs), leveraging the modular dispatch system
+- Enhance language-specific Lua APIs for deeper editor integration
 - Experiment with additional backends (JACK, plugin bridges) where it improves workflows
 
-Feedback and experiments are welcome—polyglot support will be guided by real-world usage.
+Feedback and experiments are welcome - polyglot support will be guided by real-world usage.
 
 ## Project Structure
 
 ```
 src/
+  lang/           # Language implementations
+    alda/         # Alda music language (parser, interpreter, backends)
+    joy/          # Joy language runtime (parser, primitives, MIDI)
+    tr7/          # TR7 Scheme (R7RS-small + music extensions)
   loki/           # Editor components (core, modal, syntax, lua, etc.)
-  alda/           # Alda music library (parser, interpreter, backends)
-  joy/            # Joy language runtime (parser, primitives, MIDI)
-  main.c          # Entry point
-  repl.c          # REPL mode (Alda and Joy)
+  shared/         # Language-agnostic shared backend (audio, MIDI, Link)
+  main.c          # Entry point and CLI dispatch
+  repl.c          # Shared REPL utilities
+  lang_dispatch.c # Modular language registration
 include/
   loki/           # Public loki headers
-  alda/           # Public alda headers
 tests/
   loki/           # Editor unit tests
   alda/           # Alda parser tests
   joy/            # Joy parser and MIDI tests
-thirdparty/       # External dependencies (lua, libuv, libremidi, etc.)
+  shared/         # Shared backend tests
+thirdparty/       # External dependencies (lua, libremidi, TinySoundFont, etc.)
 ```
 
 ## Documentation
@@ -567,6 +667,7 @@ See the `docs` folder for full technical documentation.
 
 - [Alda](https://alda.io) - music programming language by Dave Yarwood
 - [Joy](https://github.com/shakfu/midi-langs/tree/main/projects/joy-midi) - concatenative music language from midi-langs
+- [TR7](https://gitlab.com/jobol/tr7) - R7RS-small Scheme interpreter
 - [kilo](https://github.com/antirez/kilo) by Salvatore Sanfilippo (antirez) - original editor
 - [loki](https://github.com/shakfu/loki) - Lua-enhanced fork
 - [Csound](https://csound.com/) - sound synthesis system (optional)
