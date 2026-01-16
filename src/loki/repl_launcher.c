@@ -6,6 +6,7 @@
  */
 
 #include "repl_launcher.h"
+#include "psnd.h"
 #include "loki/core.h"
 #include "syntax.h"
 #include "loki/lua.h"
@@ -98,9 +99,9 @@ static void cleanup_syntax_context(editor_ctx_t *syntax_ctx) {
     }
 }
 
-/* Get program name from callbacks, defaulting to "psnd" */
+/* Get program name from callbacks, defaulting to PSND_NAME */
 static const char *get_prog_name(const SharedReplCallbacks *callbacks) {
-    return callbacks->prog_name ? callbacks->prog_name : "psnd";
+    return callbacks->prog_name ? callbacks->prog_name : PSND_NAME;
 }
 
 /* ============================================================================

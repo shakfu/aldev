@@ -6,6 +6,7 @@
  */
 
 #include "repl_commands.h"
+#include "psnd.h"
 #include "context.h"
 #include "audio/audio.h"
 #include "midi/midi.h"
@@ -174,8 +175,8 @@ int shared_process_command(SharedContext* ctx, const char* input,
 
     /* Virtual MIDI port: :virtual [NAME] */
     if (strcmp(cmd, "virtual") == 0) {
-        if (shared_midi_open_virtual(ctx, "psnd") == 0) {
-            printf("Created virtual MIDI port: psnd\n");
+        if (shared_midi_open_virtual(ctx, PSND_MIDI_PORT_NAME) == 0) {
+            printf("Created virtual MIDI port: " PSND_MIDI_PORT_NAME "\n");
         } else {
             printf("Failed to create virtual MIDI port\n");
         }
@@ -185,7 +186,7 @@ int shared_process_command(SharedContext* ctx, const char* input,
     if (starts_with(cmd, "virtual ")) {
         const char* name = skip_whitespace(cmd + 8);
         if (*name == '\0') {
-            name = "psnd";
+            name = PSND_MIDI_PORT_NAME;
         }
         if (shared_midi_open_virtual(ctx, name) == 0) {
             printf("Created virtual MIDI port: %s\n", name);

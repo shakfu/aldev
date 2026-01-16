@@ -4,7 +4,7 @@
  */
 
 #include "repl.h"
-#include "version.h"
+#include "psnd.h"
 #include "loki/core.h"
 #include "loki/internal.h"
 #include "loki/syntax.h"
@@ -637,7 +637,7 @@ static void tr7_setup_lib_paths(void) {
     static char tr7_lib_path[1100];
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd))) {
-        snprintf(tr7_lib_path, sizeof(tr7_lib_path), "%s/.psnd/lib/scm", cwd);
+        snprintf(tr7_lib_path, sizeof(tr7_lib_path), "%s/" PSND_CONFIG_DIR "/lib/scm", cwd);
         tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Path, tr7_lib_path);
         tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Library_Path, tr7_lib_path);
         tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Include_Path, tr7_lib_path);
@@ -806,7 +806,7 @@ static void tr7_cb_repl_loop(void *lang_ctx, editor_ctx_t *syntax_ctx) {
 static const SharedReplCallbacks tr7_repl_callbacks = {
     .name = "tr7",
     .file_ext = ".scm",
-    .prog_name = "psnd",
+    .prog_name = PSND_NAME,
     .print_usage = print_tr7_repl_usage,
     .list_ports = tr7_cb_list_ports,
     .init = tr7_cb_init,

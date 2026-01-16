@@ -1,4 +1,4 @@
-#include "version.h"
+#include "psnd.h"
 
 /* 
 loki is based on kilo -- A very simple editor in less than 1000 

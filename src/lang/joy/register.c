@@ -9,6 +9,7 @@
 #include <string.h>
 #include <setjmp.h>
 
+#include "psnd.h"
 #include "register.h"
 #include "loki/internal.h"
 #include "loki/lang_bridge.h"
@@ -105,7 +106,7 @@ int loki_joy_init(editor_ctx_t *ctx) {
     }
 
     /* Open virtual MIDI port for Joy output */
-    if (joy_midi_open_virtual("psnd-joy") != 0) {
+    if (joy_midi_open_virtual(PSND_MIDI_PORT_NAME "-joy") != 0) {
         /* Non-fatal - can still use real ports */
     }
 

@@ -25,6 +25,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "psnd.h"
 #include "loki/internal.h"
 #include "loki/lang_bridge.h"
 #include "loki/lua.h"    /* For loki_lua_get_editor_context */
@@ -401,7 +402,7 @@ static tr7_C_return_t scm_midi_virtual(tr7_engine_t tsc, int nvalues, const tr7_
         return tr7_C_raise_error(tsc, "Music backend not initialized", TR7_NIL, 0);
     }
 
-    const char *name = "psnd-tr7";
+    const char *name = PSND_MIDI_PORT_NAME "-tr7";
     if (TR7_IS_STRING(values[0])) {
         name = tr7_string_buffer(values[0]);
     }
@@ -634,12 +635,12 @@ static int tr7_lang_init(editor_ctx_t *ctx) {
         return -1;
     }
 
-    /* Set TR7 search paths to .psnd/lib/scm in current working directory */
+    /* Set TR7 search paths to config dir/lib/scm in current working directory */
     /* Note: tr7_set_string stores pointer, doesn't copy - use static storage */
     static char tr7_lib_path[1100];
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd))) {
-        snprintf(tr7_lib_path, sizeof(tr7_lib_path), "%s/.psnd/lib/scm", cwd);
+        snprintf(tr7_lib_path, sizeof(tr7_lib_path), "%s/" PSND_CONFIG_DIR "/lib/scm", cwd);
         tr7_set_string(state->engine, Tr7_StrID_Path, tr7_lib_path);
         tr7_set_string(state->engine, Tr7_StrID_Library_Path, tr7_lib_path);
         tr7_set_string(state->engine, Tr7_StrID_Include_Path, tr7_lib_path);

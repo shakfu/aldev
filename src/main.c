@@ -15,7 +15,7 @@
 
 #include "lang_dispatch.h"
 #include "loki/editor.h"
-#include "version.h"
+#include "psnd.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -31,7 +31,7 @@ static void print_unified_help(const char *prog) {
     int lang_count;
     const LangDispatchEntry **langs = lang_dispatch_get_all(&lang_count);
 
-    printf("psnd %s - Music composition editor and REPL\n", PSND_VERSION);
+    printf(PSND_NAME " %s - Music composition editor and REPL\n", PSND_VERSION);
     printf("\n");
     printf("Usage:\n");
 
@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
 
     /* Version flag */
     if (strcmp(first_arg, "-V") == 0 || strcmp(first_arg, "--version") == 0) {
-        printf("psnd %s\n", PSND_VERSION);
+        printf(PSND_NAME " %s\n", PSND_VERSION);
         return 0;
     }
 
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     /* Handle "play" subcommand */
     if (strcmp(first_arg, "play") == 0) {
         if (argc < 3) {
-            fprintf(stderr, "Usage: psnd play <file>\n");
+            fprintf(stderr, "Usage: " PSND_NAME " play <file>\n");
             return 1;
         }
 

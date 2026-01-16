@@ -4,7 +4,7 @@
  */
 
 #include "repl.h"
-#include "version.h"
+#include "psnd.h"
 #include "loki/core.h"
 #include "loki/internal.h"
 #include "loki/syntax.h"
@@ -244,7 +244,7 @@ int alda_play_main(int argc, char **argv) {
     }
 
     if (!input_file) {
-        fprintf(stderr, "Usage: psnd play [-v] [-sf soundfont.sf2] <file.alda|file.joy|file.csd>\n");
+        fprintf(stderr, "Usage: " PSND_NAME " play [-v] [-sf soundfont.sf2] <file.alda|file.joy|file.csd>\n");
         return 1;
     }
 
