@@ -54,6 +54,8 @@
 - [ ] Consistent repl api for each language
 
   - Use `:<cmd> [<arg> ...]` syntax
+  
+    Currently this is the case with `alda`, not with `joy`
 
 - [ ] Normalize the cli api for each language
 
@@ -74,7 +76,7 @@
 - [ ] Search and replace
   - Extend search with `:s/old/new/` command
 
-- [ ] Alda playback visualization
+- [ ] Playback visualization
   - Highlight currently playing region
   - Show playback progress in status bar
 
