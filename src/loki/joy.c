@@ -12,6 +12,8 @@
 #include "joy.h"
 #include "internal.h"
 #include "lang_bridge.h"
+#include "loki/lua.h"  /* For loki_lua_get_editor_context */
+#include "lauxlib.h"   /* For luaL_checkstring, luaL_checkinteger, etc. */
 
 /* Joy library headers */
 #include "joy_runtime.h"
@@ -343,6 +345,242 @@ const char *loki_joy_get_error(editor_ctx_t *ctx) {
     return state->last_error[0] ? state->last_error : NULL;
 }
 
+/* ======================= Lua API Bindings ======================= */
+
+/* Lua API: loki.joy.init() - Initialize Joy subsystem */
+static int lua_joy_init(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+
+    int result = loki_joy_init(ctx);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Failed to initialize Joy");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.cleanup() - Cleanup Joy subsystem */
+static int lua_joy_cleanup(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    loki_joy_cleanup(ctx);
+    return 0;
+}
+
+/* Lua API: loki.joy.is_initialized() - Check if Joy is initialized */
+static int lua_joy_is_initialized(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    lua_pushboolean(L, loki_joy_is_initialized(ctx));
+    return 1;
+}
+
+/* Lua API: loki.joy.eval(code) - Evaluate Joy code synchronously */
+static int lua_joy_eval(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    const char *code = luaL_checkstring(L, 1);
+
+    int result = loki_joy_eval(ctx, code);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Joy evaluation failed");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.load(path) - Load and evaluate a Joy source file */
+static int lua_joy_load(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    const char *path = luaL_checkstring(L, 1);
+
+    int result = loki_joy_load_file(ctx, path);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Failed to load Joy file");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.define(name, body) - Define a new Joy word */
+static int lua_joy_define(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    const char *name = luaL_checkstring(L, 1);
+    const char *body = luaL_checkstring(L, 2);
+
+    int result = loki_joy_define(ctx, name, body);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Failed to define Joy word");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.stop() - Stop all MIDI playback and send panic */
+static int lua_joy_stop(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    loki_joy_stop(ctx);
+    return 0;
+}
+
+/* Lua API: loki.joy.open_port(index) - Open a MIDI output port by index */
+static int lua_joy_open_port(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    int port_idx = (int)luaL_checkinteger(L, 1);
+
+    int result = loki_joy_open_port(ctx, port_idx);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Failed to open MIDI port");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.open_virtual(name) - Create a virtual MIDI output port */
+static int lua_joy_open_virtual(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    const char *name = NULL;
+
+    if (lua_gettop(L) >= 1 && lua_isstring(L, 1)) {
+        name = lua_tostring(L, 1);
+    }
+
+    int result = loki_joy_open_virtual(ctx, name);
+    if (result != 0) {
+        lua_pushnil(L);
+        const char *err = loki_joy_get_error(ctx);
+        lua_pushstring(L, err ? err : "Failed to create virtual MIDI port");
+        return 2;
+    }
+
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* Lua API: loki.joy.list_ports() - List available MIDI output ports */
+static int lua_joy_list_ports(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    loki_joy_list_ports(ctx);
+    return 0;
+}
+
+/* Lua API: loki.joy.push(value) - Push a value onto the Joy stack */
+static int lua_joy_push(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+
+    if (lua_isinteger(L, 1) || lua_isnumber(L, 1)) {
+        int value = (int)lua_tointeger(L, 1);
+        loki_joy_push_int(ctx, value);
+    } else if (lua_isstring(L, 1)) {
+        const char *value = lua_tostring(L, 1);
+        loki_joy_push_string(ctx, value);
+    } else {
+        lua_pushnil(L);
+        lua_pushstring(L, "Joy push: expected integer or string");
+        return 2;
+    }
+
+    return 0;
+}
+
+/* Lua API: loki.joy.stack_depth() - Get the current stack depth */
+static int lua_joy_stack_depth(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    lua_pushinteger(L, loki_joy_stack_depth(ctx));
+    return 1;
+}
+
+/* Lua API: loki.joy.stack_clear() - Clear the Joy stack */
+static int lua_joy_stack_clear(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    loki_joy_stack_clear(ctx);
+    return 0;
+}
+
+/* Lua API: loki.joy.stack_print() - Print the Joy stack (for debugging) */
+static int lua_joy_stack_print(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    loki_joy_stack_print(ctx);
+    return 0;
+}
+
+/* Lua API: loki.joy.get_error() - Get last error message */
+static int lua_joy_get_error(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    const char *err = loki_joy_get_error(ctx);
+
+    if (err) {
+        lua_pushstring(L, err);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+/* Register joy module as loki.joy subtable */
+static void joy_register_lua_api(lua_State *L) {
+    /* Get loki global table */
+    lua_getglobal(L, "loki");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+
+    /* Create joy subtable */
+    lua_newtable(L);
+
+    lua_pushcfunction(L, lua_joy_init);
+    lua_setfield(L, -2, "init");
+    lua_pushcfunction(L, lua_joy_cleanup);
+    lua_setfield(L, -2, "cleanup");
+    lua_pushcfunction(L, lua_joy_is_initialized);
+    lua_setfield(L, -2, "is_initialized");
+    lua_pushcfunction(L, lua_joy_eval);
+    lua_setfield(L, -2, "eval");
+    lua_pushcfunction(L, lua_joy_load);
+    lua_setfield(L, -2, "load");
+    lua_pushcfunction(L, lua_joy_define);
+    lua_setfield(L, -2, "define");
+    lua_pushcfunction(L, lua_joy_stop);
+    lua_setfield(L, -2, "stop");
+    lua_pushcfunction(L, lua_joy_open_port);
+    lua_setfield(L, -2, "open_port");
+    lua_pushcfunction(L, lua_joy_open_virtual);
+    lua_setfield(L, -2, "open_virtual");
+    lua_pushcfunction(L, lua_joy_list_ports);
+    lua_setfield(L, -2, "list_ports");
+    lua_pushcfunction(L, lua_joy_push);
+    lua_setfield(L, -2, "push");
+    lua_pushcfunction(L, lua_joy_stack_depth);
+    lua_setfield(L, -2, "stack_depth");
+    lua_pushcfunction(L, lua_joy_stack_clear);
+    lua_setfield(L, -2, "stack_clear");
+    lua_pushcfunction(L, lua_joy_stack_print);
+    lua_setfield(L, -2, "stack_print");
+    lua_pushcfunction(L, lua_joy_get_error);
+    lua_setfield(L, -2, "get_error");
+
+    lua_setfield(L, -2, "joy");  /* Set as loki.joy */
+    lua_pop(L, 1);  /* Pop loki table */
+}
+
 /* ======================= Language Bridge Registration ======================= */
 
 /* Wrapper for backend configuration */
@@ -398,6 +636,9 @@ static const LokiLangOps joy_lang_ops = {
 
     /* Backend configuration */
     .configure_backend = joy_bridge_configure_backend,
+
+    /* Lua API registration */
+    .register_lua_api = joy_register_lua_api,
 };
 
 /* Register Joy with the language bridge at startup */

@@ -32,19 +32,10 @@
 #include "terminal.h"  /* Terminal functions */
 #include "languages.h"  /* Language definitions and dynamic registration */
 #include "command.h"  /* Command mode and ex-style commands */
-#ifdef LANG_ALDA
-#include "alda.h"       /* Alda music language integration */
-#endif
-#ifdef LANG_JOY
-#include "joy.h"        /* Joy concatenative music language */
-#endif
+#include "lang_bridge.h"  /* Language bridge for Lua API registration */
 #include "loki/link.h"       /* Ableton Link integration */
 #include "export.h"          /* MIDI export control */
-#ifdef LANG_ALDA
-#include "alda/scala.h"      /* Scala scale file parser */
-#endif
 #include "buffers.h"    /* Buffer management for buffer_get_current() */
-#include <math.h>       /* For pow() in scala bindings */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -54,16 +45,11 @@
  * its value, just that it's a unique pointer for the registry. */
 static const char editor_ctx_registry_key = 0;
 
-#ifdef LANG_ALDA
-/* Global scale storage (one active scale at a time for simplicity).
- * Used by Alda microtuning and Scala Lua bindings. */
-static ScalaScale *g_current_scale = NULL;
-#endif
-
 /* Helper function to get current editor context.
  * Tries buffer_get_current() first for multi-buffer support.
- * Falls back to registry pointer for tests/single-buffer mode. */
-static editor_ctx_t* lua_get_editor_context(lua_State *L) {
+ * Falls back to registry pointer for tests/single-buffer mode.
+ * Exported for language Lua bindings (alda.c, joy.c). */
+editor_ctx_t* loki_lua_get_editor_context(lua_State *L) {
     /* Try buffer system first (for normal editor operation) */
     editor_ctx_t *ctx = buffer_get_current();
     if (ctx) return ctx;
@@ -78,7 +64,7 @@ static editor_ctx_t* lua_get_editor_context(lua_State *L) {
 
 /* Lua API: loki.status(message) - Set status message */
 static int lua_loki_status(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     const char *msg = luaL_checkstring(L, 1);
     editor_set_status_msg(ctx, "%s", msg);
     return 0;
@@ -86,7 +72,7 @@ static int lua_loki_status(lua_State *L) {
 
 /* Lua API: loki.get_line(row) - Get line content at row (0-indexed) */
 static int lua_loki_get_line(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     int row = luaL_checkinteger(L, 1);
@@ -100,7 +86,7 @@ static int lua_loki_get_line(lua_State *L) {
 
 /* Lua API: loki.get_lines() - Get total number of lines */
 static int lua_loki_get_lines(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     lua_pushinteger(L, ctx->numrows);
@@ -110,7 +96,7 @@ static int lua_loki_get_lines(lua_State *L) {
 /* Lua API: loki.get_cursor() - Get cursor position (returns row, col)
  * Returns FILE position, not screen position (accounts for scroll offset) */
 static int lua_loki_get_cursor(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     /* Return file position: screen pos + scroll offset */
@@ -121,7 +107,7 @@ static int lua_loki_get_cursor(lua_State *L) {
 
 /* Lua API: loki.insert_text(text) - Insert text at cursor */
 static int lua_loki_insert_text(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     const char *text = luaL_checkstring(L, 1);
@@ -133,7 +119,7 @@ static int lua_loki_insert_text(lua_State *L) {
 
 /* Lua API: loki.stream_text(text) - Append text and scroll to bottom */
 static int lua_loki_stream_text(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     const char *text = luaL_checkstring(L, 1);
@@ -163,7 +149,7 @@ static int lua_loki_stream_text(lua_State *L) {
 
 /* Lua API: loki.get_filename() - Get current filename */
 static int lua_loki_get_filename(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     if (ctx->filename) {
@@ -190,7 +176,7 @@ static int color_name_to_hl(const char *name) {
 
 /* Lua API: loki.set_color(name, {r=R, g=G, b=B}) - Set syntax highlight color */
 static int lua_loki_set_color(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     const char *name = luaL_checkstring(L, 1);
@@ -228,7 +214,7 @@ static int lua_loki_set_color(lua_State *L) {
 
 /* Lua API: loki.set_theme(table) - Set multiple colors at once */
 static int lua_loki_set_theme(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -274,7 +260,7 @@ static int lua_loki_set_theme(lua_State *L) {
  * With boolean argument: sets line numbers on/off
  * Example: loki.line_numbers(true) to enable, loki.line_numbers(false) to disable */
 static int lua_loki_line_numbers(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     /* If no arguments, return current state */
@@ -294,7 +280,7 @@ static int lua_loki_line_numbers(lua_State *L) {
 
 /* Lua API: loki.get_mode() - Get current editor mode */
 static int lua_loki_get_mode(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     const char *mode_str = "";
@@ -310,7 +296,7 @@ static int lua_loki_get_mode(lua_State *L) {
 
 /* Lua API: loki.set_mode(mode) - Set editor mode */
 static int lua_loki_set_mode(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     if (!ctx) return 0;
 
     const char *mode_str = luaL_checkstring(L, 1);
@@ -1011,579 +997,13 @@ static int lua_loki_keyunmap(lua_State *L) {
     return 0;
 }
 
-#ifdef LANG_ALDA
-/* ======================= Alda Music Language Bindings ======================= */
 
-/* Lua API: loki.alda.init(port_name) - Initialize alda subsystem */
-static int lua_alda_init(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *port_name = NULL;
-
-    if (lua_gettop(L) >= 1 && !lua_isnil(L, 1)) {
-        port_name = luaL_checkstring(L, 1);
-    }
-
-    int result = loki_alda_init(ctx, port_name);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to initialize alda");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.cleanup() - Cleanup alda subsystem */
-static int lua_alda_cleanup(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_alda_cleanup(ctx);
-    return 0;
-}
-
-/* Lua API: loki.alda.is_initialized() - Check if alda is initialized */
-static int lua_alda_is_initialized(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushboolean(L, loki_alda_is_initialized(ctx));
-    return 1;
-}
-
-/* Lua API: loki.alda.eval(code, callback) - Evaluate alda code asynchronously */
-static int lua_alda_eval(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *code = luaL_checkstring(L, 1);
-    const char *callback = NULL;
-
-    if (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) {
-        callback = luaL_checkstring(L, 2);
-    }
-
-    int slot = loki_alda_eval_async(ctx, code, callback);
-    if (slot < 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Eval failed");
-        return 2;
-    }
-
-    lua_pushinteger(L, slot);
-    return 1;
-}
-
-/* Lua API: loki.alda.eval_sync(code) - Evaluate alda code synchronously (blocking) */
-static int lua_alda_eval_sync(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *code = luaL_checkstring(L, 1);
-
-    int result = loki_alda_eval_sync(ctx, code);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Eval failed");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.stop(slot) - Stop playback (slot=-1 or nil for all) */
-static int lua_alda_stop(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    int slot = -1;
-
-    if (lua_gettop(L) >= 1 && !lua_isnil(L, 1)) {
-        slot = (int)luaL_checkinteger(L, 1);
-    }
-
-    loki_alda_stop(ctx, slot);
-    return 0;
-}
-
-/* Lua API: loki.alda.stop_all() - Stop all playback */
-static int lua_alda_stop_all(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_alda_stop_all(ctx);
-    return 0;
-}
-
-/* Lua API: loki.alda.is_playing() - Check if any slot is playing */
-static int lua_alda_is_playing(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushboolean(L, loki_alda_is_playing(ctx));
-    return 1;
-}
-
-/* Lua API: loki.alda.active_count() - Get number of active playback slots */
-static int lua_alda_active_count(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushinteger(L, loki_alda_active_count(ctx));
-    return 1;
-}
-
-/* Lua API: loki.alda.set_tempo(bpm) - Set global tempo */
-static int lua_alda_set_tempo(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    int bpm = (int)luaL_checkinteger(L, 1);
-    loki_alda_set_tempo(ctx, bpm);
-    return 0;
-}
-
-/* Lua API: loki.alda.get_tempo() - Get current tempo */
-static int lua_alda_get_tempo(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushinteger(L, loki_alda_get_tempo(ctx));
-    return 1;
-}
-
-/* Lua API: loki.alda.set_synth(enable) - Enable/disable built-in synth */
-static int lua_alda_set_synth(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    int enable = lua_toboolean(L, 1);
-
-    int result = loki_alda_set_synth_enabled(ctx, enable);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to set synth");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.load_soundfont(path) - Load a SoundFont file */
-static int lua_alda_load_soundfont(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *path = luaL_checkstring(L, 1);
-
-    int result = loki_alda_load_soundfont(ctx, path);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to load soundfont");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.get_error() - Get last error message */
-static int lua_alda_get_error(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *err = loki_alda_get_error(ctx);
-
-    if (err) {
-        lua_pushstring(L, err);
-    } else {
-        lua_pushnil(L);
-    }
-    return 1;
-}
-
-/* ======================= Csound Bindings ======================= */
-
-/* Lua API: loki.alda.csound_available() - Check if Csound backend is compiled in */
-static int lua_alda_csound_available(lua_State *L) {
-    lua_pushboolean(L, loki_alda_csound_is_available());
-    return 1;
-}
-
-/* Lua API: loki.alda.csound_load(path) - Load a Csound .csd file */
-static int lua_alda_csound_load(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *path = luaL_checkstring(L, 1);
-
-    int result = loki_alda_csound_load_csd(ctx, path);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to load CSD");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.set_csound(enable) - Enable/disable Csound synth */
-static int lua_alda_set_csound(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    int enable = lua_toboolean(L, 1);
-
-    int result = loki_alda_csound_set_enabled(ctx, enable);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to set Csound");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.csound_play(path) - Play a standalone CSD file asynchronously */
-static int lua_alda_csound_play(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
-
-    int result = loki_alda_csound_play_async(path);
-    if (result != 0) {
-        editor_ctx_t *ctx = lua_get_editor_context(L);
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to start playback");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.csound_playing() - Check if CSD playback is active */
-static int lua_alda_csound_playing(lua_State *L) {
-    lua_pushboolean(L, loki_alda_csound_playback_active());
-    return 1;
-}
-
-/* Lua API: loki.alda.csound_stop() - Stop CSD playback */
-static int lua_alda_csound_stop(lua_State *L) {
-    (void)L;
-    loki_alda_csound_stop_playback();
-    return 0;
-}
-
-/* Lua API: loki.alda.set_backend(name) - Set audio backend: "tsf", "csound", or "midi" */
-static int lua_alda_set_backend(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *name = luaL_checkstring(L, 1);
-    int result = 0;
-
-    if (strcmp(name, "tsf") == 0) {
-        /* Enable TSF (disable Csound first if enabled) */
-        loki_alda_csound_set_enabled(ctx, 0);
-        result = loki_alda_set_synth_enabled(ctx, 1);
-    } else if (strcmp(name, "csound") == 0) {
-        /* Enable Csound (TSF is disabled automatically in csound_set_enabled) */
-        result = loki_alda_csound_set_enabled(ctx, 1);
-    } else if (strcmp(name, "midi") == 0) {
-        /* Disable both synths, use external MIDI only */
-        loki_alda_csound_set_enabled(ctx, 0);
-        loki_alda_set_synth_enabled(ctx, 0);
-    } else {
-        lua_pushnil(L);
-        lua_pushstring(L, "Invalid backend name. Use 'tsf', 'csound', or 'midi'");
-        return 2;
-    }
-
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to set backend");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.set_part_scale(part_name, [root_note], [root_freq])
- * Set the currently loaded Scala scale on a part for microtuning.
- * Must call loki.scala.load() first to load a scale.
- */
-static int lua_alda_set_part_scale(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *part_name = luaL_checkstring(L, 1);
-
-    /* Optional root note (default 60 = C4) */
-    int root_note = 60;
-    if (lua_gettop(L) >= 2 && lua_isnumber(L, 2)) {
-        root_note = (int)lua_tointeger(L, 2);
-    }
-
-    /* Optional root frequency (default 261.6255653 Hz = C4 at A4=440) */
-    double root_freq = 261.6255653;
-    if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) {
-        root_freq = lua_tonumber(L, 3);
-    }
-
-    /* Check if a scale is loaded */
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, "No scale loaded. Call loki.scala.load() first.");
-        return 2;
-    }
-
-    int result = loki_alda_set_part_scale(ctx, part_name, g_current_scale, root_note, root_freq);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to set part scale");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.alda.clear_part_scale(part_name)
- * Clear the Scala scale from a part, returning it to 12-TET.
- */
-static int lua_alda_clear_part_scale(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *part_name = luaL_checkstring(L, 1);
-
-    int result = loki_alda_clear_part_scale(ctx, part_name);
-    if (result != 0) {
-        const char *err = loki_alda_get_error(ctx);
-        lua_pushnil(L);
-        lua_pushstring(L, err ? err : "Failed to clear part scale");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-#endif /* LANG_ALDA */
-
-#ifdef LANG_JOY
-/* ======================= Joy Language Bindings ======================== */
-
-/* Lua API: loki.joy.init() - Initialize Joy subsystem */
-static int lua_joy_init(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-
-    int result = loki_joy_init(ctx);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Failed to initialize Joy");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.cleanup() - Cleanup Joy subsystem */
-static int lua_joy_cleanup(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_joy_cleanup(ctx);
-    return 0;
-}
-
-/* Lua API: loki.joy.is_initialized() - Check if Joy is initialized */
-static int lua_joy_is_initialized(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushboolean(L, loki_joy_is_initialized(ctx));
-    return 1;
-}
-
-/* Lua API: loki.joy.eval(code) - Evaluate Joy code synchronously */
-static int lua_joy_eval(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *code = luaL_checkstring(L, 1);
-
-    int result = loki_joy_eval(ctx, code);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Joy evaluation failed");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.load(path) - Load and evaluate a Joy source file */
-static int lua_joy_load(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *path = luaL_checkstring(L, 1);
-
-    int result = loki_joy_load_file(ctx, path);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Failed to load Joy file");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.define(name, body) - Define a new Joy word */
-static int lua_joy_define(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *name = luaL_checkstring(L, 1);
-    const char *body = luaL_checkstring(L, 2);
-
-    int result = loki_joy_define(ctx, name, body);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Failed to define Joy word");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.stop() - Stop all MIDI playback and send panic */
-static int lua_joy_stop(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_joy_stop(ctx);
-    return 0;
-}
-
-/* Lua API: loki.joy.open_port(index) - Open a MIDI output port by index */
-static int lua_joy_open_port(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    int port_idx = (int)luaL_checkinteger(L, 1);
-
-    int result = loki_joy_open_port(ctx, port_idx);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Failed to open MIDI port");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.open_virtual(name) - Create a virtual MIDI output port */
-static int lua_joy_open_virtual(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *name = NULL;
-
-    if (lua_gettop(L) >= 1 && lua_isstring(L, 1)) {
-        name = lua_tostring(L, 1);
-    }
-
-    int result = loki_joy_open_virtual(ctx, name);
-    if (result != 0) {
-        lua_pushnil(L);
-        const char *err = loki_joy_get_error(ctx);
-        lua_pushstring(L, err ? err : "Failed to create virtual MIDI port");
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.joy.list_ports() - List available MIDI output ports */
-static int lua_joy_list_ports(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_joy_list_ports(ctx);
-    return 0;
-}
-
-/* Lua API: loki.joy.push(value) - Push a value onto the Joy stack */
-static int lua_joy_push(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-
-    if (lua_isinteger(L, 1) || lua_isnumber(L, 1)) {
-        int value = (int)lua_tointeger(L, 1);
-        loki_joy_push_int(ctx, value);
-    } else if (lua_isstring(L, 1)) {
-        const char *value = lua_tostring(L, 1);
-        loki_joy_push_string(ctx, value);
-    } else {
-        lua_pushnil(L);
-        lua_pushstring(L, "Joy push: expected integer or string");
-        return 2;
-    }
-
-    return 0;
-}
-
-/* Lua API: loki.joy.stack_depth() - Get the current stack depth */
-static int lua_joy_stack_depth(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    lua_pushinteger(L, loki_joy_stack_depth(ctx));
-    return 1;
-}
-
-/* Lua API: loki.joy.stack_clear() - Clear the Joy stack */
-static int lua_joy_stack_clear(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_joy_stack_clear(ctx);
-    return 0;
-}
-
-/* Lua API: loki.joy.stack_print() - Print the Joy stack (for debugging) */
-static int lua_joy_stack_print(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    loki_joy_stack_print(ctx);
-    return 0;
-}
-
-/* Lua API: loki.joy.get_error() - Get last error message */
-static int lua_joy_get_error(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
-    const char *err = loki_joy_get_error(ctx);
-
-    if (err) {
-        lua_pushstring(L, err);
-    } else {
-        lua_pushnil(L);
-    }
-    return 1;
-}
-
-/* Register joy module as loki.joy subtable */
-static void lua_register_joy_module(lua_State *L) {
-    /* Assumes loki table is on top of stack */
-    lua_newtable(L);  /* Create joy subtable */
-
-    lua_pushcfunction(L, lua_joy_init);
-    lua_setfield(L, -2, "init");
-    lua_pushcfunction(L, lua_joy_cleanup);
-    lua_setfield(L, -2, "cleanup");
-    lua_pushcfunction(L, lua_joy_is_initialized);
-    lua_setfield(L, -2, "is_initialized");
-    lua_pushcfunction(L, lua_joy_eval);
-    lua_setfield(L, -2, "eval");
-    lua_pushcfunction(L, lua_joy_load);
-    lua_setfield(L, -2, "load");
-    lua_pushcfunction(L, lua_joy_define);
-    lua_setfield(L, -2, "define");
-    lua_pushcfunction(L, lua_joy_stop);
-    lua_setfield(L, -2, "stop");
-    lua_pushcfunction(L, lua_joy_open_port);
-    lua_setfield(L, -2, "open_port");
-    lua_pushcfunction(L, lua_joy_open_virtual);
-    lua_setfield(L, -2, "open_virtual");
-    lua_pushcfunction(L, lua_joy_list_ports);
-    lua_setfield(L, -2, "list_ports");
-    lua_pushcfunction(L, lua_joy_push);
-    lua_setfield(L, -2, "push");
-    lua_pushcfunction(L, lua_joy_stack_depth);
-    lua_setfield(L, -2, "stack_depth");
-    lua_pushcfunction(L, lua_joy_stack_clear);
-    lua_setfield(L, -2, "stack_clear");
-    lua_pushcfunction(L, lua_joy_stack_print);
-    lua_setfield(L, -2, "stack_print");
-    lua_pushcfunction(L, lua_joy_get_error);
-    lua_setfield(L, -2, "get_error");
-
-    lua_setfield(L, -2, "joy");  /* Set as loki.joy */
-}
-#endif /* LANG_JOY */
 
 /* ======================= Ableton Link Bindings ======================= */
 
 /* Lua API: loki.link.init(bpm) - Initialize Link subsystem */
 static int lua_link_init(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     double bpm = 120.0;
 
     if (lua_gettop(L) >= 1 && lua_isnumber(L, 1)) {
@@ -1603,21 +1023,21 @@ static int lua_link_init(lua_State *L) {
 
 /* Lua API: loki.link.cleanup() - Cleanup Link subsystem */
 static int lua_link_cleanup(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     loki_link_cleanup(ctx);
     return 0;
 }
 
 /* Lua API: loki.link.is_initialized() - Check if Link is initialized */
 static int lua_link_is_initialized(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushboolean(L, loki_link_is_initialized(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.enable(bool) - Enable/disable Link */
 static int lua_link_enable(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     int enable = lua_toboolean(L, 1);
     loki_link_enable(ctx, enable);
     return 0;
@@ -1625,21 +1045,21 @@ static int lua_link_enable(lua_State *L) {
 
 /* Lua API: loki.link.is_enabled() - Check if Link is enabled */
 static int lua_link_is_enabled(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushboolean(L, loki_link_is_enabled(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.tempo() - Get session tempo */
 static int lua_link_tempo(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushnumber(L, loki_link_get_tempo(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.set_tempo(bpm) - Set session tempo */
 static int lua_link_set_tempo(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     double bpm = luaL_checknumber(L, 1);
     loki_link_set_tempo(ctx, bpm);
     return 0;
@@ -1647,7 +1067,7 @@ static int lua_link_set_tempo(lua_State *L) {
 
 /* Lua API: loki.link.beat(quantum) - Get current beat position */
 static int lua_link_beat(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     double quantum = 4.0;
 
     if (lua_gettop(L) >= 1 && lua_isnumber(L, 1)) {
@@ -1660,7 +1080,7 @@ static int lua_link_beat(lua_State *L) {
 
 /* Lua API: loki.link.phase(quantum) - Get phase within quantum */
 static int lua_link_phase(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     double quantum = 4.0;
 
     if (lua_gettop(L) >= 1 && lua_isnumber(L, 1)) {
@@ -1673,14 +1093,14 @@ static int lua_link_phase(lua_State *L) {
 
 /* Lua API: loki.link.peers() - Get number of connected peers */
 static int lua_link_peers(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushinteger(L, (lua_Integer)loki_link_num_peers(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.start_stop_sync(bool) - Enable start/stop sync */
 static int lua_link_start_stop_sync(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     int enable = lua_toboolean(L, 1);
     loki_link_enable_start_stop_sync(ctx, enable);
     return 0;
@@ -1688,35 +1108,35 @@ static int lua_link_start_stop_sync(lua_State *L) {
 
 /* Lua API: loki.link.is_start_stop_sync_enabled() */
 static int lua_link_is_start_stop_sync_enabled(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushboolean(L, loki_link_is_start_stop_sync_enabled(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.is_playing() - Get transport state */
 static int lua_link_is_playing(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     lua_pushboolean(L, loki_link_is_playing(ctx));
     return 1;
 }
 
 /* Lua API: loki.link.play() - Start transport */
 static int lua_link_play(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     loki_link_set_playing(ctx, 1);
     return 0;
 }
 
 /* Lua API: loki.link.stop() - Stop transport */
 static int lua_link_stop(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     loki_link_set_playing(ctx, 0);
     return 0;
 }
 
 /* Lua API: loki.link.on_peers(callback) - Register peers callback */
 static int lua_link_on_peers(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     const char *callback = NULL;
 
     if (lua_gettop(L) >= 1 && !lua_isnil(L, 1)) {
@@ -1729,7 +1149,7 @@ static int lua_link_on_peers(lua_State *L) {
 
 /* Lua API: loki.link.on_tempo(callback) - Register tempo callback */
 static int lua_link_on_tempo(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     const char *callback = NULL;
 
     if (lua_gettop(L) >= 1 && !lua_isnil(L, 1)) {
@@ -1742,7 +1162,7 @@ static int lua_link_on_tempo(lua_State *L) {
 
 /* Lua API: loki.link.on_start_stop(callback) - Register start/stop callback */
 static int lua_link_on_start_stop(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     const char *callback = NULL;
 
     if (lua_gettop(L) >= 1 && !lua_isnil(L, 1)) {
@@ -1820,7 +1240,7 @@ static void lua_register_link_module(lua_State *L) {
 /* Lua API: loki.midi.export(filename) - Export events to MIDI file
  * Returns: true on success, nil + error message on failure */
 static int lua_midi_export(lua_State *L) {
-    editor_ctx_t *ctx = lua_get_editor_context(L);
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
     const char *filename = luaL_checkstring(L, 1);
 
     if (loki_export_midi(ctx, filename) == 0) {
@@ -1845,355 +1265,6 @@ static void lua_register_midi_module(lua_State *L) {
     lua_setfield(L, -2, "midi");  /* Set as loki.midi */
 }
 
-#ifdef LANG_ALDA
-/* ======================= Scala Scale File Bindings ======================= */
-
-/* g_current_scale is declared at the top of the file */
-
-/* Lua API: loki.scala.load(path) - Load a Scala scale file */
-static int lua_scala_load(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
-
-    /* Free any existing scale */
-    if (g_current_scale) {
-        scala_free(g_current_scale);
-        g_current_scale = NULL;
-    }
-
-    g_current_scale = scala_load(path);
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, scala_get_error());
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.scala.load_string(content) - Load scale from string */
-static int lua_scala_load_string(lua_State *L) {
-    size_t len;
-    const char *content = luaL_checklstring(L, 1, &len);
-
-    /* Free any existing scale */
-    if (g_current_scale) {
-        scala_free(g_current_scale);
-        g_current_scale = NULL;
-    }
-
-    g_current_scale = scala_load_string(content, len);
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, scala_get_error());
-        return 2;
-    }
-
-    lua_pushboolean(L, 1);
-    return 1;
-}
-
-/* Lua API: loki.scala.unload() - Unload current scale */
-static int lua_scala_unload(lua_State *L) {
-    (void)L;
-    if (g_current_scale) {
-        scala_free(g_current_scale);
-        g_current_scale = NULL;
-    }
-    return 0;
-}
-
-/* Lua API: loki.scala.loaded() - Check if a scale is loaded */
-static int lua_scala_loaded(lua_State *L) {
-    lua_pushboolean(L, g_current_scale != NULL);
-    return 1;
-}
-
-/* Lua API: loki.scala.description() - Get scale description */
-static int lua_scala_description(lua_State *L) {
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        return 1;
-    }
-    lua_pushstring(L, scala_get_description(g_current_scale));
-    return 1;
-}
-
-/* Lua API: loki.scala.length() - Get number of degrees (excluding implicit 1/1) */
-static int lua_scala_length(lua_State *L) {
-    if (!g_current_scale) {
-        lua_pushinteger(L, 0);
-        return 1;
-    }
-    lua_pushinteger(L, scala_get_length(g_current_scale));
-    return 1;
-}
-
-/* Lua API: loki.scala.ratio(degree) - Get frequency ratio for a degree */
-static int lua_scala_ratio(lua_State *L) {
-    int degree = (int)luaL_checkinteger(L, 1);
-
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, "No scale loaded");
-        return 2;
-    }
-
-    double ratio = scala_get_ratio(g_current_scale, degree);
-    if (ratio < 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, "Invalid degree");
-        return 2;
-    }
-
-    lua_pushnumber(L, ratio);
-    return 1;
-}
-
-/* Lua API: loki.scala.frequency(degree, base_freq) - Get frequency for a degree */
-static int lua_scala_frequency(lua_State *L) {
-    int degree = (int)luaL_checkinteger(L, 1);
-    double base_freq = luaL_checknumber(L, 2);
-
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, "No scale loaded");
-        return 2;
-    }
-
-    double freq = scala_get_frequency(g_current_scale, degree, base_freq);
-    if (freq < 0) {
-        lua_pushnil(L);
-        lua_pushstring(L, "Invalid degree");
-        return 2;
-    }
-
-    lua_pushnumber(L, freq);
-    return 1;
-}
-
-/* Lua API: loki.scala.midi_to_freq(midi_note, root_note, root_freq)
- * Convert MIDI note to frequency using the loaded scale */
-static int lua_scala_midi_to_freq(lua_State *L) {
-    int midi_note = (int)luaL_checkinteger(L, 1);
-    int root_note = (int)luaL_optinteger(L, 2, 60);  /* Default C4 */
-    double root_freq = luaL_optnumber(L, 3, 261.6255653);  /* Default C4 freq */
-
-    if (!g_current_scale) {
-        /* No scale - use 12-TET */
-        double freq = root_freq * pow(2.0, (midi_note - root_note) / 12.0);
-        lua_pushnumber(L, freq);
-        return 1;
-    }
-
-    double freq = scala_midi_to_freq(g_current_scale, midi_note, root_note, root_freq);
-    lua_pushnumber(L, freq);
-    return 1;
-}
-
-/* Lua API: loki.scala.cents_to_ratio(cents) - Convert cents to ratio */
-static int lua_scala_cents_to_ratio(lua_State *L) {
-    double cents = luaL_checknumber(L, 1);
-    lua_pushnumber(L, scala_cents_to_ratio(cents));
-    return 1;
-}
-
-/* Lua API: loki.scala.ratio_to_cents(ratio) - Convert ratio to cents */
-static int lua_scala_ratio_to_cents(lua_State *L) {
-    double ratio = luaL_checknumber(L, 1);
-    lua_pushnumber(L, scala_ratio_to_cents(ratio));
-    return 1;
-}
-
-/* Lua API: loki.scala.degrees() - Get table of all degrees with details */
-static int lua_scala_degrees(lua_State *L) {
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        return 1;
-    }
-
-    lua_newtable(L);
-
-    for (int i = 0; i < g_current_scale->degree_count; i++) {
-        lua_newtable(L);
-
-        lua_pushnumber(L, g_current_scale->degrees[i].ratio);
-        lua_setfield(L, -2, "ratio");
-
-        lua_pushnumber(L, g_current_scale->degrees[i].cents);
-        lua_setfield(L, -2, "cents");
-
-        if (g_current_scale->degrees[i].cents_format) {
-            lua_pushboolean(L, 1);
-            lua_setfield(L, -2, "cents_format");
-        } else {
-            lua_pushinteger(L, g_current_scale->degrees[i].numerator);
-            lua_setfield(L, -2, "numerator");
-            lua_pushinteger(L, g_current_scale->degrees[i].denominator);
-            lua_setfield(L, -2, "denominator");
-        }
-
-        lua_rawseti(L, -2, i);  /* 0-indexed to match C API */
-    }
-
-    return 1;
-}
-
-/* Lua API: loki.scala.csound_ftable([base_freq], [fnum])
- * Generate Csound f-table statement for the scale */
-static int lua_scala_csound_ftable(lua_State *L) {
-    double base_freq = luaL_optnumber(L, 1, 261.6255653);  /* C4 default */
-    int fnum = (int)luaL_optinteger(L, 2, 1);  /* f-table number */
-
-    if (!g_current_scale) {
-        lua_pushnil(L);
-        lua_pushstring(L, "No scale loaded");
-        return 2;
-    }
-
-    /* Build f-table string with frequencies for each degree */
-    char buffer[4096];
-    int pos = 0;
-
-    /* GEN02 format: f# time size gen values... */
-    pos += snprintf(buffer + pos, sizeof(buffer) - pos,
-                    "f%d 0 %d -2", fnum, g_current_scale->degree_count);
-
-    for (int i = 0; i < g_current_scale->degree_count; i++) {
-        double freq = scala_get_frequency(g_current_scale, i, base_freq);
-        pos += snprintf(buffer + pos, sizeof(buffer) - pos, " %.6f", freq);
-        if (pos >= (int)sizeof(buffer) - 20) break;
-    }
-
-    lua_pushstring(L, buffer);
-    return 1;
-}
-
-/* Register scala module as loki.scala subtable */
-static void lua_register_scala_module(lua_State *L) {
-    /* Assumes loki table is on top of stack */
-    lua_newtable(L);  /* Create scala subtable */
-
-    lua_pushcfunction(L, lua_scala_load);
-    lua_setfield(L, -2, "load");
-
-    lua_pushcfunction(L, lua_scala_load_string);
-    lua_setfield(L, -2, "load_string");
-
-    lua_pushcfunction(L, lua_scala_unload);
-    lua_setfield(L, -2, "unload");
-
-    lua_pushcfunction(L, lua_scala_loaded);
-    lua_setfield(L, -2, "loaded");
-
-    lua_pushcfunction(L, lua_scala_description);
-    lua_setfield(L, -2, "description");
-
-    lua_pushcfunction(L, lua_scala_length);
-    lua_setfield(L, -2, "length");
-
-    lua_pushcfunction(L, lua_scala_ratio);
-    lua_setfield(L, -2, "ratio");
-
-    lua_pushcfunction(L, lua_scala_frequency);
-    lua_setfield(L, -2, "frequency");
-
-    lua_pushcfunction(L, lua_scala_midi_to_freq);
-    lua_setfield(L, -2, "midi_to_freq");
-
-    lua_pushcfunction(L, lua_scala_cents_to_ratio);
-    lua_setfield(L, -2, "cents_to_ratio");
-
-    lua_pushcfunction(L, lua_scala_ratio_to_cents);
-    lua_setfield(L, -2, "ratio_to_cents");
-
-    lua_pushcfunction(L, lua_scala_degrees);
-    lua_setfield(L, -2, "degrees");
-
-    lua_pushcfunction(L, lua_scala_csound_ftable);
-    lua_setfield(L, -2, "csound_ftable");
-
-    lua_setfield(L, -2, "scala");  /* Set as loki.scala */
-}
-
-/* Register alda module as loki.alda subtable */
-static void lua_register_alda_module(lua_State *L) {
-    /* Assumes loki table is on top of stack */
-    lua_newtable(L);  /* Create alda subtable */
-
-    lua_pushcfunction(L, lua_alda_init);
-    lua_setfield(L, -2, "init");
-
-    lua_pushcfunction(L, lua_alda_cleanup);
-    lua_setfield(L, -2, "cleanup");
-
-    lua_pushcfunction(L, lua_alda_is_initialized);
-    lua_setfield(L, -2, "is_initialized");
-
-    lua_pushcfunction(L, lua_alda_eval);
-    lua_setfield(L, -2, "eval");
-
-    lua_pushcfunction(L, lua_alda_eval_sync);
-    lua_setfield(L, -2, "eval_sync");
-
-    lua_pushcfunction(L, lua_alda_stop);
-    lua_setfield(L, -2, "stop");
-
-    lua_pushcfunction(L, lua_alda_stop_all);
-    lua_setfield(L, -2, "stop_all");
-
-    lua_pushcfunction(L, lua_alda_is_playing);
-    lua_setfield(L, -2, "is_playing");
-
-    lua_pushcfunction(L, lua_alda_active_count);
-    lua_setfield(L, -2, "active_count");
-
-    lua_pushcfunction(L, lua_alda_set_tempo);
-    lua_setfield(L, -2, "set_tempo");
-
-    lua_pushcfunction(L, lua_alda_get_tempo);
-    lua_setfield(L, -2, "get_tempo");
-
-    lua_pushcfunction(L, lua_alda_set_synth);
-    lua_setfield(L, -2, "set_synth");
-
-    lua_pushcfunction(L, lua_alda_load_soundfont);
-    lua_setfield(L, -2, "load_soundfont");
-
-    lua_pushcfunction(L, lua_alda_get_error);
-    lua_setfield(L, -2, "get_error");
-
-    /* Csound backend */
-    lua_pushcfunction(L, lua_alda_csound_available);
-    lua_setfield(L, -2, "csound_available");
-
-    lua_pushcfunction(L, lua_alda_csound_load);
-    lua_setfield(L, -2, "csound_load");
-
-    lua_pushcfunction(L, lua_alda_set_csound);
-    lua_setfield(L, -2, "set_csound");
-
-    lua_pushcfunction(L, lua_alda_csound_play);
-    lua_setfield(L, -2, "csound_play");
-
-    lua_pushcfunction(L, lua_alda_csound_playing);
-    lua_setfield(L, -2, "csound_playing");
-
-    lua_pushcfunction(L, lua_alda_csound_stop);
-    lua_setfield(L, -2, "csound_stop");
-
-    lua_pushcfunction(L, lua_alda_set_backend);
-    lua_setfield(L, -2, "set_backend");
-
-    lua_pushcfunction(L, lua_alda_set_part_scale);
-    lua_setfield(L, -2, "set_part_scale");
-
-    lua_pushcfunction(L, lua_alda_clear_part_scale);
-    lua_setfield(L, -2, "clear_part_scale");
-
-    lua_setfield(L, -2, "alda");  /* Set as loki.alda */
-}
-#endif /* LANG_ALDA */
 
 void loki_lua_bind_minimal(lua_State *L) {
     lua_getglobal(L, "loki");
@@ -2309,29 +1380,17 @@ void loki_lua_bind_editor(lua_State *L) {
     lua_setfield(L, -2, "match");
     lua_setfield(L, -2, "hl");
 
-    /* Register alda module as loki.alda */
-#ifdef LANG_ALDA
-    lua_register_alda_module(L);
-#endif
-
-    /* Register joy module as loki.joy */
-#ifdef LANG_JOY
-    lua_register_joy_module(L);
-#endif
-
     /* Register link module as loki.link */
     lua_register_link_module(L);
 
     /* Register midi module as loki.midi */
     lua_register_midi_module(L);
 
-    /* Register scala module as loki.scala */
-#ifdef LANG_ALDA
-    lua_register_scala_module(L);
-#endif
-
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");
+
+    /* Register language-specific Lua APIs via the bridge */
+    loki_lang_register_lua_apis(L);
 }
 
 static void loki_lua_report(const struct loki_lua_opts *opts, const char *fmt, ...) {

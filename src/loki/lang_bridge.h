@@ -62,6 +62,9 @@ typedef struct LokiLangOps {
 
     /* Backend configuration (optional) */
     int (*configure_backend)(editor_ctx_t *ctx, const char *sf_path, const char *csd_path);
+
+    /* Lua API registration (optional) */
+    void (*register_lua_api)(lua_State *L);              /* Register language's Lua bindings */
 } LokiLangOps;
 
 /* ======================= Registration ======================= */
@@ -185,5 +188,13 @@ const char *loki_lang_get_error(editor_ctx_t *ctx);
  * @return 0 on success, -1 on error, 1 if no language or not supported
  */
 int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path);
+
+/**
+ * Register Lua APIs for all languages.
+ * Iterates through registered languages and calls their register_lua_api.
+ *
+ * @param L Lua state
+ */
+void loki_lang_register_lua_apis(lua_State *L);
 
 #endif /* LOKI_LANG_BRIDGE_H */

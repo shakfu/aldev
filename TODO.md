@@ -18,7 +18,7 @@
   - Alda events converted to shared format at export time
   - Joy uses immediate playback (could add recording in future)
 
-- [ ] Modular language selection via CMake options
+- [x] Modular language selection via CMake options
   - Add `BUILD_ALDA_LANGUAGE` and `BUILD_JOY_LANGUAGE` options (default ON)
   - Conditional library builds and linking in CMakeLists.txt
   - Preprocessor guards in `repl.c` and `main.c` for language-specific code

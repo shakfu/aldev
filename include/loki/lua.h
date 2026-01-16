@@ -28,6 +28,15 @@ void loki_lua_bind_editor(lua_State *L);
 int loki_lua_load_config(lua_State *L, const struct loki_lua_opts *opts);
 void loki_lua_install_namespaces(lua_State *L);
 
+/**
+ * Get editor context from Lua state.
+ * Used by language Lua bindings to access the current editor context.
+ *
+ * @param L Lua state
+ * @return Editor context or NULL
+ */
+editor_ctx_t *loki_lua_get_editor_context(lua_State *L);
+
 #ifdef __cplusplus
 }
 #endif

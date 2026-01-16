@@ -202,3 +202,14 @@ int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const ch
 
     return ops->configure_backend(ctx, sf_path, csd_path);
 }
+
+void loki_lang_register_lua_apis(lua_State *L) {
+    if (!L) return;
+
+    for (int i = 0; i < g_language_count; i++) {
+        const LokiLangOps *ops = g_languages[i];
+        if (ops->register_lua_api) {
+            ops->register_lua_api(L);
+        }
+    }
+}
