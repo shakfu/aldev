@@ -575,6 +575,113 @@ void chan_(JoyContext* ctx) {
 }
 
 /* ============================================================================
+ * Ableton Link Primitives
+ * ============================================================================ */
+
+/* link-enable - enable Link tempo sync */
+void link_enable_(JoyContext* ctx) {
+    (void)ctx;
+    if (joy_link_enable() == 0) {
+        printf("Link enabled (tempo: %.1f BPM, peers: %d)\n",
+               joy_link_get_tempo(), joy_link_num_peers());
+    } else {
+        printf("Failed to enable Link\n");
+    }
+}
+
+/* link-disable - disable Link */
+void link_disable_(JoyContext* ctx) {
+    (void)ctx;
+    joy_link_disable();
+    printf("Link disabled\n");
+}
+
+/* link-tempo - get or set Link tempo: BPM link-tempo OR link-tempo */
+void link_tempo_(JoyContext* ctx) {
+    if (ctx->stack->depth >= 1 && ctx->stack->items[ctx->stack->depth - 1].type == JOY_INTEGER) {
+        /* Set tempo */
+        JoyValue v = POP();
+        double bpm = (double)v.data.integer;
+        if (bpm >= 20.0 && bpm <= 999.0) {
+            joy_link_set_tempo(bpm);
+            printf("Link tempo: %.1f BPM\n", bpm);
+        } else {
+            printf("Invalid tempo (must be 20-999)\n");
+        }
+    } else if (ctx->stack->depth >= 1 && ctx->stack->items[ctx->stack->depth - 1].type == JOY_FLOAT) {
+        /* Set tempo (float) */
+        JoyValue v = POP();
+        double bpm = v.data.floating;
+        if (bpm >= 20.0 && bpm <= 999.0) {
+            joy_link_set_tempo(bpm);
+            printf("Link tempo: %.1f BPM\n", bpm);
+        } else {
+            printf("Invalid tempo (must be 20-999)\n");
+        }
+    } else {
+        /* Get tempo - push onto stack */
+        double tempo = joy_link_get_tempo();
+        if (tempo > 0) {
+            PUSH(joy_float(tempo));
+        } else {
+            printf("Link not enabled\n");
+        }
+    }
+}
+
+/* link-beat - get current beat position (quantum on stack or default 4) */
+void link_beat_(JoyContext* ctx) {
+    double quantum = 4.0;
+    if (ctx->stack->depth >= 1) {
+        JoyValue v = ctx->stack->items[ctx->stack->depth - 1];
+        if (v.type == JOY_INTEGER) {
+            POP();
+            quantum = (double)v.data.integer;
+        } else if (v.type == JOY_FLOAT) {
+            POP();
+            quantum = v.data.floating;
+        }
+    }
+    double beat = joy_link_get_beat(quantum);
+    PUSH(joy_float(beat));
+}
+
+/* link-phase - get current phase within quantum */
+void link_phase_(JoyContext* ctx) {
+    double quantum = 4.0;
+    if (ctx->stack->depth >= 1) {
+        JoyValue v = ctx->stack->items[ctx->stack->depth - 1];
+        if (v.type == JOY_INTEGER) {
+            POP();
+            quantum = (double)v.data.integer;
+        } else if (v.type == JOY_FLOAT) {
+            POP();
+            quantum = v.data.floating;
+        }
+    }
+    double phase = joy_link_get_phase(quantum);
+    PUSH(joy_float(phase));
+}
+
+/* link-peers - get number of connected peers */
+void link_peers_(JoyContext* ctx) {
+    int peers = joy_link_num_peers();
+    PUSH(joy_integer(peers));
+}
+
+/* link-status - print Link status */
+void link_status_(JoyContext* ctx) {
+    (void)ctx;
+    if (joy_link_is_enabled()) {
+        printf("Link: enabled, tempo: %.1f BPM, peers: %d, beat: %.2f\n",
+               joy_link_get_tempo(), joy_link_num_peers(),
+               joy_link_get_beat(4.0));
+    } else {
+        printf("Link: disabled\n");
+    }
+}
+
+/* ============================================================================
  * Initialization / Cleanup
  * ============================================================================ */
 
@@ -1009,6 +1116,15 @@ void joy_midi_register_primitives(JoyContext* ctx) {
 
     /* Debug */
     joy_dict_define_primitive(dict, "midi-debug", midi_debug_);
+
+    /* Ableton Link */
+    joy_dict_define_primitive(dict, "link-enable", link_enable_);
+    joy_dict_define_primitive(dict, "link-disable", link_disable_);
+    joy_dict_define_primitive(dict, "link-tempo", link_tempo_);
+    joy_dict_define_primitive(dict, "link-beat", link_beat_);
+    joy_dict_define_primitive(dict, "link-phase", link_phase_);
+    joy_dict_define_primitive(dict, "link-peers", link_peers_);
+    joy_dict_define_primitive(dict, "link-status", link_status_);
 
     /* Set up post-eval hook for SEQ playback */
     ctx->post_eval_hook = accumulator_flush;

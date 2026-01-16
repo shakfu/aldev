@@ -1043,6 +1043,12 @@ static void print_joy_repl_help(void) {
     printf("  sf-enable       Switch to built-in synth\n");
     printf("  sf-disable      Switch to MIDI output\n");
     printf("\n");
+    printf("Link Commands:\n");
+    printf("  link-enable     Enable Ableton Link tempo sync\n");
+    printf("  link-disable    Disable Link\n");
+    printf("  link-tempo BPM  Set Link tempo\n");
+    printf("  link-status     Show Link status\n");
+    printf("\n");
     printf("Joy Syntax:\n");
     printf("  c d e f g a b   Note names (octave 4 by default)\n");
     printf("  c5 d3 e6        Notes with explicit octave\n");
@@ -1129,6 +1135,45 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
         if (strcmp(input, "sf-disable") == 0) {
             joy_tsf_disable();
             printf("Built-in synth disabled\n");
+            continue;
+        }
+
+        /* Link commands */
+        if (strcmp(input, "link-enable") == 0 || strcmp(input, "link") == 0) {
+            if (joy_link_enable() == 0) {
+                printf("Link enabled (tempo: %.1f BPM, peers: %d)\n",
+                       joy_link_get_tempo(), joy_link_num_peers());
+            } else {
+                printf("Failed to enable Link\n");
+            }
+            continue;
+        }
+
+        if (strcmp(input, "link-disable") == 0) {
+            joy_link_disable();
+            printf("Link disabled\n");
+            continue;
+        }
+
+        if (strncmp(input, "link-tempo ", 11) == 0) {
+            double bpm = atof(input + 11);
+            if (bpm >= 20.0 && bpm <= 999.0) {
+                joy_link_set_tempo(bpm);
+                printf("Link tempo set to %.1f BPM\n", bpm);
+            } else {
+                printf("Invalid tempo (must be 20-999 BPM)\n");
+            }
+            continue;
+        }
+
+        if (strcmp(input, "link-status") == 0) {
+            if (joy_link_is_enabled()) {
+                printf("Link: enabled, tempo: %.1f BPM, peers: %d, beat: %.2f\n",
+                       joy_link_get_tempo(), joy_link_num_peers(),
+                       joy_link_get_beat(4.0));
+            } else {
+                printf("Link: disabled\n");
+            }
             continue;
         }
 
@@ -1298,6 +1343,7 @@ int joy_repl_main(int argc, char **argv) {
 
     /* Cleanup */
     joy_midi_panic();
+    joy_link_cleanup();
     joy_midi_cleanup();
     music_notation_cleanup(ctx);
     joy_context_free(ctx);

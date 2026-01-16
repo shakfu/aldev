@@ -149,6 +149,71 @@ void joy_tsf_disable(void);
 int joy_tsf_is_enabled(void);
 
 /* ============================================================================
+ * Ableton Link Support
+ * ============================================================================ */
+
+/**
+ * @brief Initialize Link with a starting tempo.
+ * @param bpm Initial tempo in beats per minute.
+ * @return 0 on success, -1 on error.
+ */
+int joy_link_init(double bpm);
+
+/**
+ * @brief Cleanup Link subsystem.
+ */
+void joy_link_cleanup(void);
+
+/**
+ * @brief Enable Link network synchronization.
+ * @return 0 on success, -1 if not initialized.
+ */
+int joy_link_enable(void);
+
+/**
+ * @brief Disable Link network synchronization.
+ */
+void joy_link_disable(void);
+
+/**
+ * @brief Check if Link is enabled.
+ * @return Non-zero if enabled.
+ */
+int joy_link_is_enabled(void);
+
+/**
+ * @brief Get current Link tempo.
+ * @return Tempo in BPM, or 0 if not initialized.
+ */
+double joy_link_get_tempo(void);
+
+/**
+ * @brief Set Link tempo (propagates to all peers).
+ * @param bpm Tempo in beats per minute.
+ */
+void joy_link_set_tempo(double bpm);
+
+/**
+ * @brief Get current beat position.
+ * @param quantum Beat subdivision (typically 4.0 for 4/4).
+ * @return Beat position (fractional).
+ */
+double joy_link_get_beat(double quantum);
+
+/**
+ * @brief Get current phase within quantum.
+ * @param quantum Beat subdivision.
+ * @return Phase in range [0, quantum).
+ */
+double joy_link_get_phase(double quantum);
+
+/**
+ * @brief Get number of connected Link peers.
+ * @return Number of peers (excluding this instance).
+ */
+int joy_link_num_peers(void);
+
+/* ============================================================================
  * Shared Context Access
  * ============================================================================ */
 

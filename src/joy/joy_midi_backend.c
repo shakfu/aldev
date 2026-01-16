@@ -10,6 +10,7 @@
 #include "context.h"        /* SharedContext */
 #include "midi/midi.h"      /* shared_midi_* */
 #include "audio/audio.h"    /* shared_tsf_* */
+#include "link/link.h"      /* shared_link_* */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -243,4 +244,70 @@ void joy_set_shared_context(SharedContext* ctx) {
 
     g_shared = ctx;
     g_initialized = (ctx != NULL) ? 1 : 0;
+}
+
+/* ============================================================================
+ * Ableton Link Support
+ * ============================================================================ */
+
+int joy_link_init(double bpm) {
+    return shared_link_init(bpm);
+}
+
+void joy_link_cleanup(void) {
+    shared_link_cleanup();
+}
+
+int joy_link_enable(void) {
+    if (!shared_link_is_initialized()) {
+        /* Auto-initialize with default tempo */
+        if (shared_link_init(120.0) != 0) {
+            return -1;
+        }
+    }
+    shared_link_enable(1);
+    return 0;
+}
+
+void joy_link_disable(void) {
+    shared_link_enable(0);
+}
+
+int joy_link_is_enabled(void) {
+    return shared_link_is_enabled();
+}
+
+double joy_link_get_tempo(void) {
+    if (!shared_link_is_initialized()) {
+        return 0.0;
+    }
+    return shared_link_get_tempo();
+}
+
+void joy_link_set_tempo(double bpm) {
+    if (!shared_link_is_initialized()) {
+        return;
+    }
+    shared_link_set_tempo(bpm);
+}
+
+double joy_link_get_beat(double quantum) {
+    if (!shared_link_is_initialized()) {
+        return 0.0;
+    }
+    return shared_link_get_beat(quantum);
+}
+
+double joy_link_get_phase(double quantum) {
+    if (!shared_link_is_initialized()) {
+        return 0.0;
+    }
+    return shared_link_get_phase(quantum);
+}
+
+int joy_link_num_peers(void) {
+    if (!shared_link_is_initialized()) {
+        return 0;
+    }
+    return (int)shared_link_num_peers();
 }

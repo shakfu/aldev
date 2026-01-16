@@ -2,6 +2,22 @@
 
 ## High Priority
 
+### Joy Language Integration
+
+- [x] Add Ableton Link support to Joy
+  - Link implementation exists in `src/shared/link/link.c`
+  - Added `joy_link_*` wrapper functions in `joy_midi_backend.c`
+  - Added REPL commands: `link-enable`, `link-disable`, `link-tempo`, `link-status`
+  - Added Joy primitives: `link-enable`, `link-disable`, `link-tempo`, `link-beat`, `link-phase`, `link-peers`, `link-status`
+
+- [ ] Add Csound support to Joy
+  - Full Csound impl is in `src/alda/csound_backend.c`
+  - Shared layer (`src/shared/audio/csound_backend.c`) has only stubs
+  - Options:
+    1. Move Csound implementation to shared layer (preferred)
+    2. Create bridge from Joy to Alda's Csound backend
+  - Would enable custom synthesis via CSD files in Joy
+
 ### Testing Gaps
 
 - [x] Add Alda parser tests
