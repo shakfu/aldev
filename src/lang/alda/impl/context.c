@@ -23,12 +23,9 @@ void alda_context_init(AldaContext* ctx) {
         shared_context_init(ctx->shared);
     }
 
-    /* Legacy MIDI output handles (deprecated - kept for compatibility) */
+    /* Legacy MIDI fields - unused, kept for ABI compatibility */
     ctx->midi_observer = NULL;
-    ctx->midi_out = NULL;
-    for (int i = 0; i < ALDA_MAX_PORTS; i++) {
-        ctx->out_ports[i] = NULL;
-    }
+    ctx->midi_out = NULL;  /* Will be synced from shared->midi_out when port is opened */
     ctx->out_port_count = 0;
 
     /* Parts management */

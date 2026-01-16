@@ -144,6 +144,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Now enable/disable are ref-counted: backend only actually enables on first reference (0->1) and disables on last release (1->0)
   - Files: `src/shared/audio/tsf_backend.c`, `src/shared/audio/csound_backend.c`, `src/shared/link/link.c`
 
+- **Removed Duplicate Alda MIDI Observer**: Eliminated legacy observer that duplicated shared context functionality
+  - `alda_midi_init_observer()` was maintaining BOTH a shared observer AND a legacy observer copy
+  - This doubled enumeration work, risked memory leaks if one path failed, and complicated cleanup
+  - All Alda MIDI operations now delegate entirely to the shared context (`shared_midi_*` functions)
+  - Legacy MIDI fields in `AldaContext` (`midi_observer`, `out_ports[]`, `out_port_count`) marked as deprecated
+  - The `midi_out` pointer is still synced from `shared->midi_out` for API compatibility
+  - Removed ~200 lines of redundant code from `src/lang/alda/backends/midi_backend.c`
+
 - **MIDI Export Multi-track Crash**: Fixed segfault when exporting multi-channel compositions
   - Track 0 (conductor) was empty when no tempo events existed in the shared buffer
   - Now always adds a default tempo (120 BPM) to ensure track 0 has content

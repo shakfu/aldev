@@ -10,12 +10,6 @@
   - Cleanup routines (`joy_csound_cleanup()`) can shut down backend even if another language/editor context is active
   - Fix: Each editor/REPL instance should own its own `SharedContext` (or a handle to ref-counted pool)
 
-- [ ] Remove duplicate Alda MIDI observer (`src/lang/alda/backends/midi_backend.c:67-128`)
-  - `alda_midi_init_observer()` maintains BOTH shared observer AND legacy observer copy
-  - Doubles enumeration work, leaks memory if one path fails, complicates cleanup
-  - Comment on line 75 says "Also maintain legacy port list for backward compatibility"
-  - Fix: Once all code paths use `SharedContext`, remove legacy observer and rely solely on `shared_midi_*`
-
 ---
 
 ## Medium Priority

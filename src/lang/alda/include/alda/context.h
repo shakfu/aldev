@@ -146,11 +146,16 @@ typedef struct AldaContext {
     /* Shared audio/MIDI/Link context */
     struct SharedContext* shared;
 
-    /* Legacy MIDI fields (deprecated - use shared context instead) */
-    libremidi_midi_observer_handle* midi_observer;
-    libremidi_midi_out_handle* midi_out;
-    libremidi_midi_out_port* out_ports[ALDA_MAX_PORTS];
-    int out_port_count;
+    /*
+     * Legacy MIDI fields - DEPRECATED, kept only for ABI compatibility.
+     * These are no longer used internally; all MIDI operations go through
+     * ctx->shared. The midi_out pointer is synced from shared->midi_out
+     * for any external code that still references it.
+     */
+    libremidi_midi_observer_handle* midi_observer;  /* Unused - always NULL */
+    libremidi_midi_out_handle* midi_out;            /* Synced from shared->midi_out */
+    libremidi_midi_out_port* out_ports[ALDA_MAX_PORTS];  /* Unused */
+    int out_port_count;                             /* Unused - always 0 */
 
     /* Parts management */
     AldaPartState parts[ALDA_MAX_PARTS];
