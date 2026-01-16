@@ -204,6 +204,13 @@ add_library(libloki ${LOKI_LIBRARY_TYPE}
     src/loki/search.c
     src/loki/modal.c
     src/loki/command.c
+    src/loki/command/file.c
+    src/loki/command/basic.c
+    src/loki/command/goto.c
+    src/loki/command/substitute.c
+    src/loki/command/link.c
+    src/loki/command/csd.c
+    src/loki/command/export.c
     src/loki/terminal.c
     src/loki/undo.c
     src/loki/buffers.c

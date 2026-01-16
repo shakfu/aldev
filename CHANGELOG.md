@@ -19,6 +19,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Modular Command System**: Refactored editor ex-commands into separate files
+  - New `src/loki/command/` directory with one file per command category
+  - `command_impl.h` - Shared header with documentation on adding new commands
+  - `file.c` - File operations (`:w`, `:e`)
+  - `basic.c` - Core commands (`:q`, `:wq`, `:help`, `:set`)
+  - `goto.c` - Navigation (`:goto`, `:<number>`)
+  - `substitute.c` - Search and replace (`:s/old/new/`)
+  - `link.c` - Ableton Link (`:link`)
+  - `csd.c` - Csound synthesis (`:csd`)
+  - `export.c` - MIDI export (`:export`)
+  - Main `command.c` now contains only dispatch logic and command table
+
 - **Unified REPL Command API**: Both Alda and Joy REPLs now share the same command set
   - Common commands work identically in both REPLs (`:help`, `:quit`, `:list`, `:sf`, `:link`, `:cs`, etc.)
   - Commands can be used with or without `:` prefix in both REPLs
@@ -37,14 +49,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `:123` - Jump to line 123
   - `:goto 123` - Same using explicit command name
   - Auto-scrolls viewport to show target line
-  - Implemented in `src/loki/command.c`
+  - Implemented in `src/loki/command/goto.c`
 
 - **Search and Replace Command**: Vim-style substitution on current line
   - `:s/old/new/` - Replace first occurrence on current line
   - `:s/old/new/g` - Replace all occurrences on current line (global flag)
   - Supports escaped characters (`\/` for literal `/`)
   - Reports number of substitutions made
-  - Implemented in `src/loki/command.c`
+  - Implemented in `src/loki/command/substitute.c`
 
 - **Shared REPL Commands**: New unified commands available in both Alda and Joy REPLs
   - `:q` `:quit` `:exit` - Exit REPL

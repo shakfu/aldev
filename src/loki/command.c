@@ -1,21 +1,30 @@
-/* loki_command.c - Vim-like command mode implementation
+/* command.c - Vim-like command mode implementation
  *
  * Handles command mode (:w, :q, :set, etc.) for vim-like editing.
  * Commands can be built-in (C functions) or registered from Lua.
+ *
+ * Command implementations are split into separate files in command/:
+ *   - file.c      - :w, :e (file operations)
+ *   - basic.c     - :q, :wq, :help, :set (core commands)
+ *   - goto.c      - :goto, :<number> (navigation)
+ *   - substitute.c - :s/old/new/ (search and replace)
+ *   - link.c      - :link (Ableton Link)
+ *   - csd.c       - :csd (Csound)
+ *   - export.c    - :export (MIDI export)
+ *
+ * To add a new command:
+ *   1. Create a new file in command/ (or add to existing category)
+ *   2. Include "command/command_impl.h"
+ *   3. Implement cmd_yourcommand(editor_ctx_t *ctx, const char *args)
+ *   4. Add declaration to command/command_impl.h
+ *   5. Add entry to builtin_commands[] below
+ *   6. Add source file to CMakeLists.txt LIBLOKI_SOURCES
  */
 
 #include "command.h"
 #include "internal.h"
-#include "terminal.h"
-#include "buffers.h"
-#include "loki/link.h"
-#include "loki/midi_export.h"
-#include "alda.h"
+#include "command/command_impl.h"
 #include <lua.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
 
 /* Command history storage */
 static char *command_history[COMMAND_HISTORY_MAX];
@@ -26,14 +35,17 @@ static int command_history_count = 0;
 static command_def_t dynamic_commands[MAX_DYNAMIC_COMMANDS];
 static int dynamic_command_count = 0;
 
-/* Forward declarations for new commands */
-static int cmd_goto(editor_ctx_t *ctx, const char *args);
-static int cmd_substitute(editor_ctx_t *ctx, const char *args);
-
-/* Built-in command table */
+/* Built-in command table
+ * Format: {name, handler, help_text, min_args, max_args}
+ */
 static command_def_t builtin_commands[] = {
+    /* File operations (file.c) */
     {"w",      cmd_write,       "Write (save) file",              0, 1},
     {"write",  cmd_write,       "Write (save) file",              0, 1},
+    {"e",      cmd_edit,        "Edit file",                      1, 1},
+    {"edit",   cmd_edit,        "Edit file",                      1, 1},
+
+    /* Basic commands (basic.c) */
     {"q",      cmd_quit,        "Quit editor",                    0, 0},
     {"quit",   cmd_quit,        "Quit editor",                    0, 0},
     {"wq",     cmd_write_quit,  "Write and quit",                 0, 1},
@@ -43,12 +55,15 @@ static command_def_t builtin_commands[] = {
     {"help",   cmd_help,        "Show help",                      0, 1},
     {"h",      cmd_help,        "Show help",                      0, 1},
     {"set",    cmd_set,         "Set option (wrap, etc)",         0, 2},
-    {"e",      cmd_edit,        "Edit file",                      1, 1},
-    {"edit",   cmd_edit,        "Edit file",                      1, 1},
+
+    /* Navigation (goto.c) */
     {"goto",   cmd_goto,        "Go to line number",              1, 1},
+
+    /* Audio/MIDI (link.c, csd.c, export.c) */
     {"link",   cmd_link,        "Toggle Ableton Link sync",       0, 1},
-    {"export", cmd_export,      "Export to MIDI file",            1, 1},
     {"csd",    cmd_csd,         "Toggle Csound synthesis",        0, 1},
+    {"export", cmd_export,      "Export to MIDI file",            1, 1},
+
     {NULL, NULL, NULL, 0, 0}  /* Sentinel */
 };
 
@@ -116,6 +131,32 @@ int command_history_len(void) {
     return command_history_count;
 }
 
+/* ======================== Command Lookup ======================== */
+
+/* Find command definition (builtin or dynamic) */
+static command_def_t* find_command(const char *name) {
+    /* Check built-in commands */
+    for (int i = 0; builtin_commands[i].name != NULL; i++) {
+        if (strcmp(builtin_commands[i].name, name) == 0) {
+            return &builtin_commands[i];
+        }
+    }
+
+    /* Check dynamic (Lua-registered) commands */
+    for (int i = 0; i < dynamic_command_count; i++) {
+        if (strcmp(dynamic_commands[i].name, name) == 0) {
+            return &dynamic_commands[i];
+        }
+    }
+
+    return NULL;
+}
+
+/* Public API for command lookup (used by cmd_help) */
+command_def_t* command_find(const char *name) {
+    return find_command(name);
+}
+
 /* ======================== Command Parsing ======================== */
 
 /* Parse command line into command name and arguments */
@@ -153,25 +194,6 @@ static int parse_command(const char *cmdline, char **cmd_name, char **args) {
     }
 
     return 1;
-}
-
-/* Find command definition (builtin or dynamic) */
-static command_def_t* find_command(const char *name) {
-    /* Check built-in commands */
-    for (int i = 0; builtin_commands[i].name != NULL; i++) {
-        if (strcmp(builtin_commands[i].name, name) == 0) {
-            return &builtin_commands[i];
-        }
-    }
-
-    /* Check dynamic (Lua-registered) commands */
-    for (int i = 0; i < dynamic_command_count; i++) {
-        if (strcmp(dynamic_commands[i].name, name) == 0) {
-            return &dynamic_commands[i];
-        }
-    }
-
-    return NULL;
 }
 
 /* Helper: check if string is all digits */
@@ -381,419 +403,6 @@ void command_mode_handle_key(editor_ctx_t *ctx, int fd, int key) {
             }
             break;
     }
-}
-
-/* ======================== Built-in Command Implementations ======================== */
-
-int cmd_write(editor_ctx_t *ctx, const char *args) {
-    /* Use provided filename or current filename */
-    if (args && args[0]) {
-        /* Save to new filename */
-        if (ctx->filename) {
-            free(ctx->filename);
-        }
-        ctx->filename = strdup(args);
-
-        /* Update buffer display name */
-        buffer_update_display_name(buffer_get_current_id());
-    }
-
-    if (!ctx->filename) {
-        editor_set_status_msg(ctx, "No filename");
-        return 0;
-    }
-
-    /* Save file using existing editor_save() */
-    int len = editor_save(ctx);
-    if (len >= 0) {
-        editor_set_status_msg(ctx, "\"%s\" %dL written",
-                             ctx->filename, ctx->numrows);
-        ctx->dirty = 0;
-        return 1;
-    } else {
-        editor_set_status_msg(ctx, "Error writing file");
-        return 0;
-    }
-}
-
-int cmd_quit(editor_ctx_t *ctx, const char *args) {
-    (void)args;
-
-    if (ctx->dirty) {
-        editor_set_status_msg(ctx, "Unsaved changes! Use :q! to force quit");
-        return 0;
-    }
-
-    /* Exit program */
-    exit(0);
-}
-
-int cmd_force_quit(editor_ctx_t *ctx, const char *args) {
-    (void)ctx;
-    (void)args;
-
-    /* Exit without checking dirty flag */
-    exit(0);
-}
-
-int cmd_write_quit(editor_ctx_t *ctx, const char *args) {
-    /* Save first */
-    if (!cmd_write(ctx, args)) {
-        return 0;
-    }
-
-    /* Then quit */
-    exit(0);
-}
-
-int cmd_edit(editor_ctx_t *ctx, const char *args) {
-    if (!args || !args[0]) {
-        editor_set_status_msg(ctx, "Filename required");
-        return 0;
-    }
-
-    if (ctx->dirty) {
-        editor_set_status_msg(ctx, "Unsaved changes! Save first or use :q!");
-        return 0;
-    }
-
-    /* Load new file */
-    editor_open(ctx, (char*)args);  /* Cast away const - editor_open doesn't modify */
-    editor_set_status_msg(ctx, "\"%s\" loaded", args);
-    return 1;
-}
-
-int cmd_help(editor_ctx_t *ctx, const char *args) {
-    if (!args || !args[0]) {
-        /* Show general help */
-        editor_set_status_msg(ctx,
-            "Commands: :w :q :wq :set :e :help <cmd> | Ctrl-F=find Ctrl-S=save");
-        return 1;
-    }
-
-    /* Show help for specific command */
-    command_def_t *cmd = find_command(args);
-    if (cmd) {
-        editor_set_status_msg(ctx, ":%s - %s", cmd->name, cmd->help);
-        return 1;
-    } else {
-        editor_set_status_msg(ctx, "Unknown command: %s", args);
-        return 0;
-    }
-}
-
-int cmd_set(editor_ctx_t *ctx, const char *args) {
-    if (!args || !args[0]) {
-        /* Show current settings */
-        editor_set_status_msg(ctx, "Options: wrap");
-        return 1;
-    }
-
-    /* Parse "set option" or "set option=value" */
-    char option[64] = {0};
-    char value[64] = {0};
-
-    if (sscanf(args, "%63s = %63s", option, value) == 2 ||
-        sscanf(args, "%63s=%63s", option, value) == 2) {
-        /* Set option to value */
-        editor_set_status_msg(ctx, "Set %s=%s (not implemented yet)", option, value);
-        return 1;
-    } else if (sscanf(args, "%63s", option) == 1) {
-        /* Toggle boolean option or show value */
-        if (strcmp(option, "wrap") == 0) {
-            ctx->word_wrap = !ctx->word_wrap;
-            editor_set_status_msg(ctx, "Word wrap: %s",
-                                 ctx->word_wrap ? "on" : "off");
-            return 1;
-        } else {
-            editor_set_status_msg(ctx, "Unknown option: %s", option);
-            return 0;
-        }
-    }
-
-    return 0;
-}
-
-int cmd_link(editor_ctx_t *ctx, const char *args) {
-    /* Initialize Link if not already done */
-    if (!loki_link_is_initialized(ctx)) {
-        if (loki_link_init(ctx, 120.0) != 0) {
-            editor_set_status_msg(ctx, "Failed to initialize Link");
-            return 0;
-        }
-    }
-
-    if (!args || !args[0]) {
-        /* Toggle Link */
-        int enabled = loki_link_is_enabled(ctx);
-        loki_link_enable(ctx, !enabled);
-        editor_set_status_msg(ctx, "Link %s (%.1f BPM, %lu peers)",
-            !enabled ? "enabled" : "disabled",
-            loki_link_get_tempo(ctx),
-            (unsigned long)loki_link_num_peers(ctx));
-        return 1;
-    }
-
-    /* Parse argument */
-    int enable = -1;
-    if (strcmp(args, "1") == 0 || strcasecmp(args, "on") == 0) {
-        enable = 1;
-    } else if (strcmp(args, "0") == 0 || strcasecmp(args, "off") == 0) {
-        enable = 0;
-    } else {
-        editor_set_status_msg(ctx, "Usage: :link [on|off|1|0]");
-        return 0;
-    }
-
-    loki_link_enable(ctx, enable);
-    editor_set_status_msg(ctx, "Link %s (%.1f BPM, %lu peers)",
-        enable ? "enabled" : "disabled",
-        loki_link_get_tempo(ctx),
-        (unsigned long)loki_link_num_peers(ctx));
-    return 1;
-}
-
-int cmd_export(editor_ctx_t *ctx, const char *args) {
-    if (!args || !args[0]) {
-        editor_set_status_msg(ctx, "Usage: :export <filename.mid>");
-        return 0;
-    }
-
-    /* Check if Alda is initialized */
-    if (!loki_alda_is_initialized(ctx)) {
-        editor_set_status_msg(ctx, "No Alda context (play Alda code first)");
-        return 0;
-    }
-
-    /* Export to MIDI file */
-    if (loki_midi_export(ctx, args) == 0) {
-        editor_set_status_msg(ctx, "%s exported", args);
-        return 1;
-    } else {
-        const char *err = loki_midi_export_error();
-        editor_set_status_msg(ctx, "Export failed: %s", err ? err : "unknown error");
-        return 0;
-    }
-}
-
-int cmd_csd(editor_ctx_t *ctx, const char *args) {
-    /* Check if Csound backend is available */
-    if (!loki_alda_csound_is_available()) {
-        editor_set_status_msg(ctx, "Csound not available (build with -DBUILD_CSOUND_BACKEND=ON)");
-        return 0;
-    }
-
-    /* Initialize Alda if needed */
-    if (!loki_alda_is_initialized(ctx)) {
-        if (loki_alda_init(ctx, NULL) != 0) {
-            editor_set_status_msg(ctx, "Failed to initialize Alda");
-            return 0;
-        }
-    }
-
-    if (!args || !args[0]) {
-        /* Toggle Csound */
-        int csound_enabled = loki_alda_csound_is_enabled(ctx);
-        if (csound_enabled) {
-            /* Switch to TSF */
-            loki_alda_csound_set_enabled(ctx, 0);
-            loki_alda_set_synth_enabled(ctx, 1);
-            editor_set_status_msg(ctx, "Switched to TinySoundFont");
-        } else {
-            /* Switch to Csound */
-            if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
-                editor_set_status_msg(ctx, "Switched to Csound");
-            } else {
-                editor_set_status_msg(ctx, "Failed to enable Csound (load .csd first)");
-                return 0;
-            }
-        }
-        return 1;
-    }
-
-    /* Parse argument */
-    int enable = -1;
-    if (strcmp(args, "1") == 0 || strcasecmp(args, "on") == 0) {
-        enable = 1;
-    } else if (strcmp(args, "0") == 0 || strcasecmp(args, "off") == 0) {
-        enable = 0;
-    } else {
-        editor_set_status_msg(ctx, "Usage: :csd [on|off|1|0]");
-        return 0;
-    }
-
-    if (enable) {
-        if (loki_alda_csound_set_enabled(ctx, 1) == 0) {
-            editor_set_status_msg(ctx, "Csound enabled");
-            return 1;
-        } else {
-            editor_set_status_msg(ctx, "Failed to enable Csound (load .csd first)");
-            return 0;
-        }
-    } else {
-        loki_alda_csound_set_enabled(ctx, 0);
-        loki_alda_set_synth_enabled(ctx, 1);
-        editor_set_status_msg(ctx, "Csound disabled, using TinySoundFont");
-        return 1;
-    }
-}
-
-/* ======================== Go-to-line Command ======================== */
-
-int cmd_goto(editor_ctx_t *ctx, const char *args) {
-    if (!args || !args[0]) {
-        editor_set_status_msg(ctx, "Usage: :<line> or :goto <line>");
-        return 0;
-    }
-
-    /* Parse line number */
-    int line = atoi(args);
-    if (line < 1) {
-        editor_set_status_msg(ctx, "Invalid line number: %s", args);
-        return 0;
-    }
-
-    /* Clamp to valid range (1-indexed for user, 0-indexed internally) */
-    if (line > ctx->numrows) {
-        line = ctx->numrows;
-    }
-
-    /* Move cursor to the line (convert to 0-indexed) */
-    ctx->cy = line - 1;
-    ctx->cx = 0;
-
-    /* Adjust scroll to show the target line */
-    if (ctx->cy < ctx->rowoff) {
-        ctx->rowoff = ctx->cy;
-    } else if (ctx->cy >= ctx->rowoff + ctx->screenrows - 2) {
-        ctx->rowoff = ctx->cy - ctx->screenrows / 2;
-        if (ctx->rowoff < 0) ctx->rowoff = 0;
-    }
-
-    editor_set_status_msg(ctx, "Line %d", line);
-    return 1;
-}
-
-/* ======================== Search and Replace Command ======================== */
-
-int cmd_substitute(editor_ctx_t *ctx, const char *pattern) {
-    if (!pattern || pattern[0] != 's' || pattern[1] != '/') {
-        editor_set_status_msg(ctx, "Usage: :s/old/new/[g]");
-        return 0;
-    }
-
-    /* Parse s/old/new/[g] pattern */
-    const char *p = pattern + 2;  /* Skip "s/" */
-
-    /* Find the "old" string (up to next unescaped /) */
-    char old_str[256] = {0};
-    int old_len = 0;
-    while (*p && *p != '/' && old_len < 255) {
-        if (*p == '\\' && *(p + 1)) {
-            /* Escaped character */
-            p++;
-            old_str[old_len++] = *p++;
-        } else {
-            old_str[old_len++] = *p++;
-        }
-    }
-    old_str[old_len] = '\0';
-
-    if (*p != '/') {
-        editor_set_status_msg(ctx, "Invalid substitute pattern");
-        return 0;
-    }
-    p++;  /* Skip middle '/' */
-
-    /* Find the "new" string (up to next unescaped / or end) */
-    char new_str[256] = {0};
-    int new_len = 0;
-    while (*p && *p != '/' && new_len < 255) {
-        if (*p == '\\' && *(p + 1)) {
-            /* Escaped character */
-            p++;
-            new_str[new_len++] = *p++;
-        } else {
-            new_str[new_len++] = *p++;
-        }
-    }
-    new_str[new_len] = '\0';
-
-    /* Check for global flag */
-    int global = 0;
-    if (*p == '/') {
-        p++;
-        while (*p) {
-            if (*p == 'g') global = 1;
-            p++;
-        }
-    }
-
-    if (old_len == 0) {
-        editor_set_status_msg(ctx, "Empty search pattern");
-        return 0;
-    }
-
-    /* Perform substitution on current line */
-    if (ctx->cy >= ctx->numrows) {
-        editor_set_status_msg(ctx, "No line to substitute");
-        return 0;
-    }
-
-    t_erow *row = &ctx->row[ctx->cy];
-    char *line = row->chars;
-    int line_len = row->size;
-
-    /* Build new line with substitutions */
-    char new_line[4096] = {0};
-    int new_line_len = 0;
-    int count = 0;
-    int i = 0;
-
-    while (i < line_len && new_line_len < 4090) {
-        /* Check for match at current position */
-        if (i + old_len <= line_len && strncmp(line + i, old_str, old_len) == 0) {
-            /* Found a match - substitute */
-            if (new_line_len + new_len < 4090) {
-                memcpy(new_line + new_line_len, new_str, new_len);
-                new_line_len += new_len;
-                i += old_len;
-                count++;
-                if (!global) {
-                    /* Copy rest of line after first substitution */
-                    int remaining = line_len - i;
-                    if (new_line_len + remaining < 4096) {
-                        memcpy(new_line + new_line_len, line + i, remaining);
-                        new_line_len += remaining;
-                    }
-                    break;
-                }
-            } else {
-                break;  /* Output buffer full */
-            }
-        } else {
-            /* No match - copy character */
-            new_line[new_line_len++] = line[i++];
-        }
-    }
-    new_line[new_line_len] = '\0';
-
-    if (count == 0) {
-        editor_set_status_msg(ctx, "Pattern not found: %s", old_str);
-        return 0;
-    }
-
-    /* Update the row */
-    free(row->chars);
-    row->chars = strdup(new_line);
-    row->size = new_line_len;
-
-    /* Update render */
-    editor_update_row(ctx, row);
-
-    ctx->dirty++;
-    editor_set_status_msg(ctx, "%d substitution%s", count, count > 1 ? "s" : "");
-    return 1;
 }
 
 /* ======================== Dynamic Command Registration (for Lua) ======================== */
