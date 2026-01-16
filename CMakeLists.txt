@@ -185,7 +185,7 @@ target_include_directories(joy
         ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
 )
 
-target_link_libraries(joy PUBLIC shared libremidi)
+target_link_libraries(joy PUBLIC shared libremidi alda)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(joy PRIVATE -Wall -Wextra -Wpedantic)

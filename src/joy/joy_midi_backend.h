@@ -149,6 +149,59 @@ void joy_tsf_disable(void);
 int joy_tsf_is_enabled(void);
 
 /* ============================================================================
+ * Csound Backend Control
+ * ============================================================================ */
+
+/**
+ * @brief Initialize Csound backend.
+ * @return 0 on success, -1 on error.
+ */
+int joy_csound_init(void);
+
+/**
+ * @brief Cleanup Csound backend.
+ */
+void joy_csound_cleanup(void);
+
+/**
+ * @brief Load a CSD file for Csound synthesis.
+ * @param path Path to the .csd file.
+ * @return 0 on success, -1 on error.
+ */
+int joy_csound_load(const char* path);
+
+/**
+ * @brief Enable Csound synthesis.
+ * @return 0 on success, -1 on error.
+ */
+int joy_csound_enable(void);
+
+/**
+ * @brief Disable Csound synthesis.
+ */
+void joy_csound_disable(void);
+
+/**
+ * @brief Check if Csound is enabled.
+ * @return Non-zero if enabled.
+ */
+int joy_csound_is_enabled(void);
+
+/**
+ * @brief Play a CSD file (blocking).
+ * @param path Path to the .csd file.
+ * @param verbose Print progress if non-zero.
+ * @return 0 on success, -1 on error.
+ */
+int joy_csound_play_file(const char* path, int verbose);
+
+/**
+ * @brief Get last Csound error message.
+ * @return Error message or NULL.
+ */
+const char* joy_csound_get_error(void);
+
+/* ============================================================================
  * Ableton Link Support
  * ============================================================================ */
 

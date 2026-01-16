@@ -682,6 +682,76 @@ void link_status_(JoyContext* ctx) {
 }
 
 /* ============================================================================
+ * Csound Primitives
+ * ============================================================================ */
+
+/* cs-load - load a CSD file: "path.csd" cs-load */
+void cs_load_(JoyContext* ctx) {
+    if (ctx->stack->depth < 1) {
+        printf("cs-load requires a path string\n");
+        return;
+    }
+    JoyValue v = POP();
+    if (v.type != JOY_STRING) {
+        printf("cs-load requires a string path\n");
+        return;
+    }
+    if (joy_csound_load(v.data.string) == 0) {
+        printf("Csound: Loaded %s\n", v.data.string);
+        /* Auto-enable Csound after successful load */
+        if (joy_csound_enable() == 0) {
+            printf("Csound enabled\n");
+        }
+    } else {
+        const char* err = joy_csound_get_error();
+        printf("Csound: Failed to load%s%s\n", err ? ": " : "", err ? err : "");
+    }
+}
+
+/* cs-enable - enable Csound as audio backend */
+void cs_enable_(JoyContext* ctx) {
+    (void)ctx;
+    if (joy_csound_enable() == 0) {
+        printf("Csound enabled\n");
+    } else {
+        const char* err = joy_csound_get_error();
+        printf("Csound: Failed to enable%s%s\n", err ? ": " : "", err ? err : "");
+    }
+}
+
+/* cs-disable - disable Csound */
+void cs_disable_(JoyContext* ctx) {
+    (void)ctx;
+    joy_csound_disable();
+    printf("Csound disabled\n");
+}
+
+/* cs-status - print Csound status */
+void cs_status_(JoyContext* ctx) {
+    (void)ctx;
+    if (joy_csound_is_enabled()) {
+        printf("Csound: enabled\n");
+    } else {
+        printf("Csound: disabled\n");
+    }
+}
+
+/* cs-play - play a CSD file (blocking): "path.csd" cs-play */
+void cs_play_(JoyContext* ctx) {
+    if (ctx->stack->depth < 1) {
+        printf("cs-play requires a path string\n");
+        return;
+    }
+    JoyValue v = POP();
+    if (v.type != JOY_STRING) {
+        printf("cs-play requires a string path\n");
+        return;
+    }
+    printf("Playing %s (Ctrl-C to stop)...\n", v.data.string);
+    joy_csound_play_file(v.data.string, 1);
+}
+
+/* ============================================================================
  * Initialization / Cleanup
  * ============================================================================ */
 
@@ -1125,6 +1195,13 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(dict, "link-phase", link_phase_);
     joy_dict_define_primitive(dict, "link-peers", link_peers_);
     joy_dict_define_primitive(dict, "link-status", link_status_);
+
+    /* Csound */
+    joy_dict_define_primitive(dict, "cs-load", cs_load_);
+    joy_dict_define_primitive(dict, "cs-enable", cs_enable_);
+    joy_dict_define_primitive(dict, "cs-disable", cs_disable_);
+    joy_dict_define_primitive(dict, "cs-status", cs_status_);
+    joy_dict_define_primitive(dict, "cs-play", cs_play_);
 
     /* Set up post-eval hook for SEQ playback */
     ctx->post_eval_hook = accumulator_flush;

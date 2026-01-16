@@ -499,9 +499,152 @@ static void print_repl_help(void) {
  * REPL Loop
  * ============================================================================ */
 
+/* Process an Alda REPL command. Returns: 0=continue, 1=quit, 2=interpret as Alda */
+static int alda_process_command(AldaContext *ctx, const char *input) {
+    /* Handle commands (with or without : prefix) */
+    const char *cmd = input;
+    if (cmd[0] == ':')
+        cmd++;
+
+    if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 || strcmp(cmd, "q") == 0) {
+        return 1; /* quit */
+    }
+
+    if (strcmp(cmd, "help") == 0 || strcmp(cmd, "h") == 0 || strcmp(cmd, "?") == 0) {
+        print_repl_help();
+        return 0;
+    }
+
+    if (strcmp(cmd, "list") == 0 || strcmp(cmd, "l") == 0) {
+        alda_midi_list_ports(ctx);
+        return 0;
+    }
+
+    if (strcmp(cmd, "stop") == 0 || strcmp(cmd, "s") == 0) {
+        alda_async_stop();
+        alda_midi_all_notes_off(ctx);
+        printf("Playback stopped\n");
+        return 0;
+    }
+
+    if (strcmp(cmd, "panic") == 0 || strcmp(cmd, "p") == 0) {
+        alda_async_stop();
+        alda_midi_all_notes_off(ctx);
+        printf("All notes off\n");
+        return 0;
+    }
+
+    if (strcmp(cmd, "concurrent") == 0) {
+        alda_async_set_concurrent(1);
+        printf("Concurrent mode enabled (polyphony)\n");
+        return 0;
+    }
+
+    if (strcmp(cmd, "sequential") == 0) {
+        alda_async_set_concurrent(0);
+        printf("Sequential mode enabled\n");
+        return 0;
+    }
+
+    /* Soundfont commands */
+    if (strncmp(cmd, "sf-load ", 8) == 0 || strncmp(cmd, "sf ", 3) == 0) {
+        const char *path = (strncmp(cmd, "sf ", 3) == 0) ? cmd + 3 : cmd + 8;
+        while (*path == ' ')
+            path++;
+        if (*path == '\0') {
+            printf("Usage: :sf PATH  or  sf-load PATH\n");
+        } else {
+            if (alda_tsf_load_soundfont(path) == 0) {
+                printf("Loaded soundfont: %s\n", path);
+                if (alda_tsf_enable() == 0) {
+                    ctx->tsf_enabled = 1;
+                    printf("Switched to built-in synth\n");
+                }
+            }
+        }
+        return 0;
+    }
+
+    if (strcmp(cmd, "builtin") == 0 || strcmp(cmd, "synth") == 0) {
+        if (!alda_tsf_has_soundfont()) {
+            printf("No soundfont loaded. Use ':sf PATH' first.\n");
+        } else if (alda_tsf_enable() == 0) {
+            ctx->tsf_enabled = 1;
+            printf("Switched to built-in synth\n");
+        }
+        return 0;
+    }
+
+    if (strcmp(cmd, "midi") == 0) {
+        alda_tsf_disable();
+        ctx->tsf_enabled = 0;
+        if (alda_midi_is_open(ctx)) {
+            printf("Switched to MIDI output\n");
+        } else {
+            printf("Built-in synth disabled (no MIDI output available)\n");
+        }
+        return 0;
+    }
+
+    if (strcmp(cmd, "sf-list") == 0 || strcmp(cmd, "presets") == 0) {
+        if (!alda_tsf_has_soundfont()) {
+            printf("No soundfont loaded\n");
+        } else {
+            int count = alda_tsf_get_preset_count();
+            printf("Soundfont presets (%d):\n", count);
+            for (int i = 0; i < count && i < 128; i++) {
+                const char *name = alda_tsf_get_preset_name(i);
+                if (name && name[0] != '\0') {
+                    printf("  %3d: %s\n", i, name);
+                }
+            }
+        }
+        return 0;
+    }
+
+    return 2; /* interpret as Alda */
+}
+
+/* Non-interactive Alda REPL loop for piped input */
+static void alda_repl_loop_pipe(AldaContext *ctx) {
+    char line[MAX_INPUT_LENGTH];
+
+    while (fgets(line, sizeof(line), stdin) != NULL) {
+        /* Strip trailing newline */
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = '\0';
+        }
+
+        if (len == 0) continue;
+
+        int result = alda_process_command(ctx, line);
+        if (result == 1) break;      /* quit */
+        if (result == 0) continue;   /* command handled */
+
+        /* Interpret as Alda */
+        alda_events_clear(ctx);
+        int parse_result = alda_interpret_string(ctx, line, "<pipe>");
+        if (parse_result < 0) continue;
+
+        if (ctx->event_count > 0) {
+            if (ctx->verbose_mode) {
+                printf("Playing %d events...\n", ctx->event_count);
+            }
+            alda_events_play_async(ctx);
+        }
+    }
+}
+
 static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
+
+    /* Use non-interactive mode for piped input */
+    if (!isatty(STDIN_FILENO)) {
+        alda_repl_loop_pipe(ctx);
+        return;
+    }
 
     repl_editor_init(&ed);
 
@@ -527,112 +670,16 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
 
         repl_add_history(&ed, input);
 
-        /* Handle commands (with or without : prefix) */
-        const char *cmd = input;
-        if (cmd[0] == ':')
-            cmd++;
-
-        if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 || strcmp(cmd, "q") == 0) {
-            break;
-        }
-
-        if (strcmp(cmd, "help") == 0 || strcmp(cmd, "h") == 0 || strcmp(cmd, "?") == 0) {
-            print_repl_help();
-            continue;
-        }
-
-        if (strcmp(cmd, "list") == 0 || strcmp(cmd, "l") == 0) {
-            alda_midi_list_ports(ctx);
-            continue;
-        }
-
-        if (strcmp(cmd, "stop") == 0 || strcmp(cmd, "s") == 0) {
-            alda_async_stop();
-            alda_midi_all_notes_off(ctx);
-            printf("Playback stopped\n");
-            continue;
-        }
-
-        if (strcmp(cmd, "panic") == 0 || strcmp(cmd, "p") == 0) {
-            alda_async_stop();
-            alda_midi_all_notes_off(ctx);
-            printf("All notes off\n");
-            continue;
-        }
-
-        if (strcmp(cmd, "concurrent") == 0) {
-            alda_async_set_concurrent(1);
-            printf("Concurrent mode enabled (polyphony)\n");
-            continue;
-        }
-
-        if (strcmp(cmd, "sequential") == 0) {
-            alda_async_set_concurrent(0);
-            printf("Sequential mode enabled\n");
-            continue;
-        }
-
-        /* Soundfont commands */
-        if (strncmp(cmd, "sf-load ", 8) == 0 || strncmp(cmd, "sf ", 3) == 0) {
-            const char *path = (strncmp(cmd, "sf ", 3) == 0) ? cmd + 3 : cmd + 8;
-            while (*path == ' ')
-                path++;
-            if (*path == '\0') {
-                printf("Usage: :sf PATH  or  sf-load PATH\n");
-            } else {
-                if (alda_tsf_load_soundfont(path) == 0) {
-                    printf("Loaded soundfont: %s\n", path);
-                    if (alda_tsf_enable() == 0) {
-                        ctx->tsf_enabled = 1;
-                        printf("Switched to built-in synth\n");
-                    }
-                }
-            }
-            continue;
-        }
-
-        if (strcmp(cmd, "builtin") == 0 || strcmp(cmd, "synth") == 0) {
-            if (!alda_tsf_has_soundfont()) {
-                printf("No soundfont loaded. Use ':sf PATH' first.\n");
-            } else if (alda_tsf_enable() == 0) {
-                ctx->tsf_enabled = 1;
-                printf("Switched to built-in synth\n");
-            }
-            continue;
-        }
-
-        if (strcmp(cmd, "midi") == 0) {
-            alda_tsf_disable();
-            ctx->tsf_enabled = 0;
-            if (alda_midi_is_open(ctx)) {
-                printf("Switched to MIDI output\n");
-            } else {
-                printf("Built-in synth disabled (no MIDI output available)\n");
-            }
-            continue;
-        }
-
-        if (strcmp(cmd, "sf-list") == 0 || strcmp(cmd, "presets") == 0) {
-            if (!alda_tsf_has_soundfont()) {
-                printf("No soundfont loaded\n");
-            } else {
-                int count = alda_tsf_get_preset_count();
-                printf("Soundfont presets (%d):\n", count);
-                for (int i = 0; i < count && i < 128; i++) {
-                    const char *name = alda_tsf_get_preset_name(i);
-                    if (name && name[0] != '\0') {
-                        printf("  %3d: %s\n", i, name);
-                    }
-                }
-            }
-            continue;
-        }
+        /* Process command */
+        int result = alda_process_command(ctx, input);
+        if (result == 1) break;      /* quit */
+        if (result == 0) continue;   /* command handled */
 
         /* Alda interpretation */
         alda_events_clear(ctx);
 
-        int result = alda_interpret_string(ctx, input, "<repl>");
-        if (result < 0) {
+        int parse_result = alda_interpret_string(ctx, input, "<repl>");
+        if (parse_result < 0) {
             continue;
         }
 
@@ -1049,6 +1096,13 @@ static void print_joy_repl_help(void) {
     printf("  link-tempo BPM  Set Link tempo\n");
     printf("  link-status     Show Link status\n");
     printf("\n");
+    printf("Csound Commands:\n");
+    printf("  cs-load PATH    Load a CSD file and enable Csound\n");
+    printf("  cs-enable       Enable Csound as audio backend\n");
+    printf("  cs-disable      Disable Csound\n");
+    printf("  cs-status       Show Csound status\n");
+    printf("  cs-play PATH    Play a CSD file (blocking)\n");
+    printf("\n");
     printf("Joy Syntax:\n");
     printf("  c d e f g a b   Note names (octave 4 by default)\n");
     printf("  c5 d3 e6        Notes with explicit octave\n");
@@ -1066,10 +1120,210 @@ static void print_joy_repl_help(void) {
     printf("\n");
 }
 
+/* Process a Joy REPL command. Returns: 0=continue, 1=quit, 2=evaluate as Joy code */
+static int joy_process_command(const char* input) {
+    /* Handle special commands */
+    if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
+        return 1; /* quit */
+    }
+
+    if (strcmp(input, "help") == 0 || strcmp(input, "?") == 0) {
+        print_joy_repl_help();
+        return 0;
+    }
+
+    /* Soundfont commands */
+    if (strncmp(input, "sf-load ", 8) == 0) {
+        const char *path = input + 8;
+        while (*path == ' ') path++;
+        if (*path == '\0') {
+            printf("Usage: sf-load PATH\n");
+        } else {
+            if (joy_tsf_load_soundfont(path) == 0) {
+                printf("Loaded soundfont: %s\n", path);
+                if (joy_tsf_enable() == 0) {
+                    printf("Switched to built-in synth\n");
+                }
+            }
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "sf-enable") == 0) {
+        if (joy_tsf_enable() == 0) {
+            printf("Built-in synth enabled\n");
+        } else {
+            printf("Failed to enable built-in synth (load soundfont first)\n");
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "sf-disable") == 0) {
+        joy_tsf_disable();
+        printf("Built-in synth disabled\n");
+        return 0;
+    }
+
+    /* Link commands */
+    if (strcmp(input, "link-enable") == 0 || strcmp(input, "link") == 0) {
+        if (joy_link_enable() == 0) {
+            printf("Link enabled (tempo: %.1f BPM, peers: %d)\n",
+                   joy_link_get_tempo(), joy_link_num_peers());
+        } else {
+            printf("Failed to enable Link\n");
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "link-disable") == 0) {
+        joy_link_disable();
+        printf("Link disabled\n");
+        return 0;
+    }
+
+    if (strncmp(input, "link-tempo ", 11) == 0) {
+        double bpm = atof(input + 11);
+        if (bpm >= 20.0 && bpm <= 999.0) {
+            joy_link_set_tempo(bpm);
+            printf("Link tempo set to %.1f BPM\n", bpm);
+        } else {
+            printf("Invalid tempo (must be 20-999 BPM)\n");
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "link-status") == 0) {
+        if (joy_link_is_enabled()) {
+            printf("Link: enabled, tempo: %.1f BPM, peers: %d, beat: %.2f\n",
+                   joy_link_get_tempo(), joy_link_num_peers(),
+                   joy_link_get_beat(4.0));
+        } else {
+            printf("Link: disabled\n");
+        }
+        return 0;
+    }
+
+    /* Csound commands */
+    if (strncmp(input, "cs-load ", 8) == 0) {
+        const char* path = input + 8;
+        while (*path == ' ') path++;
+        if (*path == '\0') {
+            printf("Usage: cs-load <path-to-csd-file>\n");
+        } else if (joy_csound_load(path) == 0) {
+            printf("Csound: Loaded %s\n", path);
+            if (joy_csound_enable() == 0) {
+                printf("Csound enabled\n");
+            }
+        } else {
+            const char* err = joy_csound_get_error();
+            printf("Csound: Failed to load CSD file%s%s\n",
+                   err ? ": " : "", err ? err : "");
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "cs-enable") == 0 || strcmp(input, "csound") == 0) {
+        if (joy_csound_enable() == 0) {
+            printf("Csound enabled\n");
+        } else {
+            const char* err = joy_csound_get_error();
+            printf("Csound: Failed to enable%s%s\n",
+                   err ? ": " : "", err ? err : "");
+        }
+        return 0;
+    }
+
+    if (strcmp(input, "cs-disable") == 0) {
+        joy_csound_disable();
+        printf("Csound disabled\n");
+        return 0;
+    }
+
+    if (strcmp(input, "cs-status") == 0) {
+        if (joy_csound_is_enabled()) {
+            printf("Csound: enabled\n");
+        } else {
+            printf("Csound: disabled\n");
+        }
+        return 0;
+    }
+
+    if (strncmp(input, "cs-play ", 8) == 0) {
+        const char* path = input + 8;
+        while (*path == ' ') path++;
+        if (*path == '\0') {
+            printf("Usage: cs-play <path-to-csd-file>\n");
+        } else {
+            printf("Playing %s (Ctrl-C to stop)...\n", path);
+            joy_csound_play_file(path, 1);
+        }
+        return 0;
+    }
+
+    /* MIDI commands */
+    if (strcmp(input, "midi-list") == 0) {
+        joy_midi_list_ports();
+        return 0;
+    }
+
+    if (strcmp(input, "midi-virtual") == 0) {
+        joy_midi_open_virtual("JoyMIDI");
+        return 0;
+    }
+
+    if (strcmp(input, "midi-panic") == 0) {
+        joy_midi_panic();
+        printf("All notes off\n");
+        return 0;
+    }
+
+    if (strcmp(input, ".") == 0) {
+        /* Print stack - handled by caller */
+        return 2;
+    }
+
+    return 2; /* evaluate as Joy code */
+}
+
+/* Non-interactive Joy REPL loop for piped input */
+static void joy_repl_loop_pipe(JoyContext *ctx) {
+    char line[MAX_INPUT_LENGTH];
+    jmp_buf error_recovery;
+
+    ctx->error_jmp = &error_recovery;
+    joy_set_current_context(ctx);
+
+    while (fgets(line, sizeof(line), stdin) != NULL) {
+        /* Strip trailing newline */
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[--len] = '\0';
+        }
+
+        if (len == 0) continue;
+
+        int result = joy_process_command(line);
+        if (result == 1) break; /* quit */
+        if (result == 0) continue; /* command handled */
+
+        /* Set up error recovery and evaluate */
+        if (setjmp(error_recovery) != 0) {
+            continue;
+        }
+        joy_eval_line(ctx, line);
+    }
+}
+
 static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
     jmp_buf error_recovery;
+
+    /* Use non-interactive mode for piped input */
+    if (!isatty(STDIN_FILENO)) {
+        joy_repl_loop_pipe(ctx);
+        return;
+    }
 
     repl_editor_init(&ed);
 
@@ -1096,86 +1350,10 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
 
         repl_add_history(&ed, input);
 
-        /* Handle special commands */
-        if (strcmp(input, "quit") == 0 || strcmp(input, "exit") == 0) {
-            break;
-        }
-
-        if (strcmp(input, "help") == 0 || strcmp(input, "?") == 0) {
-            print_joy_repl_help();
-            continue;
-        }
-
-        /* Soundfont commands */
-        if (strncmp(input, "sf-load ", 8) == 0) {
-            const char *path = input + 8;
-            while (*path == ' ') path++;
-            if (*path == '\0') {
-                printf("Usage: sf-load PATH\n");
-            } else {
-                if (joy_tsf_load_soundfont(path) == 0) {
-                    printf("Loaded soundfont: %s\n", path);
-                    if (joy_tsf_enable() == 0) {
-                        printf("Switched to built-in synth\n");
-                    }
-                }
-            }
-            continue;
-        }
-
-        if (strcmp(input, "sf-enable") == 0) {
-            if (joy_tsf_enable() == 0) {
-                printf("Built-in synth enabled\n");
-            } else {
-                printf("Failed to enable built-in synth (load soundfont first)\n");
-            }
-            continue;
-        }
-
-        if (strcmp(input, "sf-disable") == 0) {
-            joy_tsf_disable();
-            printf("Built-in synth disabled\n");
-            continue;
-        }
-
-        /* Link commands */
-        if (strcmp(input, "link-enable") == 0 || strcmp(input, "link") == 0) {
-            if (joy_link_enable() == 0) {
-                printf("Link enabled (tempo: %.1f BPM, peers: %d)\n",
-                       joy_link_get_tempo(), joy_link_num_peers());
-            } else {
-                printf("Failed to enable Link\n");
-            }
-            continue;
-        }
-
-        if (strcmp(input, "link-disable") == 0) {
-            joy_link_disable();
-            printf("Link disabled\n");
-            continue;
-        }
-
-        if (strncmp(input, "link-tempo ", 11) == 0) {
-            double bpm = atof(input + 11);
-            if (bpm >= 20.0 && bpm <= 999.0) {
-                joy_link_set_tempo(bpm);
-                printf("Link tempo set to %.1f BPM\n", bpm);
-            } else {
-                printf("Invalid tempo (must be 20-999 BPM)\n");
-            }
-            continue;
-        }
-
-        if (strcmp(input, "link-status") == 0) {
-            if (joy_link_is_enabled()) {
-                printf("Link: enabled, tempo: %.1f BPM, peers: %d, beat: %.2f\n",
-                       joy_link_get_tempo(), joy_link_num_peers(),
-                       joy_link_get_beat(4.0));
-            } else {
-                printf("Link: disabled\n");
-            }
-            continue;
-        }
+        /* Process command */
+        int result = joy_process_command(input);
+        if (result == 1) break;      /* quit */
+        if (result == 0) continue;   /* command handled */
 
         /* Set up error recovery point */
         if (setjmp(error_recovery) != 0) {
@@ -1343,6 +1521,7 @@ int joy_repl_main(int argc, char **argv) {
 
     /* Cleanup */
     joy_midi_panic();
+    joy_csound_cleanup();
     joy_link_cleanup();
     joy_midi_cleanup();
     music_notation_cleanup(ctx);

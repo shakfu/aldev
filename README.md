@@ -67,10 +67,33 @@ joy> 120 tempo
 joy> [c d e f g] play
 joy> c major chord
 joy> [c e g] [d f a] [e g b] each chord
-joy> :q
+joy> quit
 ```
 
-REPL commands (with or without `:`):
+**Joy REPL commands**:
+
+| Command | Action |
+|---------|--------|
+| `quit` `exit` | Exit REPL |
+| `help` `?` | Show help |
+| `.` | Print stack |
+| `midi-list` | List MIDI ports |
+| `midi-virtual` | Create virtual MIDI port |
+| `midi-panic` | All notes off |
+| `sf-load PATH` | Load soundfont |
+| `sf-enable` | Switch to built-in synth |
+| `sf-disable` | Switch to MIDI output |
+| `link-enable` | Enable Ableton Link |
+| `link-disable` | Disable Link |
+| `link-tempo BPM` | Set Link tempo |
+| `link-status` | Show Link status |
+| `cs-load PATH` | Load CSD file and enable Csound |
+| `cs-enable` | Enable Csound backend |
+| `cs-disable` | Disable Csound |
+| `cs-status` | Show Csound status |
+| `cs-play PATH` | Play CSD file (blocking) |
+
+**Alda REPL commands** (with or without `:`):
 
 | Command | Action |
 |---------|--------|
@@ -120,6 +143,22 @@ psnd play song.csd               # Play Csound file and exit
 psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
 psnd play -v song.csd            # Play with verbose output
 ```
+
+### Piped Input
+
+Both REPLs support non-interactive piped input for scripting and automation:
+
+```bash
+# Alda REPL
+echo 'piano: c d e f g' | psnd
+echo -e 'piano: c d e\n:q' | psnd
+
+# Joy REPL
+echo '[c d e] play' | psnd joy
+printf 'cs-load synth.csd\ncs-status\nquit\n' | psnd joy
+```
+
+This is useful for testing, CI/CD pipelines, and batch processing.
 
 ## Lua Scripting
 
@@ -214,6 +253,12 @@ loki.joy.define("cmaj", "[c e g] chord")
 
 -- Stop playback
 loki.joy.stop()
+
+-- Csound integration (if built with Csound)
+loki.joy.csound_load("synth.csd")   -- Load CSD and enable Csound
+loki.joy.csound_enable()             -- Enable Csound backend
+loki.joy.csound_disable()            -- Disable Csound
+loki.joy.csound_is_enabled()         -- Check status
 ```
 
 ## Ableton Link

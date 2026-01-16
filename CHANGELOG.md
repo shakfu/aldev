@@ -17,7 +17,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.1.2]
+
 ### Added
+
+- **Piped Input Support**: Both Alda and Joy REPLs now support non-interactive piped input
+  - `echo ':q' | psnd` - Alda REPL processes piped commands
+  - `echo 'quit' | psnd joy` - Joy REPL processes piped commands
+  - Detects `!isatty(STDIN_FILENO)` and uses `fgets()` instead of interactive line editor
+  - Useful for scripting and automation
+
+- **Joy Csound Backend Integration**: Joy language now supports Csound synthesis
+  - **REPL Commands**:
+    - `cs-load PATH` - Load a CSD file and auto-enable Csound
+    - `cs-enable` - Enable Csound as audio backend
+    - `cs-disable` - Disable Csound
+    - `cs-status` - Show Csound status
+    - `cs-play PATH` - Play a CSD file (blocking)
+  - **Joy Primitives**: `cs_load_`, `cs_enable_`, `cs_disable_`, `cs_status_`, `cs_play_`
+  - **C API** (`joy_midi_backend.h`):
+    - `joy_csound_init()`, `joy_csound_cleanup()`
+    - `joy_csound_load(path)`, `joy_csound_enable()`, `joy_csound_disable()`
+    - `joy_csound_is_enabled()`, `joy_csound_play_file()`, `joy_csound_get_error()`
+  - Routes MIDI events through Alda's Csound backend with priority routing (Csound > TSF > MIDI)
+  - Proper cleanup on quit (auto-disables Csound before exit)
 
 - **Joy Language Integration**: Full support for Joy, a concatenative (stack-based) music language from [midi-langs](https://github.com/shakfu/midi-langs)
   - **Joy REPL**: `psnd joy` starts interactive Joy REPL with syntax highlighting
@@ -242,6 +265,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Binary size reduced from 1.2MB to 1.1MB
 
 ### Fixed
+
+- **Alda REPL Cleanup Crash in Pipe Mode**: Fixed segfault during cleanup when using piped input
+  - Root cause: Double-free of MIDI output handle due to pointer aliasing
+  - `ctx->midi_out` was synced to point to `ctx->shared->midi_out` (same pointer)
+  - `alda_midi_cleanup` freed `ctx->midi_out`, then `alda_context_cleanup` tried to free `ctx->shared->midi_out`
+  - Fix: Only free `ctx->midi_out` when NOT using shared context; otherwise just clear the pointer
 
 - **Csound Audio Quality**: Fixed poor audio quality in Csound backend
   - Root cause: Audio output was not normalized by Csound's 0dBFS scaling factor

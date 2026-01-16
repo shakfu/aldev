@@ -10,13 +10,12 @@
   - Added REPL commands: `link-enable`, `link-disable`, `link-tempo`, `link-status`
   - Added Joy primitives: `link-enable`, `link-disable`, `link-tempo`, `link-beat`, `link-phase`, `link-peers`, `link-status`
 
-- [ ] Add Csound support to Joy
-  - Full Csound impl is in `src/alda/csound_backend.c`
-  - Shared layer (`src/shared/audio/csound_backend.c`) has only stubs
-  - Options:
-    1. Move Csound implementation to shared layer (preferred)
-    2. Create bridge from Joy to Alda's Csound backend
-  - Would enable custom synthesis via CSD files in Joy
+- [x] Add Csound support to Joy
+  - Linked Joy to Alda's Csound backend (`src/alda/csound_backend.c`)
+  - Added `joy_csound_*` wrapper functions in `joy_midi_backend.c`
+  - Added REPL commands: `cs-load`, `cs-enable`, `cs-disable`, `cs-status`, `cs-play`
+  - Added Joy primitives: `cs-load`, `cs-enable`, `cs-disable`, `cs-status`, `cs-play`
+  - Notes route through Csound when enabled (priority over TSF/MIDI)
 
 ### Testing Gaps
 
@@ -87,7 +86,7 @@
 
 ### Polyglot Platform
 
-- [ ] Integrate first midi-langs DSL
+- [x] Integrate first midi-langs DSL
   - Implement first additional language from midi-langs project
   - Proves polyglot architecture works
 

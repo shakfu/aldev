@@ -130,15 +130,23 @@ void alda_midi_init_observer(AldaContext* ctx) {
 void alda_midi_cleanup(AldaContext* ctx) {
     if (!ctx) return;
 
-    /* Cleanup shared context MIDI */
-    if (ctx->shared) {
-        shared_midi_cleanup(ctx->shared);
-    }
+    /* Note: shared context MIDI is cleaned up by alda_context_cleanup
+     * via shared_context_cleanup, so we don't call shared_midi_cleanup here
+     * to avoid double-free.
+     *
+     * IMPORTANT: When using shared context, ctx->midi_out is synced to point
+     * to ctx->shared->midi_out (same pointer). We must NOT free it here
+     * since shared_context_cleanup will free it. Only free legacy handles
+     * that were opened directly (not through shared context). */
 
-    /* Also cleanup legacy handles */
-    if (ctx->midi_out != NULL) {
+    /* Cleanup legacy handles (only if NOT using shared context) */
+    if (ctx->midi_out != NULL && ctx->shared == NULL) {
         alda_midi_all_notes_off(ctx);
         libremidi_midi_out_free(ctx->midi_out);
+        ctx->midi_out = NULL;
+    } else if (ctx->midi_out != NULL && ctx->shared != NULL) {
+        /* Using shared context - just clear the pointer, don't free */
+        alda_midi_all_notes_off(ctx);
         ctx->midi_out = NULL;
     }
 

@@ -11,6 +11,7 @@
 #include "midi/midi.h"      /* shared_midi_* */
 #include "audio/audio.h"    /* shared_tsf_* */
 #include "link/link.h"      /* shared_link_* */
+#include "alda/csound_backend.h"  /* alda_csound_* */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -147,12 +148,24 @@ void joy_midi_note_off(int pitch) {
 void joy_midi_note_on_ch(int channel, int pitch, int velocity) {
     if (!g_shared) return;
 
-    /* Route through shared context (handles TSF/Csound/MIDI priority) */
+    /* Priority 1: Csound (route directly through Alda's Csound backend) */
+    if (g_shared->csound_enabled && alda_csound_is_enabled()) {
+        alda_csound_send_note_on(channel, pitch, velocity);
+        return;
+    }
+
+    /* Priority 2+: TSF/MIDI via shared context */
     shared_send_note_on(g_shared, channel, pitch, velocity);
 }
 
 void joy_midi_note_off_ch(int channel, int pitch) {
     if (!g_shared) return;
+
+    /* Priority 1: Csound */
+    if (g_shared->csound_enabled && alda_csound_is_enabled()) {
+        alda_csound_send_note_off(channel, pitch);
+        return;
+    }
 
     shared_send_note_off(g_shared, channel, pitch);
 }
@@ -160,17 +173,34 @@ void joy_midi_note_off_ch(int channel, int pitch) {
 void joy_midi_program(int channel, int program) {
     if (!g_shared) return;
 
+    /* Route to Csound if enabled */
+    if (g_shared->csound_enabled && alda_csound_is_enabled()) {
+        alda_csound_send_program(channel, program);
+        return;
+    }
+
     shared_send_program(g_shared, channel, program);
 }
 
 void joy_midi_cc(int channel, int cc, int value) {
     if (!g_shared) return;
 
+    /* Route to Csound if enabled */
+    if (g_shared->csound_enabled && alda_csound_is_enabled()) {
+        alda_csound_send_cc(channel, cc, value);
+        return;
+    }
+
     shared_send_cc(g_shared, channel, cc, value);
 }
 
 void joy_midi_panic(void) {
     if (!g_shared) return;
+
+    /* Stop Csound notes if enabled */
+    if (g_shared->csound_enabled && alda_csound_is_enabled()) {
+        alda_csound_all_notes_off();
+    }
 
     shared_send_panic(g_shared);
 }
@@ -225,6 +255,63 @@ void joy_tsf_disable(void) {
 
 int joy_tsf_is_enabled(void) {
     return g_shared && g_shared->tsf_enabled && shared_tsf_is_enabled();
+}
+
+/* ============================================================================
+ * Csound Backend Control
+ * ============================================================================ */
+
+int joy_csound_init(void) {
+    return alda_csound_init();
+}
+
+void joy_csound_cleanup(void) {
+    /* Disable first to clear shared context flag */
+    joy_csound_disable();
+    alda_csound_cleanup();
+}
+
+int joy_csound_load(const char* path) {
+    /* Auto-initialize if needed */
+    if (alda_csound_init() != 0) {
+        return -1;
+    }
+    return alda_csound_load_csd(path);
+}
+
+int joy_csound_enable(void) {
+    if (!g_shared) {
+        if (joy_midi_init() != 0) return -1;
+    }
+
+    int ret = alda_csound_enable();
+    if (ret == 0) {
+        g_shared->csound_enabled = 1;
+        /* Disable TSF when Csound is enabled (Csound takes priority) */
+        if (g_shared->tsf_enabled) {
+            g_shared->tsf_enabled = 0;
+        }
+    }
+    return ret;
+}
+
+void joy_csound_disable(void) {
+    if (g_shared) {
+        g_shared->csound_enabled = 0;
+    }
+    alda_csound_disable();
+}
+
+int joy_csound_is_enabled(void) {
+    return g_shared && g_shared->csound_enabled && alda_csound_is_enabled();
+}
+
+int joy_csound_play_file(const char* path, int verbose) {
+    return alda_csound_play_file(path, verbose);
+}
+
+const char* joy_csound_get_error(void) {
+    return alda_csound_get_error();
 }
 
 /* ============================================================================
