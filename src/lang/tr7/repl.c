@@ -818,3 +818,137 @@ int tr7_repl_main(int argc, char **argv) {
 
     return result;
 }
+
+/* ============================================================================
+ * TR7 Play Main Entry Point (headless file execution)
+ * ============================================================================ */
+
+int tr7_play_main(int argc, char **argv) {
+    int verbose = 0;
+    const char *input_file = NULL;
+    const char *soundfont_path = NULL;
+
+    /* Argument parsing - start at 0 since argv[0] may be the filename */
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+        } else if ((strcmp(argv[i], "-sf") == 0 || strcmp(argv[i], "--soundfont") == 0) &&
+                   i + 1 < argc) {
+            soundfont_path = argv[++i];
+        } else if (argv[i][0] != '-' && input_file == NULL) {
+            input_file = argv[i];
+        }
+    }
+
+    if (!input_file) {
+        fprintf(stderr, "Usage: psnd play [-v] [-sf soundfont.sf2] <file.scm>\n");
+        return 1;
+    }
+
+    /* Initialize TR7 engine */
+    g_tr7_repl_engine = tr7_engine_create(0);
+    if (!g_tr7_repl_engine) {
+        fprintf(stderr, "Error: Failed to create TR7 engine\n");
+        return 1;
+    }
+
+    /* Set TR7 search paths to .psnd/lib/scm in current working directory */
+    static char tr7_lib_path[1100];
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd))) {
+        snprintf(tr7_lib_path, sizeof(tr7_lib_path), "%s/.psnd/lib/scm", cwd);
+        tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Path, tr7_lib_path);
+        tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Library_Path, tr7_lib_path);
+        tr7_set_string(g_tr7_repl_engine, Tr7_StrID_Include_Path, tr7_lib_path);
+    }
+
+    /* Import standard Scheme libraries */
+    tr7_import_lib(g_tr7_repl_engine, "scheme/base");
+    tr7_import_lib(g_tr7_repl_engine, "scheme/read");
+    tr7_import_lib(g_tr7_repl_engine, "scheme/write");
+    tr7_import_lib(g_tr7_repl_engine, "scheme/file");
+    tr7_import_lib(g_tr7_repl_engine, "scheme/load");
+    tr7_import_lib(g_tr7_repl_engine, "scheme/eval");
+
+    /* Initialize shared context for MIDI/audio */
+    g_tr7_repl_shared = calloc(1, sizeof(SharedContext));
+    if (!g_tr7_repl_shared) {
+        fprintf(stderr, "Error: Failed to create shared context\n");
+        tr7_engine_destroy(g_tr7_repl_engine);
+        return 1;
+    }
+    shared_context_init(g_tr7_repl_shared);
+
+    /* Register music primitives */
+    tr7_repl_register_music_funcs(g_tr7_repl_engine);
+
+    /* Setup output */
+    if (soundfont_path) {
+        /* Use built-in synth */
+        if (shared_tsf_load_soundfont(soundfont_path) != 0) {
+            fprintf(stderr, "Error: Failed to load soundfont: %s\n", soundfont_path);
+            shared_context_cleanup(g_tr7_repl_shared);
+            free(g_tr7_repl_shared);
+            tr7_engine_destroy(g_tr7_repl_engine);
+            return 1;
+        }
+        g_tr7_repl_shared->tsf_enabled = 1;
+        if (verbose) {
+            printf("Using built-in synth: %s\n", soundfont_path);
+        }
+    } else {
+        /* Try to open a virtual MIDI port */
+        if (shared_midi_open_virtual(g_tr7_repl_shared, "TR7MIDI") != 0) {
+            fprintf(stderr, "Warning: No MIDI output available\n");
+            fprintf(stderr, "Hint: Use -sf <soundfont.sf2> for built-in synth\n");
+        } else if (verbose) {
+            printf("Created virtual MIDI output: TR7MIDI\n");
+        }
+    }
+
+    /* Execute file */
+    int result = 0;
+    if (verbose) {
+        printf("Executing: %s\n", input_file);
+    }
+    FILE *f = fopen(input_file, "r");
+    if (!f) {
+        fprintf(stderr, "Error: Cannot open file: %s\n", input_file);
+        result = 1;
+    } else {
+        int status = tr7_run_file(g_tr7_repl_engine, f, input_file);
+        fclose(f);
+        if (status == 0) {
+            /* tr7_run_file returns 0 on load failure */
+            fprintf(stderr, "Error: Failed to load file\n");
+            result = 1;
+        } else {
+            /* Execution happened - check if result was an error */
+            tr7_t val = tr7_get_last_value(g_tr7_repl_engine);
+            if (tr7_is_error(val)) {
+                tr7_t msg = tr7_error_message(val);
+                if (TR7_IS_STRING(msg)) {
+                    fprintf(stderr, "Error: %s\n", tr7_string_buffer(msg));
+                } else {
+                    fprintf(stderr, "Error: Failed to execute file\n");
+                }
+                result = 1;
+            }
+        }
+    }
+
+    /* Wait for audio buffer to drain before cleanup */
+    if (g_tr7_repl_shared->tsf_enabled) {
+        usleep(300000);  /* 300ms for audio tail */
+    }
+
+    /* Cleanup */
+    shared_send_panic(g_tr7_repl_shared);
+    shared_context_cleanup(g_tr7_repl_shared);
+    free(g_tr7_repl_shared);
+    g_tr7_repl_shared = NULL;
+    tr7_engine_destroy(g_tr7_repl_engine);
+    g_tr7_repl_engine = NULL;
+
+    return result;
+}

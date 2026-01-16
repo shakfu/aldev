@@ -365,3 +365,104 @@ int joy_repl_main(int argc, char **argv) {
 
     return result;
 }
+
+/* ============================================================================
+ * Joy Play Main Entry Point (headless file execution)
+ * ============================================================================ */
+
+int joy_play_main(int argc, char **argv) {
+    int verbose = 0;
+    const char *input_file = NULL;
+    const char *soundfont_path = NULL;
+
+    /* Argument parsing - start at 0 since argv[0] may be the filename */
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+        } else if ((strcmp(argv[i], "-sf") == 0 || strcmp(argv[i], "--soundfont") == 0) &&
+                   i + 1 < argc) {
+            soundfont_path = argv[++i];
+        } else if (argv[i][0] != '-' && input_file == NULL) {
+            input_file = argv[i];
+        }
+    }
+
+    if (!input_file) {
+        fprintf(stderr, "Usage: psnd play [-v] [-sf soundfont.sf2] <file.joy>\n");
+        return 1;
+    }
+
+    /* Initialize Joy context */
+    JoyContext *ctx = joy_context_new();
+    if (!ctx) {
+        fprintf(stderr, "Error: Failed to create Joy context\n");
+        return 1;
+    }
+
+    /* Register primitives */
+    joy_register_primitives(ctx);
+    music_notation_init(ctx);
+    joy_midi_register_primitives(ctx);
+
+    /* Set parser dictionary for DEFINE support */
+    joy_set_parser_dict(ctx->dictionary);
+
+    /* Initialize MIDI backend */
+    if (joy_midi_init() != 0) {
+        fprintf(stderr, "Warning: Failed to initialize MIDI backend\n");
+    }
+
+    /* Setup output */
+    if (soundfont_path) {
+        /* Use built-in synth */
+        if (joy_tsf_load_soundfont(soundfont_path) != 0) {
+            fprintf(stderr, "Error: Failed to load soundfont: %s\n", soundfont_path);
+            joy_midi_cleanup();
+            music_notation_cleanup(ctx);
+            joy_context_free(ctx);
+            return 1;
+        }
+        if (joy_tsf_enable() != 0) {
+            fprintf(stderr, "Error: Failed to enable built-in synth\n");
+            joy_midi_cleanup();
+            music_notation_cleanup(ctx);
+            joy_context_free(ctx);
+            return 1;
+        }
+        if (verbose) {
+            printf("Using built-in synth: %s\n", soundfont_path);
+        }
+    } else {
+        /* Try to open a virtual MIDI port */
+        if (joy_midi_open_virtual("JoyMIDI") != 0) {
+            fprintf(stderr, "Warning: No MIDI output available\n");
+            fprintf(stderr, "Hint: Use -sf <soundfont.sf2> for built-in synth\n");
+        } else if (verbose) {
+            printf("Created virtual MIDI output: JoyMIDI\n");
+        }
+    }
+
+    /* Execute file */
+    if (verbose) {
+        printf("Executing: %s\n", input_file);
+    }
+    int result = joy_load_file(ctx, input_file);
+    if (result != 0) {
+        fprintf(stderr, "Error: Failed to execute file\n");
+    }
+
+    /* Wait for audio buffer to drain before cleanup */
+    if (joy_tsf_is_enabled()) {
+        usleep(300000);  /* 300ms for audio tail */
+    }
+
+    /* Cleanup */
+    joy_midi_panic();
+    joy_csound_cleanup();
+    joy_link_cleanup();
+    joy_midi_cleanup();
+    music_notation_cleanup(ctx);
+    joy_context_free(ctx);
+
+    return result;
+}

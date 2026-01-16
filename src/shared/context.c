@@ -44,6 +44,25 @@ int shared_context_init(SharedContext* ctx) {
 void shared_context_cleanup(SharedContext* ctx) {
     if (!ctx) return;
 
+    /* Send panic to stop any playing notes */
+    shared_send_panic(ctx);
+
+    /* Disable backends that this context had enabled */
+    if (ctx->tsf_enabled) {
+        shared_tsf_disable();
+        ctx->tsf_enabled = 0;
+    }
+
+    if (ctx->csound_enabled) {
+        shared_csound_disable();
+        ctx->csound_enabled = 0;
+    }
+
+    if (ctx->link_enabled) {
+        shared_link_enable(0);
+        ctx->link_enabled = 0;
+    }
+
     /* Cleanup MIDI resources */
     shared_midi_cleanup(ctx);
 

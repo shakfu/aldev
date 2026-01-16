@@ -5,8 +5,9 @@
 
 #include "lang_dispatch.h"
 
-/* External entry point from repl.c */
+/* External entry points from repl.c */
 extern int tr7_repl_main(int argc, char **argv);
+extern int tr7_play_main(int argc, char **argv);
 
 static const LangDispatchEntry tr7_dispatch = {
     .commands = {"tr7", "scheme"},
@@ -16,7 +17,7 @@ static const LangDispatchEntry tr7_dispatch = {
     .display_name = "TR7",
     .description = "R7RS-small Scheme with music extensions",
     .repl_main = tr7_repl_main,
-    .play_main = tr7_repl_main,  /* TR7 uses same entry for file execution */
+    .play_main = tr7_play_main,
 };
 
 /* Register at program startup */

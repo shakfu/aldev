@@ -5,8 +5,9 @@
 
 #include "lang_dispatch.h"
 
-/* External entry point from repl.c */
+/* External entry points from repl.c */
 extern int joy_repl_main(int argc, char **argv);
+extern int joy_play_main(int argc, char **argv);
 
 static const LangDispatchEntry joy_dispatch = {
     .commands = {"joy"},
@@ -16,7 +17,7 @@ static const LangDispatchEntry joy_dispatch = {
     .display_name = "Joy",
     .description = "Concatenative stack-based music language",
     .repl_main = joy_repl_main,
-    .play_main = joy_repl_main,  /* Joy uses same entry for file execution */
+    .play_main = joy_play_main,
 };
 
 /* Register at program startup */
