@@ -51,23 +51,16 @@
 
 ### Editor Features
 
-- [ ] Consistent repl api for each language
+- [x] Consistent repl api for each language
+  - Unified REPL command API in `src/shared/repl_commands.c`
+  - Both Alda and Joy use `:<cmd>` syntax (`:help`, `:quit`, `:sf`, `:link`, etc.)
+  - Language-specific commands: Alda (`:sequential`, `:concurrent`), Joy (`.`)
 
-  - Use `:<cmd> [<arg> ...]` syntax
-  
-    Currently this is the case with `alda`, not with `joy`
-
-- [ ] Normalize the cli api for each language
-
-  ```sh
-  # change
-  psnd                     Start Alda REPL
-  psnd -sf gm.sf2          Alda REPL with built-in synth
-  
-  # to
-  psnd alda                Start Alda REPL
-  psnd alda -sf gm.sf2     Alda REPL with built-in synth
-  ```
+- [x] Normalize the cli api for each language
+  - `psnd` (no args) shows help and exits with code 1
+  - `psnd alda` starts Alda REPL
+  - `psnd joy` starts Joy REPL
+  - Removed implicit REPL fallback
 
 - [ ] Go-to-line command
   - Add `:123` or `:goto 123` command

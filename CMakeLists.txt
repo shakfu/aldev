@@ -237,6 +237,10 @@ target_link_libraries(libloki
         midifile
 )
 
+set_target_properties(libloki PROPERTIES 
+    OUTPUT_NAME "loki" # so you don't get liblibloki.a 
+)
+
 if (NOT MSVC)
     target_link_libraries(libloki PUBLIC m)
 endif()
