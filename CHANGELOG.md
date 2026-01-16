@@ -17,6 +17,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Changed
+
+- **Unified REPL Command API**: Both Alda and Joy REPLs now share the same command set
+  - Common commands work identically in both REPLs (`:help`, `:quit`, `:list`, `:sf`, `:link`, `:cs`, etc.)
+  - Commands can be used with or without `:` prefix in both REPLs
+  - New shared command processor in `src/shared/repl_commands.c`
+  - Language-specific commands remain separate (Alda: `:sequential`/`:concurrent`, Joy: `.` for stack)
+
+- **CLI Normalization**: Simplified command-line interface
+  - `psnd` (no args) now shows help and exits with code 1 (was: start Alda REPL)
+  - `psnd alda` starts Alda REPL (replaces bare `psnd` and `psnd repl`)
+  - `psnd joy` starts Joy REPL (unchanged)
+  - Removed implicit REPL fallback for `-sf` without subcommand
+
+### Added
+
+- **Shared REPL Commands**: New unified commands available in both Alda and Joy REPLs
+  - `:q` `:quit` `:exit` - Exit REPL
+  - `:h` `:help` `:?` - Show help
+  - `:l` `:list` - List MIDI ports
+  - `:s` `:stop` - Stop playback
+  - `:p` `:panic` - All notes off
+  - `:sf PATH` - Load soundfont and enable built-in synth
+  - `:synth` `:builtin` - Switch to built-in synth
+  - `:midi` - Switch to MIDI output
+  - `:presets` - List soundfont presets
+  - `:virtual [NAME]` - Create virtual MIDI port
+  - `:link [on|off]` - Enable/disable Ableton Link
+  - `:link-tempo BPM` - Set Link tempo
+  - `:link-status` - Show Link status
+  - `:cs PATH` - Load CSD file and enable Csound
+  - `:csound` - Enable Csound backend
+  - `:cs-disable` - Disable Csound
+  - `:cs-status` - Show Csound status
+
 ## [0.1.2]
 
 ### Added

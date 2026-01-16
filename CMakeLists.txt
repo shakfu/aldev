@@ -44,6 +44,7 @@ add_subdirectory(thirdparty)
 # libshared - Language-agnostic audio/MIDI/Link backend
 set(LIBSHARED_SOURCES
     src/shared/context.c
+    src/shared/repl_commands.c
     src/shared/audio/tsf_backend.c
     src/shared/audio/csound_backend.c
     src/shared/midi/midi.c

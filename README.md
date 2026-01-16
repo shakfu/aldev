@@ -35,11 +35,11 @@ psnd exposes three complementary workflows: REPL mode for interactive sketching,
 
 ### REPL Mode
 
-**Alda REPL** (default):
+**Alda REPL**:
 
 ```bash
-psnd                    # Start Alda REPL
-psnd -sf gm.sf2         # REPL with built-in synth
+psnd alda               # Start Alda REPL
+psnd alda -sf gm.sf2    # REPL with built-in synth
 ```
 
 Type Alda notation directly:
@@ -62,53 +62,49 @@ psnd joy -p 0           # Joy REPL using MIDI port 0
 Type Joy code directly:
 
 ```
-joy> midi-virtual
+joy> :virtual
 joy> 120 tempo
 joy> [c d e f g] play
 joy> c major chord
 joy> [c e g] [d f a] [e g b] each chord
-joy> quit
+joy> :q
 ```
 
-**Joy REPL commands**:
+**Shared REPL Commands** (work in both Alda and Joy, with or without `:`):
 
 | Command | Action |
 |---------|--------|
-| `quit` `exit` | Exit REPL |
-| `help` `?` | Show help |
-| `.` | Print stack |
-| `midi-list` | List MIDI ports |
-| `midi-virtual` | Create virtual MIDI port |
-| `midi-panic` | All notes off |
-| `sf-load PATH` | Load soundfont |
-| `sf-enable` | Switch to built-in synth |
-| `sf-disable` | Switch to MIDI output |
-| `link-enable` | Enable Ableton Link |
-| `link-disable` | Disable Link |
-| `link-tempo BPM` | Set Link tempo |
-| `link-status` | Show Link status |
-| `cs-load PATH` | Load CSD file and enable Csound |
-| `cs-enable` | Enable Csound backend |
-| `cs-disable` | Disable Csound |
-| `cs-status` | Show Csound status |
-| `cs-play PATH` | Play CSD file (blocking) |
-
-**Alda REPL commands** (with or without `:`):
-
-| Command | Action |
-|---------|--------|
-| `:q` `:quit` | Exit REPL |
-| `:h` `:help` | Show help |
+| `:q` `:quit` `:exit` | Exit REPL |
+| `:h` `:help` `:?` | Show help |
 | `:l` `:list` | List MIDI ports |
 | `:s` `:stop` | Stop playback |
 | `:p` `:panic` | All notes off |
-| `:sf PATH` | Load soundfont |
+| `:sf PATH` | Load soundfont and enable built-in synth |
 | `:presets` | List soundfont presets |
 | `:midi` | Switch to MIDI output |
-| `:synth` | Switch to built-in synth |
-| `:link [on\|off]` | Toggle Ableton Link sync |
+| `:synth` `:builtin` | Switch to built-in synth |
+| `:virtual [NAME]` | Create virtual MIDI port |
+| `:link [on\|off]` | Enable/disable Ableton Link |
+| `:link-tempo BPM` | Set Link tempo |
+| `:link-status` | Show Link status |
+| `:cs PATH` | Load CSD file and enable Csound |
+| `:csound` | Enable Csound backend |
+| `:cs-disable` | Disable Csound |
+| `:cs-status` | Show Csound status |
+
+**Alda-specific commands**:
+
+| Command | Action |
+|---------|--------|
+| `:sequential` | Wait for each input to complete |
+| `:concurrent` | Enable polyphonic playback (default) |
 | `:export FILE` | Export to MIDI file |
-| `:csd [on\|off]` | Toggle Csound synthesis |
+
+**Joy-specific commands**:
+
+| Command | Action |
+|---------|--------|
+| `.` | Print stack |
 
 ### Editor Mode
 
@@ -150,12 +146,12 @@ Both REPLs support non-interactive piped input for scripting and automation:
 
 ```bash
 # Alda REPL
-echo 'piano: c d e f g' | psnd
-echo -e 'piano: c d e\n:q' | psnd
+echo 'piano: c d e f g' | psnd alda
+echo -e 'piano: c d e\n:q' | psnd alda
 
 # Joy REPL
 echo '[c d e] play' | psnd joy
-printf 'cs-load synth.csd\ncs-status\nquit\n' | psnd joy
+printf ':cs synth.csd\n:cs-status\n:q\n' | psnd joy
 ```
 
 This is useful for testing, CI/CD pipelines, and batch processing.
@@ -197,6 +193,7 @@ Joy uses postfix notation where operations follow their arguments:
 
 ```joy
 \ Comments start with backslash
+:virtual                    \ Create virtual MIDI port
 120 tempo                   \ Set tempo to 120 BPM
 80 vol                      \ Set volume to 80
 
@@ -246,19 +243,13 @@ Joy is stack-based, so values are pushed onto a stack and operations consume the
 loki.joy.init()
 
 -- Evaluate Joy code
-loki.joy.eval("midi-virtual 120 tempo [c d e] play")
+loki.joy.eval(":virtual 120 tempo [c d e] play")
 
 -- Define a custom word
 loki.joy.define("cmaj", "[c e g] chord")
 
 -- Stop playback
 loki.joy.stop()
-
--- Csound integration (if built with Csound)
-loki.joy.csound_load("synth.csd")   -- Load CSD and enable Csound
-loki.joy.csound_enable()             -- Enable Csound backend
-loki.joy.csound_disable()            -- Disable Csound
-loki.joy.csound_is_enabled()         -- Check status
 ```
 
 ## Ableton Link

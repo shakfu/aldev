@@ -1,4 +1,4 @@
-#include "loki/version.h"
+#include "version.h"
 
 /* 
 loki is based on kilo -- A very simple editor in less than 1000 
@@ -583,7 +583,7 @@ void editor_refresh_screen(editor_ctx_t *ctx) {
             if (ctx->numrows == 0 && y == available_rows/3) {
                 char welcome[80];
                 int welcomelen = snprintf(welcome,sizeof(welcome),
-                    "Kilo editor -- version %s\x1b[0K\r\n", LOKI_VERSION);
+                    "Loki editor -- version %s\x1b[0K\r\n", PSND_VERSION);
                 int padding = (ctx->screencols-welcomelen)/2;
                 if (padding) {
                     terminal_buffer_append(&ab,"~",1);

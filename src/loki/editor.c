@@ -20,7 +20,7 @@
 #include <lauxlib.h>
 
 /* Loki headers */
-#include "loki/version.h"
+#include "version.h"
 #include "loki/editor.h"
 #include "loki/core.h"
 #include "loki/lua.h"
@@ -285,7 +285,7 @@ int loki_editor_main(int argc, char **argv) {
             exit(0);
         }
         if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
-            printf("psnd %s\n", LOKI_VERSION);
+            printf("psnd %s\n", PSND_VERSION);
             exit(0);
         }
         if (strcmp(argv[i], "-sf") == 0 && i + 1 < argc) {
