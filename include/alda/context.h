@@ -9,6 +9,9 @@
 #include <libremidi/libremidi-c.h>
 #include <stdint.h>
 
+/* Forward declaration for shared audio/MIDI context */
+struct SharedContext;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -140,7 +143,10 @@ typedef struct {
  * ============================================================================ */
 
 typedef struct AldaContext {
-    /* MIDI output */
+    /* Shared audio/MIDI/Link context */
+    struct SharedContext* shared;
+
+    /* Legacy MIDI fields (deprecated - use shared context instead) */
     libremidi_midi_observer_handle* midi_observer;
     libremidi_midi_out_handle* midi_out;
     libremidi_midi_out_port* out_ports[ALDA_MAX_PORTS];

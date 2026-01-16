@@ -1018,9 +1018,13 @@ static void print_joy_repl_usage(const char *prog) {
     printf("  -p, --port N      Use MIDI port N (0-based index)\n");
     printf("  --virtual NAME    Create virtual MIDI port with NAME\n");
     printf("\n");
+    printf("Built-in Synth Options:\n");
+    printf("  -sf, --soundfont PATH  Use built-in synth with soundfont (.sf2)\n");
+    printf("\n");
     printf("Examples:\n");
     printf("  %s joy                   Start interactive Joy REPL\n", prog);
     printf("  %s joy song.joy          Execute a Joy file\n", prog);
+    printf("  %s joy -sf gm.sf2        REPL with built-in synth\n", prog);
     printf("  %s joy --virtual JoyOut  REPL with virtual MIDI port\n", prog);
     printf("\n");
 }
@@ -1033,6 +1037,11 @@ static void print_joy_repl_help(void) {
     printf("  midi-list       List MIDI ports\n");
     printf("  midi-virtual    Create virtual MIDI port\n");
     printf("  midi-panic      All notes off\n");
+    printf("\n");
+    printf("Synth Commands:\n");
+    printf("  sf-load PATH    Load soundfont and use built-in synth\n");
+    printf("  sf-enable       Switch to built-in synth\n");
+    printf("  sf-disable      Switch to MIDI output\n");
     printf("\n");
     printf("Joy Syntax:\n");
     printf("  c d e f g a b   Note names (octave 4 by default)\n");
@@ -1091,6 +1100,38 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
             continue;
         }
 
+        /* Soundfont commands */
+        if (strncmp(input, "sf-load ", 8) == 0) {
+            const char *path = input + 8;
+            while (*path == ' ') path++;
+            if (*path == '\0') {
+                printf("Usage: sf-load PATH\n");
+            } else {
+                if (joy_tsf_load_soundfont(path) == 0) {
+                    printf("Loaded soundfont: %s\n", path);
+                    if (joy_tsf_enable() == 0) {
+                        printf("Switched to built-in synth\n");
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (strcmp(input, "sf-enable") == 0) {
+            if (joy_tsf_enable() == 0) {
+                printf("Built-in synth enabled\n");
+            } else {
+                printf("Failed to enable built-in synth (load soundfont first)\n");
+            }
+            continue;
+        }
+
+        if (strcmp(input, "sf-disable") == 0) {
+            joy_tsf_disable();
+            printf("Built-in synth disabled\n");
+            continue;
+        }
+
         /* Set up error recovery point */
         if (setjmp(error_recovery) != 0) {
             /* Error occurred during eval - continue REPL */
@@ -1112,6 +1153,7 @@ int joy_repl_main(int argc, char **argv) {
     int port_index = -1;
     const char *virtual_name = NULL;
     const char *input_file = NULL;
+    const char *soundfont_path = NULL;
 
     /* Simple argument parsing (skip argv[0] which is "joy") */
     for (int i = 1; i < argc; i++) {
@@ -1127,6 +1169,9 @@ int joy_repl_main(int argc, char **argv) {
             port_index = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--virtual") == 0 && i + 1 < argc) {
             virtual_name = argv[++i];
+        } else if ((strcmp(argv[i], "-sf") == 0 || strcmp(argv[i], "--soundfont") == 0) &&
+                   i + 1 < argc) {
+            soundfont_path = argv[++i];
         } else if (argv[i][0] != '-' && input_file == NULL) {
             input_file = argv[i];
         }
@@ -1161,33 +1206,55 @@ int joy_repl_main(int argc, char **argv) {
         return 0;
     }
 
-    /* Setup MIDI output */
-    int midi_opened = 0;
-
-    if (virtual_name) {
-        if (joy_midi_open_virtual(virtual_name) == 0) {
-            midi_opened = 1;
-            if (verbose) {
-                printf("Created virtual MIDI output: %s\n", virtual_name);
-            }
+    /* Setup output */
+    if (soundfont_path) {
+        /* Use built-in synth */
+        if (joy_tsf_load_soundfont(soundfont_path) != 0) {
+            fprintf(stderr, "Error: Failed to load soundfont: %s\n", soundfont_path);
+            joy_midi_cleanup();
+            music_notation_cleanup(ctx);
+            joy_context_free(ctx);
+            return 1;
         }
-    } else if (port_index >= 0) {
-        if (joy_midi_open_port(port_index) == 0) {
-            midi_opened = 1;
+        if (joy_tsf_enable() != 0) {
+            fprintf(stderr, "Error: Failed to enable built-in synth\n");
+            joy_midi_cleanup();
+            music_notation_cleanup(ctx);
+            joy_context_free(ctx);
+            return 1;
+        }
+        if (verbose) {
+            printf("Using built-in synth: %s\n", soundfont_path);
         }
     } else {
-        /* Try to open a virtual port by default */
-        if (joy_midi_open_virtual("JoyMIDI") == 0) {
-            midi_opened = 1;
-            if (verbose) {
-                printf("Created virtual MIDI output: JoyMIDI\n");
+        /* Setup MIDI output */
+        int midi_opened = 0;
+
+        if (virtual_name) {
+            if (joy_midi_open_virtual(virtual_name) == 0) {
+                midi_opened = 1;
+                if (verbose) {
+                    printf("Created virtual MIDI output: %s\n", virtual_name);
+                }
+            }
+        } else if (port_index >= 0) {
+            if (joy_midi_open_port(port_index) == 0) {
+                midi_opened = 1;
+            }
+        } else {
+            /* Try to open a virtual port by default */
+            if (joy_midi_open_virtual("JoyMIDI") == 0) {
+                midi_opened = 1;
+                if (verbose) {
+                    printf("Created virtual MIDI output: JoyMIDI\n");
+                }
             }
         }
-    }
 
-    if (!midi_opened) {
-        fprintf(stderr, "Warning: No MIDI output available\n");
-        fprintf(stderr, "Use --virtual NAME or -p PORT to specify output\n");
+        if (!midi_opened) {
+            fprintf(stderr, "Warning: No MIDI output available\n");
+            fprintf(stderr, "Hint: Use -sf <soundfont.sf2> for built-in synth\n");
+        }
     }
 
     int result = 0;
@@ -1222,6 +1289,11 @@ int joy_repl_main(int argc, char **argv) {
         if (syntax_ctx.L) {
             lua_close(syntax_ctx.L);
         }
+    }
+
+    /* Wait for audio buffer to drain before cleanup */
+    if (joy_tsf_is_enabled()) {
+        usleep(300000);  /* 300ms for audio tail */
     }
 
     /* Cleanup */

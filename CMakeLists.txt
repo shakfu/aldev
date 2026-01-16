@@ -41,12 +41,59 @@ find_package(Threads REQUIRED)
 
 add_subdirectory(thirdparty)
 
+# libshared - Language-agnostic audio/MIDI/Link backend
+set(LIBSHARED_SOURCES
+    src/shared/context.c
+    src/shared/audio/tsf_backend.c
+    src/shared/audio/csound_backend.c
+    src/shared/midi/midi.c
+    src/shared/link/link.c
+)
+
+add_library(shared STATIC ${LIBSHARED_SOURCES})
+add_library(shared::shared ALIAS shared)
+
+target_include_directories(shared
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/TinySoundFont
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/miniaudio
+        ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
+)
+
+target_link_libraries(shared PUBLIC libremidi abl_link Threads::Threads)
+
+if(APPLE)
+    target_link_libraries(shared PUBLIC
+        "-framework CoreMIDI"
+        "-framework CoreFoundation"
+        "-framework CoreAudio"
+        "-framework AudioToolbox"
+    )
+elseif(UNIX AND NOT APPLE)
+    target_compile_definitions(shared PRIVATE _GNU_SOURCE)
+    find_package(ALSA)
+    if(ALSA_FOUND)
+        target_link_libraries(shared PUBLIC ${ALSA_LIBRARIES})
+        target_include_directories(shared PRIVATE ${ALSA_INCLUDE_DIRS})
+    endif()
+    target_link_libraries(shared PUBLIC pthread dl m)
+endif()
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(shared PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
 set(LOKI_LIBRARY_TYPE STATIC)
 if (LOKI_BUILD_SHARED)
     set(LOKI_LIBRARY_TYPE SHARED)
 endif()
 
 # libalda - Alda music language library (from src/alda/)
+# Note: tsf_backend.c is now in shared library (src/shared/audio/tsf_backend.c)
+# alda/tsf_backend.c provides thin wrappers that call shared_tsf_*
 set(LIBALDA_SOURCES
     src/alda/tokens.c
     src/alda/error.c
@@ -56,7 +103,7 @@ set(LIBALDA_SOURCES
     src/alda/context.c
     src/alda/instruments.c
     src/alda/midi_backend.c
-    src/alda/tsf_backend.c
+    src/alda/tsf_backend_wrapper.c
     src/alda/csound_backend.c
     src/alda/scheduler.c
     src/alda/interpreter.c
@@ -72,11 +119,12 @@ target_include_directories(alda
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/TinySoundFont
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/miniaudio
 )
 
-target_link_libraries(alda PUBLIC libremidi uv_a)
+target_link_libraries(alda PUBLIC shared libremidi uv_a)
 
 if(APPLE)
     target_link_libraries(alda PUBLIC
@@ -133,9 +181,11 @@ target_include_directories(joy
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/joy
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/shared
 )
 
-target_link_libraries(joy PUBLIC libremidi)
+target_link_libraries(joy PUBLIC shared libremidi)
 
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(joy PRIVATE -Wall -Wextra -Wpedantic)

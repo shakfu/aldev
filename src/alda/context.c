@@ -5,6 +5,7 @@
 
 #include "alda/context.h"
 #include "alda/instruments.h"
+#include "context.h"  /* SharedContext */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -16,7 +17,13 @@
 void alda_context_init(AldaContext* ctx) {
     if (!ctx) return;
 
-    /* MIDI output handles */
+    /* Allocate and initialize shared context */
+    ctx->shared = (SharedContext*)malloc(sizeof(SharedContext));
+    if (ctx->shared) {
+        shared_context_init(ctx->shared);
+    }
+
+    /* Legacy MIDI output handles (deprecated - kept for compatibility) */
     ctx->midi_observer = NULL;
     ctx->midi_out = NULL;
     for (int i = 0; i < ALDA_MAX_PORTS; i++) {
@@ -74,7 +81,14 @@ void alda_context_cleanup(AldaContext* ctx) {
     ctx->event_count = 0;
     ctx->event_capacity = 0;
 
-    /* Note: MIDI cleanup is handled separately by midi_backend */
+    /* Cleanup and free shared context */
+    if (ctx->shared) {
+        shared_context_cleanup(ctx->shared);
+        free(ctx->shared);
+        ctx->shared = NULL;
+    }
+
+    /* Note: Legacy MIDI cleanup is handled separately by midi_backend */
 }
 
 void alda_context_reset(AldaContext* ctx) {

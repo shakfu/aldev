@@ -120,6 +120,53 @@ void joy_midi_panic(void);
  */
 void joy_midi_sleep_ms(int ms);
 
+/* ============================================================================
+ * TSF Backend Control
+ * ============================================================================ */
+
+/**
+ * @brief Load a SoundFont file for TSF playback.
+ * @param path Path to the .sf2 file.
+ * @return 0 on success, -1 on error.
+ */
+int joy_tsf_load_soundfont(const char* path);
+
+/**
+ * @brief Enable TSF synthesis.
+ * @return 0 on success, -1 on error.
+ */
+int joy_tsf_enable(void);
+
+/**
+ * @brief Disable TSF synthesis.
+ */
+void joy_tsf_disable(void);
+
+/**
+ * @brief Check if TSF is enabled.
+ * @return Non-zero if enabled.
+ */
+int joy_tsf_is_enabled(void);
+
+/* ============================================================================
+ * Shared Context Access
+ * ============================================================================ */
+
+/* Forward declaration */
+struct SharedContext;
+
+/**
+ * @brief Get Joy's shared context.
+ * @return Pointer to shared context, or NULL if not initialized.
+ */
+struct SharedContext* joy_get_shared_context(void);
+
+/**
+ * @brief Set Joy's shared context (for editor integration).
+ * @param ctx Shared context to use (NULL to release).
+ */
+void joy_set_shared_context(struct SharedContext* ctx);
+
 #ifdef __cplusplus
 }
 #endif
