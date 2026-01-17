@@ -33,47 +33,55 @@ void tr7_async_cleanup(void);
 /**
  * @brief Play a single note asynchronously.
  *
+ * If Ableton Link is enabled, the duration is scaled based on Link tempo.
+ *
  * @param shared SharedContext for MIDI output.
  * @param channel MIDI channel (0-15).
  * @param pitch MIDI pitch (0-127).
  * @param velocity Note velocity (0-127).
- * @param duration_ms Duration in milliseconds.
+ * @param duration_ms Duration in milliseconds (at local_tempo).
+ * @param local_tempo Local tempo in BPM used to calculate duration_ms.
  * @return 0 on success, -1 on error.
  */
 int tr7_async_play_note(SharedContext* shared, int channel, int pitch,
-                        int velocity, int duration_ms);
+                        int velocity, int duration_ms, int local_tempo);
 
 /**
  * @brief Play a chord asynchronously.
+ *
+ * If Ableton Link is enabled, the duration is scaled based on Link tempo.
  *
  * @param shared SharedContext for MIDI output.
  * @param channel MIDI channel (0-15).
  * @param pitches Array of MIDI pitches.
  * @param count Number of notes in the chord.
  * @param velocity Note velocity (0-127).
- * @param duration_ms Duration in milliseconds.
+ * @param duration_ms Duration in milliseconds (at local_tempo).
+ * @param local_tempo Local tempo in BPM used to calculate duration_ms.
  * @return 0 on success, -1 on error.
  */
 int tr7_async_play_chord(SharedContext* shared, int channel,
                          const int* pitches, int count,
-                         int velocity, int duration_ms);
+                         int velocity, int duration_ms, int local_tempo);
 
 /**
  * @brief Play a sequence of notes asynchronously.
  *
  * Notes are played one after another, each starting when the previous ends.
+ * If Ableton Link is enabled, the duration is scaled based on Link tempo.
  *
  * @param shared SharedContext for MIDI output.
  * @param channel MIDI channel (0-15).
  * @param pitches Array of MIDI pitches.
  * @param count Number of notes in the sequence.
  * @param velocity Note velocity (0-127).
- * @param duration_ms Duration of each note in milliseconds.
+ * @param duration_ms Duration of each note in milliseconds (at local_tempo).
+ * @param local_tempo Local tempo in BPM used to calculate duration_ms.
  * @return 0 on success, -1 on error.
  */
 int tr7_async_play_sequence(SharedContext* shared, int channel,
                             const int* pitches, int count,
-                            int velocity, int duration_ms);
+                            int velocity, int duration_ms, int local_tempo);
 
 /**
  * @brief Stop all async playback.

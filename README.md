@@ -15,12 +15,12 @@ All are practical for daily live-coding, REPL sketches, and headless playback. T
 - **Vim-style editor** with INSERT/NORMAL modes, live evaluation shortcuts, and Lua scripting (built on [loki](https://github.com/shakfu/loki), a fork of [kilo](https://github.com/antirez/kilo))
 - **Language-aware REPLs** for interactive composition (Alda, Joy, TR7 Scheme)
 - **Headless play mode** for batch jobs and automation
-- **Asynchronous playback** through [libuv](https://github.com/libuv/libuv)
+- **Non-blocking async playback** through [libuv](https://github.com/libuv/libuv) - REPLs remain responsive during playback
 - **Integrated MIDI routing** powered by [libremidi](https://github.com/celtera/libremidi)
 - **MIDI file export** using [midifile](https://github.com/craigsapp/midifile)
 - **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
 - **Optional [csound](ttps://csound.com/) backend** for deeper sound design workflows
-- **[Ableton](https://github.com/Ableton/link) Link support** for networked tempo sync
+- **[Ableton Link](https://github.com/Ableton/link) support** for networked tempo sync (playback matches Link session tempo)
 - **[Scala .scl](https://www.huygens-fokker.org/scala/scl_format.html) import support** for microtuning
 - **Lua APIs** for editor automation, playback control, and extensibility
 
@@ -106,6 +106,7 @@ tr7> :q
 | `:l` `:list` | List MIDI ports |
 | `:s` `:stop` | Stop playback |
 | `:p` `:panic` | All notes off |
+| `:play PATH` | Play file (dispatches by extension) |
 | `:sf PATH` | Load soundfont and enable built-in synth |
 | `:presets` | List soundfont presets |
 | `:midi` | Switch to MIDI output |
@@ -239,7 +240,7 @@ psnd play song.joy          # Play Joy file headlessly
 
 ### Basic Syntax
 
-Joy uses postfix notation where operations follow their arguments:
+Joy uses postfix notation where operations follow their arguments. Playback is **non-blocking** - the REPL remains responsive while notes play in the background:
 
 ```joy
 \ Comments start with backslash
@@ -247,9 +248,10 @@ Joy uses postfix notation where operations follow their arguments:
 120 tempo                   \ Set tempo to 120 BPM
 80 vol                      \ Set volume to 80
 
-\ Play notes
+\ Play notes (non-blocking)
 c play                      \ Play middle C
 [c d e f g] play            \ Play a melody
+[c d e] play [f g a] play   \ Layer multiple phrases
 
 \ Chords
 [c e g] chord               \ Play C major chord
@@ -321,8 +323,9 @@ TR7 extends R7RS-small Scheme with music-specific procedures:
 
 | Procedure | Description |
 |-----------|-------------|
-| `(play-note pitch velocity duration-ms)` | Play a single note |
-| `(play-chord '(p1 p2 ...) velocity duration-ms)` | Play a chord |
+| `(play-note pitch velocity duration-ms)` | Play a single note (non-blocking) |
+| `(play-chord '(p1 p2 ...) velocity duration-ms)` | Play a chord (non-blocking) |
+| `(play-seq '(p1 p2 ...) velocity duration-ms)` | Play notes in sequence (non-blocking) |
 | `(note-on pitch velocity)` | Send note-on message |
 | `(note-off pitch)` | Send note-off message |
 | `(set-tempo bpm)` | Set tempo |
@@ -379,10 +382,20 @@ In the editor, use the `:link` command:
 :link          # Toggle Link
 ```
 
+In REPLs, use the same commands:
+
+```text
+alda> :link on
+[Link] Peers: 1
+[Link] Tempo: 120.0 BPM
+alda> piano: c d e f g    # Plays at Link session tempo
+```
+
 When Link is enabled:
 
 - Status bar shows "ALDA LINK" instead of "ALDA NORMAL"
-- Playback tempo syncs with the Link session
+- **Playback tempo automatically syncs** with the Link session for all languages (Alda, Joy, TR7)
+- REPLs print notifications when tempo, peers, or transport state changes
 - Other Link-enabled apps (Ableton Live, etc.) share the same tempo
 
 ### Lua API

@@ -11,6 +11,7 @@
 #include "alda/scheduler.h"
 #include "alda/context.h"
 #include "async/shared_async.h"
+#include "link/link.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -61,8 +62,9 @@ int alda_events_play_async(AldaContext* ctx) {
         return -1;
     }
 
-    /* Set tick mode with initial tempo */
-    int tempo = ctx->global_tempo > 0 ? ctx->global_tempo : ALDA_DEFAULT_TEMPO;
+    /* Set tick mode with initial tempo - use Link tempo if enabled */
+    int local_tempo = ctx->global_tempo > 0 ? ctx->global_tempo : ALDA_DEFAULT_TEMPO;
+    int tempo = (int)(shared_link_effective_tempo((double)local_tempo) + 0.5);
     shared_async_schedule_set_tick_mode(sched, tempo);
 
     /* Convert Alda events to shared events */

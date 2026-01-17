@@ -339,3 +339,59 @@ int shared_process_command(SharedContext* ctx, const char* input,
     /* Not a recognized command */
     return REPL_CMD_NOT_CMD;
 }
+
+/* ============================================================================
+ * Link Callback Support
+ * ============================================================================ */
+
+/* State for REPL Link callbacks */
+static SharedContext* g_repl_link_ctx = NULL;
+
+/* Callback invoked when Link peers change */
+static void repl_link_peers_callback(uint64_t num_peers, void* userdata) {
+    (void)userdata;
+    printf("[Link] Peers: %llu\n", (unsigned long long)num_peers);
+}
+
+/* Callback invoked when Link tempo changes */
+static void repl_link_tempo_callback(double tempo, void* userdata) {
+    (void)userdata;
+    printf("[Link] Tempo: %.1f BPM\n", tempo);
+
+    /* Sync tempo to SharedContext */
+    if (g_repl_link_ctx) {
+        g_repl_link_ctx->tempo = (int)(tempo + 0.5);
+    }
+}
+
+/* Callback invoked when Link transport state changes */
+static void repl_link_transport_callback(int is_playing, void* userdata) {
+    (void)userdata;
+    printf("[Link] Transport: %s\n", is_playing ? "playing" : "stopped");
+}
+
+void shared_repl_link_init_callbacks(SharedContext* ctx) {
+    g_repl_link_ctx = ctx;
+
+    /* Only register callbacks if Link is initialized */
+    if (shared_link_is_initialized()) {
+        shared_link_set_peers_callback(repl_link_peers_callback, NULL);
+        shared_link_set_tempo_callback(repl_link_tempo_callback, NULL);
+        shared_link_set_transport_callback(repl_link_transport_callback, NULL);
+    }
+}
+
+void shared_repl_link_check(void) {
+    /* Poll Link and invoke any pending callbacks */
+    shared_link_check_callbacks();
+}
+
+void shared_repl_link_cleanup_callbacks(void) {
+    /* Clear callbacks */
+    if (shared_link_is_initialized()) {
+        shared_link_set_peers_callback(NULL, NULL);
+        shared_link_set_tempo_callback(NULL, NULL);
+        shared_link_set_transport_callback(NULL, NULL);
+    }
+    g_repl_link_ctx = NULL;
+}

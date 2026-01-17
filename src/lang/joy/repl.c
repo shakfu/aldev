@@ -235,16 +235,24 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
         /* Process command */
         int result = joy_process_command(ctx, input);
         if (result == 1) break;      /* quit */
-        if (result == 0) continue;   /* command handled */
+        if (result == 0) {
+            /* Command handled - poll Link callbacks */
+            shared_repl_link_check();
+            continue;
+        }
 
         /* Set up error recovery point */
         if (setjmp(error_recovery) != 0) {
             /* Error occurred during eval - continue REPL */
+            shared_repl_link_check();
             continue;
         }
 
         /* Evaluate Joy code */
         joy_eval_line(ctx, input);
+
+        /* Poll Link callbacks after evaluation */
+        shared_repl_link_check();
     }
 
     /* Disable raw mode before exit */
@@ -376,12 +384,18 @@ static void *joy_cb_init(const SharedReplArgs *args) {
         /* Non-fatal - continue with sync playback fallback */
     }
 
+    /* Initialize Link callbacks for REPL notifications */
+    shared_repl_link_init_callbacks(g_joy_repl_shared);
+
     return ctx;
 }
 
 /* Cleanup Joy context and MIDI/audio */
 static void joy_cb_cleanup(void *lang_ctx) {
     JoyContext *ctx = (JoyContext *)lang_ctx;
+
+    /* Cleanup Link callbacks */
+    shared_repl_link_cleanup_callbacks();
 
     /* Wait for async playback to finish (with timeout) */
     if (joy_async_is_playing()) {

@@ -134,7 +134,7 @@ static tr7_C_return_t repl_scm_play_note(tr7_engine_t tsc, int nvalues, const tr
     if (velocity > 127) velocity = 127;
 
     /* Use async playback to avoid blocking the REPL */
-    tr7_async_play_note(g_tr7_repl_shared, g_tr7_music.channel, pitch, velocity, duration);
+    tr7_async_play_note(g_tr7_repl_shared, g_tr7_music.channel, pitch, velocity, duration, g_tr7_music.tempo);
 
     return tr7_C_return_single(tsc, TR7_VOID);
 }
@@ -202,7 +202,7 @@ static tr7_C_return_t repl_scm_play_chord(tr7_engine_t tsc, int nvalues, const t
     /* Use async playback to avoid blocking the REPL */
     if (count > 0) {
         tr7_async_play_chord(g_tr7_repl_shared, g_tr7_music.channel,
-                             pitches, count, velocity, duration);
+                             pitches, count, velocity, duration, g_tr7_music.tempo);
     }
 
     return tr7_C_return_single(tsc, TR7_VOID);
@@ -240,7 +240,7 @@ static tr7_C_return_t repl_scm_play_seq(tr7_engine_t tsc, int nvalues, const tr7
     /* Use async playback to play notes sequentially without blocking */
     if (count > 0) {
         tr7_async_play_sequence(g_tr7_repl_shared, g_tr7_music.channel,
-                                pitches, count, velocity, duration);
+                                pitches, count, velocity, duration, g_tr7_music.tempo);
     }
 
     return tr7_C_return_single(tsc, TR7_VOID);
@@ -701,12 +701,19 @@ static void tr7_repl_loop(editor_ctx_t *syntax_ctx) {
         /* Process command */
         int result = tr7_process_command(input);
         if (result == 1) break;      /* quit */
-        if (result == 0) continue;   /* command handled */
+        if (result == 0) {
+            /* Command handled - poll Link callbacks */
+            shared_repl_link_check();
+            continue;
+        }
 
         /* Evaluate Scheme code - use tr7_play_string which handles result printing */
         tr7_play_string(g_tr7_repl_engine, input,
             Tr7_Play_Show_Result | Tr7_Play_Show_Errors | Tr7_Play_Keep_Playing);
         fflush(stdout);
+
+        /* Poll Link callbacks after evaluation */
+        shared_repl_link_check();
     }
 
     /* Disable raw mode before exit */
@@ -831,6 +838,9 @@ static void *tr7_cb_init(const SharedReplArgs *args) {
         }
     }
 
+    /* Initialize Link callbacks for REPL notifications */
+    shared_repl_link_init_callbacks(g_tr7_repl_shared);
+
     /* Return non-NULL to indicate success (we use g_tr7_repl_engine as context) */
     return g_tr7_repl_engine;
 }
@@ -838,6 +848,9 @@ static void *tr7_cb_init(const SharedReplArgs *args) {
 /* Cleanup TR7 context and MIDI/audio */
 static void tr7_cb_cleanup(void *lang_ctx) {
     (void)lang_ctx;
+
+    /* Cleanup Link callbacks */
+    shared_repl_link_cleanup_callbacks();
 
     /* Wait for async playback to finish, then cleanup */
     tr7_async_wait(1000);  /* Wait up to 1 second */

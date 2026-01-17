@@ -54,6 +54,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - `:play file.scm` - loads and executes Scheme file (from TR7 REPL)
   - Replaces the previous `:cs-play` command
 
+- **Ableton Link Callbacks in REPLs**: All REPLs now receive Link event notifications
+  - Added `shared_repl_link_init_callbacks()`, `shared_repl_link_check()`, `shared_repl_link_cleanup_callbacks()` to `src/shared/repl_commands.c`
+  - Joy, Alda, and TR7 REPLs poll for Link events after each command
+  - Prints `[Link] Tempo: N BPM`, `[Link] Peers: N`, `[Link] Transport: playing/stopped` to stdout when changes occur
+  - Tempo changes automatically sync to the REPL's SharedContext
+
+- **Ableton Link Tempo Sync for Playback**: All languages now use Link tempo when playing
+  - Alda: Uses `shared_link_effective_tempo()` to set initial playback tempo
+  - Joy: Scales note timings at playback time based on `local_tempo / link_tempo` ratio
+  - TR7: Scales note timings at playback time based on `local_tempo / link_tempo` ratio
+  - When Link is enabled and connected to peers, playback tempo matches the Link session
+
 ### Changed
 
 - **Alda Async Migrated to Shared Service**: Alda now uses the shared async playback engine

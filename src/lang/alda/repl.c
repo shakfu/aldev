@@ -238,13 +238,18 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
         /* Process command */
         int result = alda_process_command(ctx, input);
         if (result == 1) break;      /* quit */
-        if (result == 0) continue;   /* command handled */
+        if (result == 0) {
+            /* Command handled - poll Link callbacks */
+            shared_repl_link_check();
+            continue;
+        }
 
         /* Alda interpretation */
         alda_events_clear(ctx);
 
         int parse_result = alda_interpret_string(ctx, input, "<repl>");
         if (parse_result < 0) {
+            shared_repl_link_check();
             continue;
         }
 
@@ -254,6 +259,9 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
             }
             alda_events_play_async(ctx);
         }
+
+        /* Poll Link callbacks after evaluation */
+        shared_repl_link_check();
     }
 
     /* Disable raw mode before exit */
@@ -602,7 +610,13 @@ int alda_repl_main(int argc, char **argv) {
         };
         syntax_ctx.L = loki_lua_bootstrap(&syntax_ctx, &lua_opts);
 
+        /* Initialize Link callbacks for REPL notifications */
+        shared_repl_link_init_callbacks(ctx.shared);
+
         repl_loop(&ctx, &syntax_ctx);
+
+        /* Cleanup Link callbacks */
+        shared_repl_link_cleanup_callbacks();
 
         /* Cleanup Lua */
         if (syntax_ctx.L) {

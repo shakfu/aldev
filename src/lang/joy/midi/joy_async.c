@@ -9,6 +9,7 @@
 #include "midi_primitives.h"
 #include "music_context.h"
 #include "async/shared_async.h"
+#include "link/link.h"
 #include <stdlib.h>
 
 /* ============================================================================
@@ -27,6 +28,16 @@ int joy_async_play(MidiSchedule* sched, MusicContext* mctx) {
     if (!sched || sched->count == 0) return 0;
     if (!mctx || !mctx->shared) return -1;
 
+    /* Calculate tempo scaling factor if Link is enabled */
+    double tempo_scale = 1.0;
+    if (shared_link_is_enabled() && mctx->tempo > 0) {
+        double link_tempo = shared_link_get_tempo();
+        if (link_tempo > 0) {
+            /* Scale timings: faster tempo = shorter durations */
+            tempo_scale = (double)mctx->tempo / link_tempo;
+        }
+    }
+
     /* Convert Joy's MidiSchedule to SharedAsyncSchedule */
     SharedAsyncSchedule* async_sched = shared_async_schedule_new();
     if (!async_sched) return -1;
@@ -35,8 +46,11 @@ int joy_async_play(MidiSchedule* sched, MusicContext* mctx) {
         ScheduledEvent* ev = &sched->events[i];
         /* Skip rests (pitch == -1) */
         if (ev->pitch >= 0) {
-            shared_async_schedule_note(async_sched, ev->time_ms, ev->channel,
-                                        ev->pitch, ev->velocity, ev->duration_ms);
+            /* Scale timings by Link tempo ratio */
+            int time_ms = (int)(ev->time_ms * tempo_scale + 0.5);
+            int duration_ms = (int)(ev->duration_ms * tempo_scale + 0.5);
+            shared_async_schedule_note(async_sched, time_ms, ev->channel,
+                                        ev->pitch, ev->velocity, duration_ms);
         }
     }
 

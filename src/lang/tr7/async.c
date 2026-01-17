@@ -8,6 +8,20 @@
 
 #include "async.h"
 #include "async/shared_async.h"
+#include "link/link.h"
+
+/* Helper to scale duration based on Link tempo */
+static int scale_duration_for_link(int duration_ms, int local_tempo) {
+    if (!shared_link_is_enabled() || local_tempo <= 0) {
+        return duration_ms;
+    }
+    double link_tempo = shared_link_get_tempo();
+    if (link_tempo <= 0) {
+        return duration_ms;
+    }
+    /* Scale: faster tempo = shorter durations */
+    return (int)(duration_ms * ((double)local_tempo / link_tempo) + 0.5);
+}
 
 /* ============================================================================
  * Public API - Delegates to shared async service
@@ -22,17 +36,20 @@ void tr7_async_cleanup(void) {
 }
 
 int tr7_async_play_note(SharedContext* shared, int channel, int pitch,
-                        int velocity, int duration_ms) {
+                        int velocity, int duration_ms, int local_tempo) {
     if (!shared) return -1;
     if (pitch < 0 || pitch > 127) return -1;
     if (velocity < 0) velocity = 0;
     if (velocity > 127) velocity = 127;
 
+    /* Scale duration based on Link tempo if enabled */
+    int scaled_duration = scale_duration_for_link(duration_ms, local_tempo);
+
     SharedAsyncSchedule* sched = shared_async_schedule_new();
     if (!sched) return -1;
 
-    /* Schedule note at time 0 with specified duration */
-    shared_async_schedule_note(sched, 0, channel, pitch, velocity, duration_ms);
+    /* Schedule note at time 0 with scaled duration */
+    shared_async_schedule_note(sched, 0, channel, pitch, velocity, scaled_duration);
 
     int result = shared_async_play(sched, shared);
     shared_async_schedule_free(sched);
@@ -42,19 +59,22 @@ int tr7_async_play_note(SharedContext* shared, int channel, int pitch,
 
 int tr7_async_play_chord(SharedContext* shared, int channel,
                          const int* pitches, int count,
-                         int velocity, int duration_ms) {
+                         int velocity, int duration_ms, int local_tempo) {
     if (!shared || !pitches || count <= 0) return -1;
     if (velocity < 0) velocity = 0;
     if (velocity > 127) velocity = 127;
 
+    /* Scale duration based on Link tempo if enabled */
+    int scaled_duration = scale_duration_for_link(duration_ms, local_tempo);
+
     SharedAsyncSchedule* sched = shared_async_schedule_new();
     if (!sched) return -1;
 
-    /* Schedule all notes at time 0 with same duration */
+    /* Schedule all notes at time 0 with scaled duration */
     for (int i = 0; i < count; i++) {
         int pitch = pitches[i];
         if (pitch >= 0 && pitch <= 127) {
-            shared_async_schedule_note(sched, 0, channel, pitch, velocity, duration_ms);
+            shared_async_schedule_note(sched, 0, channel, pitch, velocity, scaled_duration);
         }
     }
 
@@ -66,10 +86,13 @@ int tr7_async_play_chord(SharedContext* shared, int channel,
 
 int tr7_async_play_sequence(SharedContext* shared, int channel,
                             const int* pitches, int count,
-                            int velocity, int duration_ms) {
+                            int velocity, int duration_ms, int local_tempo) {
     if (!shared || !pitches || count <= 0) return -1;
     if (velocity < 0) velocity = 0;
     if (velocity > 127) velocity = 127;
+
+    /* Scale duration based on Link tempo if enabled */
+    int scaled_duration = scale_duration_for_link(duration_ms, local_tempo);
 
     SharedAsyncSchedule* sched = shared_async_schedule_new();
     if (!sched) return -1;
@@ -79,9 +102,9 @@ int tr7_async_play_sequence(SharedContext* shared, int channel,
     for (int i = 0; i < count; i++) {
         int pitch = pitches[i];
         if (pitch >= 0 && pitch <= 127) {
-            shared_async_schedule_note(sched, time_ms, channel, pitch, velocity, duration_ms);
+            shared_async_schedule_note(sched, time_ms, channel, pitch, velocity, scaled_duration);
         }
-        time_ms += duration_ms;
+        time_ms += scaled_duration;
     }
 
     int result = shared_async_play(sched, shared);

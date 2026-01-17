@@ -57,6 +57,35 @@ int shared_process_command(SharedContext* ctx, const char* input,
  */
 void shared_print_command_help(void);
 
+/* ============================================================================
+ * Link Callback Support
+ * ============================================================================ */
+
+/**
+ * @brief Initialize Link callbacks for REPL use.
+ *
+ * Registers callbacks that print status changes to stdout.
+ * Call this once during REPL initialization.
+ *
+ * @param ctx SharedContext (used to sync tempo).
+ */
+void shared_repl_link_init_callbacks(SharedContext* ctx);
+
+/**
+ * @brief Poll for Link events and invoke callbacks.
+ *
+ * Should be called periodically in the REPL main loop.
+ * When Link is enabled and peers/tempo change, prints status.
+ */
+void shared_repl_link_check(void);
+
+/**
+ * @brief Clear Link callbacks.
+ *
+ * Call during REPL cleanup.
+ */
+void shared_repl_link_cleanup_callbacks(void);
+
 #ifdef __cplusplus
 }
 #endif

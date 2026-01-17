@@ -9,10 +9,31 @@
   - Dispatches based on file extension: `.csd` -> Csound, `.alda`/`.joy`/`.scm` -> respective REPL
   - Each REPL handles its own file type (Alda, Joy, TR7)
 
-- [ ] Wire Ableton Link callbacks (`src/shared/link/link.c`)
-  - Link is implemented as singleton, callers must poll `shared_link_check_callbacks` manually
-  - No REPL or editor currently calls this, so tempo/peer callbacks are effectively dead
-  - Fix: Add polling in REPL/editor main loops or use background thread
+- [x] Wire Ableton Link callbacks (`src/shared/link/link.c`)
+  - Added `shared_repl_link_init_callbacks()`, `shared_repl_link_check()`, `shared_repl_link_cleanup_callbacks()` to `src/shared/repl_commands.c`
+  - All REPLs (Joy, Alda, TR7) now poll `shared_repl_link_check()` after each command
+  - Callbacks print `[Link] Tempo: N BPM`, `[Link] Peers: N`, `[Link] Transport: playing/stopped` to stdout
+  - Editor already had Link polling via `loki_link_check_callbacks()` in `src/loki/editor.c`
+
+### Ableton Link Integration
+
+Three levels of Link synchronization with other Link-enabled devices:
+
+- [x] **Level 1: Tempo Sync** - All devices play at the same BPM
+  - Alda: Uses `shared_link_effective_tempo()` when setting up tick-based schedule
+  - Joy: Scales ms timings by `local_tempo / link_tempo` ratio at playback time
+  - TR7: Scales ms timings by `local_tempo / link_tempo` ratio at playback time
+  - When Link is enabled, playback matches Link session tempo
+
+- [ ] **Level 2: Beat-Aligned Start** - Playback quantizes to Link beat grid
+  - Use `shared_link_get_phase()` to wait for next beat/bar boundary before starting
+  - Add launch quantization option (1 beat, 1 bar, etc.)
+  - Align tick 0 with Link's beat grid so notes land on same beats as peers
+
+- [ ] **Level 3: Full Transport Sync** - Start/stop from any Link peer controls all
+  - Wire transport callbacks to actually start/stop playback
+  - Requires interruptible playback and a "armed for playback" state
+  - Most complex - requires rethinking REPL interaction model
 
 ### Refactoring
 
