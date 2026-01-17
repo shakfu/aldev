@@ -2,6 +2,37 @@
 
 This guide explains how to add a new music programming language to psnd using the language bridge system.
 
+## Quick Start
+
+Use the generator script to create all boilerplate:
+
+```bash
+# Create a new language called "foo" with extension .foo
+./scripts/new_lang.py foo
+
+# Create with multiple extensions
+./scripts/new_lang.py bar -e .bar .br
+
+# Preview what would be created (dry run)
+./scripts/new_lang.py baz --dry-run
+```
+
+The script generates:
+- `src/lang/<name>/` - Register, REPL, and dispatch files
+- `scripts/cmake/psnd_<name>_library.cmake` - CMake configuration
+- `tests/<name>/` - Test scaffolding
+- `docs/<name>/README.md` - Documentation template
+- `.psnd/languages/<name>.lua` - Syntax highlighting
+
+It also updates `lang_config.h`, `lang_dispatch.c`, and CMake files automatically.
+
+After running the script:
+1. Implement your language in `src/lang/<name>/impl/`
+2. Update the CMake library file with your sources
+3. Run `make clean && make test` to verify
+
+The rest of this document explains the generated code structure in detail.
+
 ## Overview
 
 psnd uses a language bridge pattern that allows music languages to integrate with both the editor and standalone REPL without coupling core code to specific implementations. Each language:
