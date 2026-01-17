@@ -33,12 +33,8 @@
 
 /* ======================== Main Editor Instance ============================ */
 
-/* Static editor instance for the main editor.
- * All functions now use explicit context passing (editor_ctx_t *ctx),
- * enabling future support for multiple editor windows/buffers.
- * This static instance is only used by main() as the primary editor instance.
- */
-static editor_ctx_t E;
+/* Note: Editor context is now local to loki_editor_main() and managed by
+ * the buffer manager after initialization. No static instance needed. */
 
 /* ======================== Helper Functions =============================== */
 
@@ -271,6 +267,9 @@ static void print_usage(void) {
 }
 
 int loki_editor_main(int argc, char **argv) {
+    /* Local editor context - will be copied into buffer manager */
+    editor_ctx_t E;
+
     /* Initialize language bridge system */
     loki_lang_init();
 
@@ -361,6 +360,9 @@ int loki_editor_main(int argc, char **argv) {
         exit(1);
     }
 
+    /* Update atexit context to point to buffer manager's context (not local E) */
+    editor_set_atexit_context(buffer_get_current());
+
     /* Auto-initialize language for known file types (must be after buffers_init) */
     {
         editor_ctx_t *ctx = buffer_get_current();
@@ -399,9 +401,10 @@ int loki_editor_main(int argc, char **argv) {
         }
     }
 
-    /* Enable terminal raw mode and start main loop */
-    terminal_enable_raw_mode(&E, STDIN_FILENO);
-    editor_set_status_msg(&E,
+    /* Initialize terminal host and enable raw mode */
+    terminal_host_init(g_terminal_host, STDIN_FILENO);
+    terminal_host_enable_raw_mode(g_terminal_host);
+    editor_set_status_msg(buffer_get_current(),
         "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find | Ctrl-T = new buf | Ctrl-X n/p/k = buf nav");
 
     while(1) {

@@ -95,11 +95,10 @@ int buffers_init(editor_ctx_t *initial_ctx) {
     /* Initialize fresh context and copy only essential state from initial_ctx */
     editor_ctx_init(&first->ctx);
 
-    /* Copy terminal/display state */
+    /* Copy display state (rawmode now lives in TerminalHost, not per-buffer) */
     first->ctx.screencols = initial_ctx->screencols;
     first->ctx.screenrows = initial_ctx->screenrows;
     first->ctx.screenrows_total = initial_ctx->screenrows_total;
-    first->ctx.rawmode = initial_ctx->rawmode;
     first->ctx.L = initial_ctx->L;
     memcpy(first->ctx.colors, initial_ctx->colors, sizeof(first->ctx.colors));
 
@@ -161,12 +160,11 @@ int buffer_create(const char *filename) {
     /* Initialize editor context */
     editor_ctx_init(&buf->ctx);
 
-    /* Copy terminal/display state from template buffer */
+    /* Copy display state from template buffer (rawmode now in TerminalHost) */
     if (template_ctx) {
         buf->ctx.screencols = template_ctx->screencols;
         buf->ctx.screenrows = template_ctx->screenrows;
         buf->ctx.screenrows_total = template_ctx->screenrows_total;
-        buf->ctx.rawmode = template_ctx->rawmode;
         buf->ctx.L = template_ctx->L;  /* Share Lua state */
         /* Copy color scheme */
         memcpy(buf->ctx.colors, template_ctx->colors, sizeof(buf->ctx.colors));

@@ -9,49 +9,69 @@
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-/* ======================= Static State ===================================== */
+/* ======================= Terminal Host State =============================== */
 
-/* Original terminal state (saved before entering raw mode) */
-static struct termios orig_termios;
+/* Static terminal host instance */
+static TerminalHost g_terminal_host_instance = {0};
 
-/* Global pointer to current editor context for signal handler access.
- * POSIX signal handlers cannot reliably access per-context data, so we
- * maintain a global pointer to the "active" context. This means only one
- * editor instance can properly handle window resize signals at a time.
- * For most use cases (single editor instance), this is not a limitation. */
-static editor_ctx_t *signal_context = NULL;
+/* Global pointer for signal handler access */
+TerminalHost *g_terminal_host = &g_terminal_host_instance;
 
-/* ======================= Terminal Mode Management ========================= */
+/* ======================= Terminal Host Implementation ===================== */
 
-void terminal_disable_raw_mode(editor_ctx_t *ctx, int fd) {
-    /* Don't even check the return value as it's too late. */
-    if (ctx && ctx->rawmode) {
-        /* Exit alternate screen buffer (restores original terminal content)
-         * Only if stdout is a terminal (not a pipe or file) */
-        if (isatty(STDOUT_FILENO)) {
-            (void)write(STDOUT_FILENO, "\x1b[?1049l", 8);
-        }
-        tcsetattr(fd, TCSAFLUSH, &orig_termios);
-        ctx->rawmode = 0;
+int terminal_host_init(TerminalHost *host, int fd) {
+    if (!host) return -1;
+
+    memset(host, 0, sizeof(*host));
+    host->fd = fd;
+    host->rawmode = 0;
+    host->winsize_changed = 0;
+
+    /* Set global pointer for signal handler */
+    g_terminal_host = host;
+
+    /* Register SIGWINCH handler */
+    signal(SIGWINCH, terminal_sig_winch_handler);
+
+    return 0;
+}
+
+void terminal_host_cleanup(TerminalHost *host) {
+    if (!host) return;
+
+    /* Disable raw mode if active */
+    terminal_host_disable_raw_mode(host);
+
+    /* Clear global pointer */
+    if (g_terminal_host == host) {
+        g_terminal_host = NULL;
     }
 }
 
-/* Raw mode: 1960 magic shit. */
-int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd) {
+int terminal_host_enable_raw_mode(TerminalHost *host) {
     struct termios raw;
 
-    if (!ctx) return -1; /* Need valid context */
-    if (ctx->rawmode) return 0; /* Already enabled. */
-    if (!isatty(STDIN_FILENO)) goto fatal;
-    if (tcgetattr(fd, &orig_termios) == -1) goto fatal;
+    if (!host) return -1;
+    if (host->rawmode) return 0;  /* Already enabled */
 
-    raw = orig_termios;  /* modify the original mode */
+    if (!isatty(host->fd)) {
+        errno = ENOTTY;
+        return -1;
+    }
+
+    if (tcgetattr(host->fd, &host->orig_termios) == -1) {
+        errno = ENOTTY;
+        return -1;
+    }
+
+    raw = host->orig_termios;
     /* input modes: no break, no CR to NL, no parity check, no strip char,
      * no start/stop output control. */
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -59,16 +79,19 @@ int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd) {
     raw.c_oflag &= ~(OPOST);
     /* control modes - set 8 bit chars */
     raw.c_cflag |= (CS8);
-    /* local modes - choing off, canonical off, no extended functions,
+    /* local modes - echo off, canonical off, no extended functions,
      * no signal chars (^Z,^C) */
     raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
     /* control chars - set return condition: min number of bytes and timer. */
-    raw.c_cc[VMIN] = 0; /* Return each byte, or zero for timeout. */
+    raw.c_cc[VMIN] = 0;  /* Return each byte, or zero for timeout. */
     raw.c_cc[VTIME] = 1; /* 100 ms timeout (unit is tens of second). */
 
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd, TCSAFLUSH, &raw) < 0) goto fatal;
-    ctx->rawmode = 1;
+    if (tcsetattr(host->fd, TCSAFLUSH, &raw) < 0) {
+        errno = ENOTTY;
+        return -1;
+    }
+
+    host->rawmode = 1;
 
     /* Enter alternate screen buffer (saves current screen, gives clean slate)
      * Only if stdout is a terminal (not a pipe or file) */
@@ -76,14 +99,28 @@ int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd) {
         (void)write(STDOUT_FILENO, "\x1b[?1049h", 8);
     }
 
-    /* Register this context for signal handling */
-    signal_context = ctx;
-
     return 0;
+}
 
-fatal:
-    errno = ENOTTY;
-    return -1;
+void terminal_host_disable_raw_mode(TerminalHost *host) {
+    if (!host || !host->rawmode) return;
+
+    /* Exit alternate screen buffer (restores original terminal content)
+     * Only if stdout is a terminal (not a pipe or file) */
+    if (isatty(STDOUT_FILENO)) {
+        (void)write(STDOUT_FILENO, "\x1b[?1049l", 8);
+    }
+
+    tcsetattr(host->fd, TCSAFLUSH, &host->orig_termios);
+    host->rawmode = 0;
+}
+
+int terminal_host_resize_pending(TerminalHost *host) {
+    return host && host->winsize_changed;
+}
+
+void terminal_host_clear_resize(TerminalHost *host) {
+    if (host) host->winsize_changed = 0;
 }
 
 /* ======================= Input Reading ==================================== */
@@ -256,9 +293,9 @@ void terminal_update_window_size(editor_ctx_t *ctx) {
 /* Signal handler for window size changes */
 void terminal_sig_winch_handler(int unused __attribute__((unused))) {
     /* Signal handler must be async-signal-safe.
-     * Just set a flag in the registered context for main loop to handle. */
-    if (signal_context) {
-        signal_context->winsize_changed = 1;
+     * Just set a flag in the terminal host for main loop to handle. */
+    if (g_terminal_host) {
+        g_terminal_host->winsize_changed = 1;
     }
 }
 
@@ -266,8 +303,9 @@ void terminal_sig_winch_handler(int unused __attribute__((unused))) {
 void terminal_handle_resize(editor_ctx_t *ctx) {
     if (!ctx) return;
 
-    if (ctx->winsize_changed) {
-        ctx->winsize_changed = 0;
+    /* Check terminal host for resize flag (set by signal handler) */
+    if (terminal_host_resize_pending(g_terminal_host)) {
+        terminal_host_clear_resize(g_terminal_host);
         terminal_update_window_size(ctx);
         if (ctx->cy > ctx->screenrows) ctx->cy = ctx->screenrows - 1;
         if (ctx->cx > ctx->screencols) ctx->cx = ctx->screencols - 1;

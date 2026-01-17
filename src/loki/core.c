@@ -71,7 +71,7 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     ctx->screencols = 0;
     ctx->screenrows_total = 0;
     ctx->numrows = 0;
-    ctx->rawmode = 0;
+    /* Note: rawmode now lives in TerminalHost, not per-buffer */
     ctx->row = NULL;
     ctx->dirty = 0;
     ctx->filename = NULL;
@@ -87,8 +87,7 @@ void editor_ctx_init(editor_ctx_t *ctx) {
     ctx->sel_start_y = 0;
     ctx->sel_end_x = 0;
     ctx->sel_end_y = 0;
-    /* Window resize flag - already zeroed by memset above */
-    ctx->winsize_changed = 0;
+    /* Note: winsize_changed now lives in TerminalHost, not per-buffer */
     memset(ctx->colors, 0, sizeof(ctx->colors));
     /* Command mode state */
     command_mode_init(ctx);
@@ -140,10 +139,18 @@ void editor_ctx_free(editor_ctx_t *ctx) {
  * Set by init_editor() before registering atexit handler. */
 static editor_ctx_t *editor_for_atexit = NULL;
 
+/* Set the context used for atexit cleanup */
+void editor_set_atexit_context(editor_ctx_t *ctx) {
+    editor_for_atexit = ctx;
+}
+
 /* Called at exit to avoid remaining in raw mode. */
 void editor_atexit(void) {
+    /* Restore terminal via TerminalHost */
+    terminal_host_disable_raw_mode(g_terminal_host);
+
+    /* Cleanup editor resources */
     if (editor_for_atexit) {
-        terminal_disable_raw_mode(editor_for_atexit, STDIN_FILENO);
         editor_cleanup_resources(editor_for_atexit);
     }
     cleanup_dynamic_languages();
@@ -920,10 +927,8 @@ void init_editor(editor_ctx_t *ctx) {
     syntax_init_default_colors(ctx);
     /* Lua REPL init and Lua initialization are in loki_editor.c */
     terminal_update_window_size(ctx);
-    signal(SIGWINCH, terminal_sig_winch_handler);
-
-    /* Set static pointer for atexit cleanup */
-    editor_for_atexit = ctx;
+    /* Note: SIGWINCH registration now happens in terminal_host_init() */
+    /* Note: editor_for_atexit is set explicitly after buffers_init() */
 }
 
 /* Main editor entry point moved to loki_editor.c */

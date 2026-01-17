@@ -168,7 +168,7 @@ struct editor_ctx {
     int screencols; /* Number of cols that we can show */
     int screenrows_total; /* Rows available after status bars (before REPL) */
     int numrows;    /* Number of rows */
-    int rawmode;    /* Is terminal raw mode enabled? */
+    /* Note: rawmode moved to TerminalHost (terminal.h) */
     t_erow *row;      /* Rows */
     int dirty;      /* File modified but not saved. */
     char *filename; /* Currently open filename */
@@ -184,8 +184,7 @@ struct editor_ctx {
     int sel_end_x, sel_end_y;     /* Selection end position */
     t_hlcolor colors[9]; /* Syntax highlight colors: indexed by HL_* constants */
 
-    /* Window resize state (checked in main loop, set by signal handler) */
-    volatile sig_atomic_t winsize_changed; /* Non-zero if window size changed */
+    /* Note: winsize_changed moved to TerminalHost (terminal.h) */
 
     /* Command mode state */
     char cmd_buffer[256];      /* Command input buffer */

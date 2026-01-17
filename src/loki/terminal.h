@@ -15,17 +15,6 @@
 
 #include "internal.h"  /* For editor_ctx_t, abuf */
 
-/* ======================= Terminal Mode Management ========================= */
-
-/* Enable raw mode on the given file descriptor.
- * Raw mode disables canonical input, echo, and signal generation.
- * Returns 0 on success, -1 on failure (sets errno to ENOTTY). */
-int terminal_enable_raw_mode(editor_ctx_t *ctx, int fd);
-
-/* Disable raw mode, restoring terminal to original state.
- * Should be called before exit to avoid leaving terminal in bad state. */
-void terminal_disable_raw_mode(editor_ctx_t *ctx, int fd);
-
 /* ======================= Input Reading ==================================== */
 
 /* Read a single key from the terminal, handling escape sequences.
@@ -75,5 +64,54 @@ void terminal_buffer_free(struct abuf *ab);
  * Async-signal-safe: only sets a flag, actual handling in terminal_handle_resize().
  * Should be registered with signal(SIGWINCH, terminal_sig_winch_handler). */
 void terminal_sig_winch_handler(int sig);
+
+/* ======================= Terminal Host Abstraction ========================= */
+
+#include <termios.h>
+#include <signal.h>
+
+/**
+ * TerminalHost - Encapsulates terminal state for signal handling.
+ *
+ * This replaces the previous global signal_context pattern, providing
+ * cleaner separation between terminal state and editor context.
+ *
+ * POSIX signal handlers cannot access per-context data, so we maintain
+ * a global pointer. Only one terminal host can be active at a time.
+ * For multi-terminal scenarios (e.g., web editor), use polling instead
+ * of signals - the web frontend sends resize events via RPC.
+ */
+typedef struct TerminalHost {
+    struct termios orig_termios;           /* Saved terminal state */
+    volatile sig_atomic_t winsize_changed; /* Set by SIGWINCH, cleared by app */
+    int rawmode;                           /* Is raw mode currently active? */
+    int fd;                                /* Terminal file descriptor */
+} TerminalHost;
+
+/* Global terminal host pointer (for signal handler access) */
+extern TerminalHost *g_terminal_host;
+
+/* Initialize terminal host and register signal handlers.
+ * Should be called once at application startup.
+ * Returns 0 on success, -1 on error. */
+int terminal_host_init(TerminalHost *host, int fd);
+
+/* Cleanup terminal host (restore terminal state).
+ * Safe to call multiple times. */
+void terminal_host_cleanup(TerminalHost *host);
+
+/* Enable raw mode on the terminal host.
+ * Returns 0 on success, -1 on error. */
+int terminal_host_enable_raw_mode(TerminalHost *host);
+
+/* Disable raw mode, restoring original terminal state. */
+void terminal_host_disable_raw_mode(TerminalHost *host);
+
+/* Check if window resize is pending.
+ * Returns 1 if resize pending, 0 otherwise. */
+int terminal_host_resize_pending(TerminalHost *host);
+
+/* Clear resize pending flag (call after handling resize). */
+void terminal_host_clear_resize(TerminalHost *host);
 
 #endif /* LOKI_TERMINAL_H */

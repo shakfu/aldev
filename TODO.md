@@ -1,5 +1,101 @@
 # Psnd TODO
 
+## High Priority
+
+### Web Editor Decoupling (validated from DESIGN_REVIEW.md)
+
+The following tasks enable replacing the terminal editor with a web-based editor.
+Order reflects dependency chain - earlier tasks unblock later ones.
+
+#### Phase 1: Eliminate Global State & Singletons
+
+- [x] Remove global `signal_context` in `terminal.c:28`
+  - Created `TerminalHost` struct in `terminal.h` with `orig_termios`, `winsize_changed`, `rawmode`, `fd`
+  - Moved signal handler to use `g_terminal_host->winsize_changed`
+  - Removed `rawmode` and `winsize_changed` from `editor_ctx_t`
+  - Legacy wrappers maintain API compatibility
+
+- [x] Make `editor.c` static `E` into parameter
+  - Changed `static editor_ctx_t E` to local variable in `loki_editor_main()`
+  - Added `editor_set_atexit_context()` to explicitly set cleanup context
+  - After `buffers_init()`, atexit context points to buffer manager's context
+
+- [x] Decouple buffer manager from terminal state (`buffers.c:98-104`)
+  - Removed `rawmode` copying between buffers (now in TerminalHost)
+  - Still copies `screencols`, `screenrows`, Lua state (display metrics shared across buffers)
+
+#### Phase 2: Split Model from View in `editor_ctx_t`
+
+- [ ] Factor `editor_ctx_t` into `EditorModel` + `ViewAdapter`
+  - Model: buffers, syntax, selections, language handles, cursor logical position
+  - ViewAdapter: terminal metrics, theme colors, REPL layout
+  - See `internal.h:163-219` for current mixed struct
+
+- [ ] Provide serialization helpers for the model
+  - Enables snapshot/restore, RPC transport, test fixtures
+
+#### Phase 3: Abstract Input Handling
+
+- [ ] Define `EditorEvent` struct for keystrokes, commands, actions
+  - Replace raw key codes with structured events
+  - Converter from terminal escape sequences to events in CLI build
+  - Other transports (WebSocket, tests) inject their own event stream
+
+- [ ] Decouple `modal_process_keypress()` from file descriptor (`modal.c:820-825`)
+  - Current signature: `void modal_process_keypress(editor_ctx_t *ctx, int fd)`
+  - New approach: `void editor_handle_event(EditorSession*, const EditorEvent*)`
+
+#### Phase 4: Introduce Renderer Interface
+
+- [ ] Replace `editor_refresh_screen()` with renderer callbacks
+  - Current code emits VT100 directly (`core.c:544-782`)
+  - Define interface: emit rows, gutter, status segments, REPL panes
+  - Terminal renderer translates to VT100
+  - Web renderer serializes JSON diff to client
+
+- [ ] Route REPL output through renderer abstraction
+  - `lua.c:1675-1709` currently emits terminal escapes directly
+  - Store REPL logs as plain strings/events, let front-end paint them
+
+- [ ] Abstract OSC-52 clipboard (`selection.c:94-100`)
+  - Guard behind `TerminalAdapter` so web host never links against it
+  - Web host uses browser clipboard API instead
+
+#### Phase 5: Host-Agnostic Session API
+
+- [ ] Create `EditorSession` opaque handle
+  - `editor_session_new(const EditorConfig*)` - create session
+  - `editor_session_handle_event(session, const EditorEvent*)` - process input
+  - `editor_session_snapshot(session, EditorViewModel*)` - get render state
+  - Terminal mode becomes one consumer; web server another
+
+- [ ] Extract CLI parsing + terminal orchestration into thin wrapper
+  - Separate from session logic
+  - Enables alternate hosts (HTTP server, headless scripting harness)
+
+#### Phase 6: Service Process & RPC
+
+- [ ] Wrap editor core in service process
+  - Small RPC protocol (stdio JSON or gRPC)
+  - Commands: load file, save, apply keystroke, get view state
+  - Terminal binary can talk to it locally (proves abstraction)
+
+- [ ] Add event queue for async tasks
+  - Leverage libuv (already a playback dependency)
+  - Language callbacks, timers, UI events scheduled without blocking render
+  - Web host drives session via async RPC instead of `while(1)` loop
+
+#### Phase 7: Web Front-End
+
+- [ ] Build browser front-end connecting to RPC service
+  - Send high-level editor events
+  - Render the diff tree (visible rows, selections, status bars)
+  - Reuse existing shared audio/MIDI context for playback commands
+
+- [ ] Retire terminal assumptions from shared modules
+  - Guard OSC-52, SIGWINCH, alternate screen behind terminal adapter
+  - Browser host never links against termios/signal code
+
 ## Medium Priority
 
 ### Feature Completeness
@@ -134,8 +230,6 @@ Three levels of Link synchronization with other Link-enabled devices:
 
 - [ ] JACK backend
   - For pro audio workflows
-
-- [ ] Decouple from the loki editor and use a webserver (linky mongoose)
 
 - [ ] Provide a minimal language example
 

@@ -12,6 +12,7 @@
 #include "loki/core.h"
 #include "loki/internal.h"
 #include "loki/syntax.h"
+#include "loki/terminal.h"
 #include <string.h>
 
 /* Test editor context initialization */
@@ -26,7 +27,7 @@ TEST(editor_ctx_init_initializes_all_fields) {
     ASSERT_NULL(ctx.row);
     ASSERT_NULL(ctx.filename);
     ASSERT_EQ(ctx.mode, MODE_NORMAL);
-    ASSERT_EQ(ctx.winsize_changed, 0);
+    /* Note: winsize_changed now lives in TerminalHost, tested separately */
 }
 
 /* Test separator detection */
@@ -228,20 +229,20 @@ TEST(mode_switching_works) {
     ASSERT_EQ(ctx.mode, MODE_NORMAL);
 }
 
-/* Test window resize flag */
+/* Test window resize flag (now in TerminalHost) */
 TEST(window_resize_flag_initialized) {
-    editor_ctx_t ctx;
-    editor_ctx_init(&ctx);
+    /* winsize_changed now lives in TerminalHost, not editor_ctx_t */
+    TerminalHost host = {0};
 
-    ASSERT_EQ(ctx.winsize_changed, 0);
+    ASSERT_EQ(terminal_host_resize_pending(&host), 0);
 
     /* Simulate resize signal */
-    ctx.winsize_changed = 1;
-    ASSERT_EQ(ctx.winsize_changed, 1);
+    host.winsize_changed = 1;
+    ASSERT_EQ(terminal_host_resize_pending(&host), 1);
 
     /* Clear flag */
-    ctx.winsize_changed = 0;
-    ASSERT_EQ(ctx.winsize_changed, 0);
+    terminal_host_clear_resize(&host);
+    ASSERT_EQ(terminal_host_resize_pending(&host), 0);
 }
 
 BEGIN_TEST_SUITE("Core Editor Functions")

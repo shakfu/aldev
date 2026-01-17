@@ -198,6 +198,10 @@ void editor_poll_async_http(struct lua_State *L);
 /* Initialize the editor */
 void init_editor(editor_ctx_t *ctx);
 
+/* Set the context used for atexit cleanup.
+ * Call after buffers_init() to point to the buffer manager's context. */
+void editor_set_atexit_context(editor_ctx_t *ctx);
+
 /* Cleanup function (called at exit) */
 void editor_atexit(void);
 
