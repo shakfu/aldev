@@ -9,6 +9,7 @@ set(LIBSHARED_SOURCES
     ${PSND_ROOT_DIR}/src/shared/midi/events.c
     ${PSND_ROOT_DIR}/src/shared/link/link.c
     ${PSND_ROOT_DIR}/src/shared/async/shared_async.c
+    ${PSND_ROOT_DIR}/src/shared/music/music_theory.c
 )
 
 add_library(shared STATIC ${LIBSHARED_SOURCES})

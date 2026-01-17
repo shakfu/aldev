@@ -8,7 +8,6 @@ set(LIBJOY_SOURCES
     # Music theory
     ${PSND_ROOT_DIR}/src/lang/joy/music/music_notation.c
     ${PSND_ROOT_DIR}/src/lang/joy/music/music_context.c
-    ${PSND_ROOT_DIR}/src/lang/joy/music/music_theory.c
     # MIDI
     ${PSND_ROOT_DIR}/src/lang/joy/midi/joy_midi_backend.c
     ${PSND_ROOT_DIR}/src/lang/joy/midi/midi_primitives.c

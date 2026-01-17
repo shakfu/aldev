@@ -9,7 +9,7 @@
 #include "midi_primitives.h"
 #include "joy_async.h"
 #include "joy_midi_backend.h"
-#include "music_theory.h"
+#include "music/music_theory.h"
 #include "music_context.h"
 #include "music_notation.h"
 #include "context.h"      /* SharedContext, shared_send_* */
