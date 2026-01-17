@@ -44,6 +44,7 @@ struct BogScheduler {
     double grid_beats;
     bool running;
     int current_beat;
+    double last_scheduled_time;  /* Track last scheduled time to avoid duplicates */
     BeatCallbackEntry* callbacks;
     size_t callback_count;
     size_t callback_capacity;
@@ -338,6 +339,7 @@ static void scheduler_init(BogScheduler* scheduler,
     scheduler->lookahead_ms = 80.0;
     scheduler->grid_beats = 0.25;
     scheduler->current_beat = 0;
+    scheduler->last_scheduled_time = -1.0;  /* No events scheduled yet */
     scheduler->next_callback_handle = 1;
 }
 
@@ -390,6 +392,7 @@ void bog_scheduler_start(BogScheduler* scheduler)
         return;
     if (scheduler->audio.init)
         scheduler->audio.init(scheduler->audio.userdata);
+    scheduler->last_scheduled_time = -1.0;  /* Reset for fresh start */
     scheduler->running = true;
 }
 
@@ -544,8 +547,16 @@ void bog_scheduler_tick_at(BogScheduler* scheduler, double now_seconds)
         notify_beat_callbacks(scheduler, scheduler->current_beat);
     }
 
-    for (double t = start_quantized; t < now_seconds + ahead; t += step) {
+    /* Start from after last scheduled time to avoid duplicates */
+    double start_time = start_quantized;
+    if (scheduler->last_scheduled_time >= 0.0 &&
+        scheduler->last_scheduled_time >= start_quantized) {
+        start_time = scheduler->last_scheduled_time + step;
+    }
+
+    for (double t = start_time; t < now_seconds + ahead; t += step) {
         scheduler_query_and_schedule(scheduler, t + step);
+        scheduler->last_scheduled_time = t;
     }
 }
 

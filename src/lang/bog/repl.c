@@ -344,11 +344,6 @@ static void bog_start_async(void) {
     }
 }
 
-/* Stop async tick thread */
-static void bog_stop_async(void) {
-    bog_async_stop();
-}
-
 /* Non-interactive Bog REPL loop for piped input */
 static void bog_repl_loop_pipe(void) {
     char line[4096];
