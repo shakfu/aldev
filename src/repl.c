@@ -52,6 +52,43 @@ void repl_add_history(ReplLineEditor *ed, const char *line) {
     ed->history[ed->history_len++] = strdup(line);
 }
 
+int repl_history_load(ReplLineEditor *ed, const char *filepath) {
+    if (!ed || !filepath) return -1;
+
+    FILE *f = fopen(filepath, "r");
+    if (!f) return -1;  /* File doesn't exist yet, not an error */
+
+    char line[MAX_INPUT_LENGTH];
+    while (fgets(line, sizeof(line), f)) {
+        /* Remove trailing newline */
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n') {
+            line[len - 1] = '\0';
+        }
+        /* Skip empty lines */
+        if (line[0] != '\0') {
+            repl_add_history(ed, line);
+        }
+    }
+
+    fclose(f);
+    return 0;
+}
+
+int repl_history_save(ReplLineEditor *ed, const char *filepath) {
+    if (!ed || !filepath || !filepath[0]) return -1;
+
+    FILE *f = fopen(filepath, "w");
+    if (!f) return -1;
+
+    for (int i = 0; i < ed->history_len; i++) {
+        fprintf(f, "%s\n", ed->history[i]);
+    }
+
+    fclose(f);
+    return 0;
+}
+
 /* ============================================================================
  * Terminal Raw Mode
  * ============================================================================ */

@@ -17,6 +17,7 @@
 #include "joy_runtime.h"
 #include "joy_parser.h"
 #include "joy_midi_backend.h"
+#include "joy_async.h"
 #include "music_notation.h"
 #include "music_context.h"
 #include "midi_primitives.h"
@@ -29,6 +30,7 @@ static SharedContext* g_joy_repl_shared = NULL;
 #include <string.h>
 #include <unistd.h>
 #include <setjmp.h>
+#include <sys/stat.h>
 
 /* ============================================================================
  * Joy Usage and Help
@@ -87,6 +89,9 @@ static void print_joy_repl_help(void) {
 
 /* Stop callback for Joy REPL */
 static void joy_stop_playback(void) {
+    /* Stop async playback first */
+    joy_async_stop();
+    /* Then send panic to silence any remaining notes */
     joy_midi_panic(g_joy_repl_shared);
 }
 
@@ -154,6 +159,7 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
     jmp_buf error_recovery;
+    char history_path[512] = {0};
 
     /* Use non-interactive mode for piped input */
     if (!isatty(STDIN_FILENO)) {
@@ -162,6 +168,25 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Build history file path and load history */
+    /* Prefer local .psnd/ if it exists, otherwise use ~/.psnd/ if it exists */
+    struct stat st;
+    if (stat(".psnd", &st) == 0 && S_ISDIR(st.st_mode)) {
+        snprintf(history_path, sizeof(history_path), ".psnd/joy_history");
+    } else {
+        const char *home = getenv("HOME");
+        if (home) {
+            char global_psnd[512];
+            snprintf(global_psnd, sizeof(global_psnd), "%s/.psnd", home);
+            if (stat(global_psnd, &st) == 0 && S_ISDIR(st.st_mode)) {
+                snprintf(history_path, sizeof(history_path), "%s/joy_history", global_psnd);
+            }
+        }
+    }
+    if (history_path[0]) {
+        repl_history_load(&ed, history_path);
+    }
 
     /* Set up error recovery */
     ctx->error_jmp = &error_recovery;
@@ -203,6 +228,12 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
 
     /* Disable raw mode before exit */
     repl_disable_raw_mode();
+
+    /* Save history */
+    if (history_path[0]) {
+        repl_history_save(&ed, history_path);
+    }
+
     repl_editor_cleanup(&ed);
 }
 
@@ -318,12 +349,26 @@ static void *joy_cb_init(const SharedReplArgs *args) {
         }
     }
 
+    /* Initialize async playback system */
+    if (joy_async_init() != 0) {
+        fprintf(stderr, "Warning: Failed to initialize async playback\n");
+        /* Non-fatal - continue with sync playback fallback */
+    }
+
     return ctx;
 }
 
 /* Cleanup Joy context and MIDI/audio */
 static void joy_cb_cleanup(void *lang_ctx) {
     JoyContext *ctx = (JoyContext *)lang_ctx;
+
+    /* Wait for async playback to finish (with timeout) */
+    if (joy_async_is_playing()) {
+        joy_async_wait(5000);  /* Wait up to 5 seconds */
+    }
+
+    /* Cleanup async playback system */
+    joy_async_cleanup();
 
     /* Wait for audio buffer to drain */
     if (joy_tsf_is_enabled(g_joy_repl_shared)) {

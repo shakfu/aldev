@@ -7,6 +7,7 @@
 
 #include "joy_runtime.h"
 #include "midi_primitives.h"
+#include "joy_async.h"
 #include "joy_midi_backend.h"
 #include "music_theory.h"
 #include "music_context.h"
@@ -595,24 +596,37 @@ void chan_(JoyContext* ctx) {
     if (p.type == JOY_QUOTATION) {
         joy_execute_quotation(ctx, p.data.quotation);
     } else if (p.type == JOY_LIST) {
-        /* Treat list as sequence of notes to play */
+        /* Treat list as sequence of notes - build schedule and play async */
         if (!music_output_available(mctx)) {
             fprintf(stderr, "chan: no MIDI output (use midi-virtual or midi-open first)\n");
         } else {
-            for (size_t i = 0; i < p.data.list->length; i++) {
-                JoyValue item = p.data.list->items[i];
-                if (item.type == JOY_INTEGER) {
-                    /* Play note as MIDI number */
-                    PUSH(joy_integer(item.data.integer));
-                    music_play_(ctx);
-                } else if (item.type == JOY_SYMBOL) {
-                    /* Try to parse symbol as pitch name (e.g., "c4", "C#4") */
-                    int pitch = music_parse_pitch(item.data.symbol);
-                    if (pitch >= 0) {
-                        PUSH(joy_integer(pitch));
-                        music_play_(ctx);
+            /* Build a schedule for all notes in the list */
+            MidiSchedule* sched = schedule_new();
+            if (sched) {
+                int current_time = 0;
+                for (size_t i = 0; i < p.data.list->length; i++) {
+                    JoyValue item = p.data.list->items[i];
+                    int pitch = -1;
+
+                    if (item.type == JOY_INTEGER) {
+                        pitch = (int)item.data.integer;
+                    } else if (item.type == JOY_SYMBOL) {
+                        pitch = music_parse_pitch(item.data.symbol);
                     }
+
+                    if (pitch >= 0 && pitch != -1) {  /* -1 is REST_MARKER */
+                        int play_dur = mctx->duration_ms * mctx->quantization / 100;
+                        schedule_add_event(sched, current_time, ch, pitch,
+                                          mctx->velocity, play_dur);
+                    }
+                    current_time += mctx->duration_ms;
                 }
+
+                /* Play asynchronously (non-blocking) */
+                if (sched->count > 0) {
+                    schedule_play_async_ctx(sched, mctx);
+                }
+                schedule_free(sched);
             }
         }
     } else {
@@ -994,6 +1008,11 @@ void schedule_play(MidiSchedule* sched) {
     fprintf(stderr, "schedule_play: use schedule_play_ctx instead\n");
 }
 
+/* Async playback wrapper - uses joy_async for non-blocking playback */
+int schedule_play_async_ctx(MidiSchedule* sched, MusicContext* mctx) {
+    return joy_async_play(sched, mctx);
+}
+
 /* Begin scheduling mode for a channel */
 void schedule_begin(int channel) {
     g_scheduling_mode = true;
@@ -1063,10 +1082,11 @@ void accumulator_add_schedule(MidiSchedule* sched) {
     }
 }
 
-/* Flush the accumulator - play and clear */
+/* Flush the accumulator - play asynchronously and clear */
 void accumulator_flush_ctx(MusicContext* mctx) {
     if (g_accumulator && g_accumulator->count > 0) {
-        schedule_play_ctx(g_accumulator, mctx);
+        /* Use async playback so REPL remains responsive */
+        schedule_play_async_ctx(g_accumulator, mctx);
         schedule_free(g_accumulator);
         g_accumulator = NULL;
     }

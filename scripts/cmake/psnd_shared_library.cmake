@@ -8,6 +8,7 @@ set(LIBSHARED_SOURCES
     ${PSND_ROOT_DIR}/src/shared/midi/midi.c
     ${PSND_ROOT_DIR}/src/shared/midi/events.c
     ${PSND_ROOT_DIR}/src/shared/link/link.c
+    ${PSND_ROOT_DIR}/src/shared/async/shared_async.c
 )
 
 add_library(shared STATIC ${LIBSHARED_SOURCES})
@@ -30,7 +31,7 @@ target_include_directories(shared
         ${SHARED_PRIVATE_INCLUDE_DIRS}
 )
 
-target_link_libraries(shared PUBLIC libremidi abl_link Threads::Threads)
+target_link_libraries(shared PUBLIC libremidi abl_link uv_a Threads::Threads)
 
 if(BUILD_CSOUND_BACKEND)
     target_compile_definitions(shared PRIVATE BUILD_CSOUND_BACKEND)

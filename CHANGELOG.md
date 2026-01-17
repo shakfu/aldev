@@ -17,7 +17,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+### Added
+
+- **REPL History Persistence**: Command history is now saved between sessions for all REPLs
+  - Prefers local `.psnd/` directory if it exists, falls back to `~/.psnd/` if present
+  - Joy: `{.psnd}/joy_history`, Alda: `{.psnd}/alda_history`, TR7: `{.psnd}/tr7_history`
+  - New shared functions `repl_history_load()` and `repl_history_save()` in `src/repl.c`
+  - History limited to 64 entries per REPL
+
+- **Shared Async Playback Service**: Unified non-blocking MIDI playback for all languages
+  - New `src/shared/async/shared_async.c/h` - language-agnostic async playback engine
+  - Supports both millisecond-based timing (Joy) and tick-based timing with tempo changes (Alda)
+  - Up to 8 concurrent playback slots for polyphonic layering
+  - libuv-based timer dispatch in background thread
+  - Event types: NOTE, NOTE_ON, NOTE_OFF, CC, PROGRAM, TEMPO
+  - Tick-based scheduling functions: `shared_async_schedule_*_tick()`
+  - `shared_async_ticks_to_ms()` conversion with dynamic tempo tracking
+
+- **Non-blocking Joy REPL**: Joy REPL now remains responsive during MIDI playback
+  - `joy_async.c` - thin wrapper around shared async service
+  - Commands like `[c d e] play` return immediately while notes play in background
+  - Multiple `play` commands layer concurrently instead of blocking sequentially
+  - `:stop` command halts all playback
+
 ### Changed
+
+- **Alda Async Migrated to Shared Service**: Alda now uses the shared async playback engine
+  - Reduced `src/lang/alda/async.c` from ~570 lines to ~135 lines (thin wrapper)
+  - Tick-based timing with tempo change support preserved
+  - Sequential/concurrent mode flag maintained for backwards compatibility
+  - Removed direct `uv_a` dependency (now comes transitively from shared library)
 
 - **Consolidated Dispatch Systems**: Both CLI (`lang_dispatch`) and editor (`loki_lang_bridge`) now use explicit initialization
   - Removed `__attribute__((constructor))` from all `register.c` files (Alda, Joy, TR7)

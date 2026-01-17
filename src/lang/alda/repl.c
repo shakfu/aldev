@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #ifndef _WIN32
 #include <getopt.h>
@@ -157,6 +158,7 @@ static void alda_repl_loop_pipe(AldaContext *ctx) {
 static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
+    char history_path[512] = {0};
 
     /* Use non-interactive mode for piped input */
     if (!isatty(STDIN_FILENO)) {
@@ -165,6 +167,25 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Build history file path and load history */
+    /* Prefer local .psnd/ if it exists, otherwise use ~/.psnd/ if it exists */
+    struct stat st;
+    if (stat(".psnd", &st) == 0 && S_ISDIR(st.st_mode)) {
+        snprintf(history_path, sizeof(history_path), ".psnd/alda_history");
+    } else {
+        const char *home = getenv("HOME");
+        if (home) {
+            char global_psnd[512];
+            snprintf(global_psnd, sizeof(global_psnd), "%s/.psnd", home);
+            if (stat(global_psnd, &st) == 0 && S_ISDIR(st.st_mode)) {
+                snprintf(history_path, sizeof(history_path), "%s/alda_history", global_psnd);
+            }
+        }
+    }
+    if (history_path[0]) {
+        repl_history_load(&ed, history_path);
+    }
 
     printf("Alda REPL %s (type :h for help, :q to quit)\n", PSND_VERSION);
     if (!alda_async_get_concurrent()) {
@@ -211,6 +232,12 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
 
     /* Disable raw mode before exit */
     repl_disable_raw_mode();
+
+    /* Save history */
+    if (history_path[0]) {
+        repl_history_save(&ed, history_path);
+    }
+
     repl_editor_cleanup(&ed);
 }
 

@@ -193,7 +193,7 @@ static void play_single_note(MusicContext* mctx, int pitch) {
  * Play and Chord Primitives
  * ============================================================================ */
 
-/* play - pop and play notes sequentially */
+/* play - pop and play notes sequentially (non-blocking) */
 void music_play_(JoyContext* ctx) {
     if (ctx->stack->depth < 1) {
         joy_error_underflow("play", 1, ctx->stack->depth);
@@ -208,25 +208,73 @@ void music_play_(JoyContext* ctx) {
 
     JoyValue val = joy_stack_pop(ctx->stack);
 
+    /* If in scheduling mode (inside SEQ), use the existing scheduling path */
+    if (is_scheduling()) {
+        if (val.type == JOY_INTEGER) {
+            play_single_note(mctx, (int)val.data.integer);
+        } else if (val.type == JOY_LIST) {
+            JoyList* list = val.data.list;
+            for (size_t i = 0; i < list->length; i++) {
+                if (list->items[i].type == JOY_INTEGER) {
+                    play_single_note(mctx, (int)list->items[i].data.integer);
+                }
+            }
+            joy_value_free(&val);
+        } else {
+            joy_value_free(&val);
+            joy_error("play: expected integer or list");
+        }
+        return;
+    }
+
+    /* Non-scheduling mode: build a schedule and play asynchronously */
+    MidiSchedule* sched = schedule_new();
+    if (!sched) {
+        joy_value_free(&val);
+        joy_error("play: failed to create schedule");
+        return;
+    }
+
+    int current_time = 0;
+
     if (val.type == JOY_INTEGER) {
         /* Single note */
-        play_single_note(mctx, (int)val.data.integer);
+        int pitch = (int)val.data.integer;
+        if (pitch != REST_MARKER) {
+            int play_dur = mctx->duration_ms * mctx->quantization / 100;
+            schedule_add_event(sched, current_time, mctx->channel, pitch,
+                              mctx->velocity, play_dur);
+        }
     } else if (val.type == JOY_LIST) {
-        /* List of notes - play sequentially */
+        /* List of notes - add sequentially */
         JoyList* list = val.data.list;
         for (size_t i = 0; i < list->length; i++) {
             if (list->items[i].type == JOY_INTEGER) {
-                play_single_note(mctx, (int)list->items[i].data.integer);
+                int pitch = (int)list->items[i].data.integer;
+                if (pitch != REST_MARKER) {
+                    int play_dur = mctx->duration_ms * mctx->quantization / 100;
+                    schedule_add_event(sched, current_time, mctx->channel, pitch,
+                                      mctx->velocity, play_dur);
+                }
+                current_time += mctx->duration_ms;
             }
         }
         joy_value_free(&val);
     } else {
         joy_value_free(&val);
+        schedule_free(sched);
         joy_error("play: expected integer or list");
+        return;
     }
+
+    /* Play asynchronously (non-blocking) */
+    if (sched->count > 0) {
+        schedule_play_async_ctx(sched, mctx);
+    }
+    schedule_free(sched);
 }
 
-/* chord - pop and play notes simultaneously */
+/* chord - pop and play notes simultaneously (non-blocking) */
 void music_chord_(JoyContext* ctx) {
     if (ctx->stack->depth < 1) {
         joy_error_underflow("chord", 1, ctx->stack->depth);
@@ -241,16 +289,17 @@ void music_chord_(JoyContext* ctx) {
 
     JoyValue val = joy_stack_pop(ctx->stack);
 
-    if (val.type == JOY_INTEGER) {
-        /* Single note - just play it */
-        play_single_note(mctx, (int)val.data.integer);
-    } else if (val.type == JOY_LIST) {
-        /* List of notes - play simultaneously */
-        JoyList* list = val.data.list;
-        int pitches[16];
-        int count = 0;
+    /* Collect pitches first */
+    int pitches[16];
+    int count = 0;
 
-        /* Collect pitches */
+    if (val.type == JOY_INTEGER) {
+        int p = (int)val.data.integer;
+        if (p != REST_MARKER) {
+            pitches[count++] = p;
+        }
+    } else if (val.type == JOY_LIST) {
+        JoyList* list = val.data.list;
         for (size_t i = 0; i < list->length && count < 16; i++) {
             if (list->items[i].type == JOY_INTEGER) {
                 int p = (int)list->items[i].data.integer;
@@ -259,58 +308,53 @@ void music_chord_(JoyContext* ctx) {
                 }
             }
         }
-
-        /* Check if we're in scheduling mode */
-        if (is_scheduling()) {
-            MidiSchedule* sched = get_current_schedule();
-            if (sched && count > 0) {
-                int play_dur = mctx->duration_ms * mctx->quantization / 100;
-                int current_time = get_schedule_time();
-                int channel = get_schedule_channel();
-
-                /* Add all notes at the same time */
-                for (int i = 0; i < count; i++) {
-                    schedule_add_event(sched, current_time, channel,
-                                      pitches[i], mctx->velocity, play_dur);
-                }
-
-                /* Advance time by one note duration (chord = 1 beat) */
-                advance_schedule_time(mctx->duration_ms);
-            }
-            joy_value_free(&val);
-            return;
-        }
-
-        /* Immediate playback mode */
-        if (mctx->shared && count > 0) {
-            /* Note on for all */
-            for (int i = 0; i < count; i++) {
-                shared_send_note_on(mctx->shared, mctx->channel, pitches[i], mctx->velocity);
-            }
-
-            /* Wait for duration */
-            int play_dur = mctx->duration_ms * mctx->quantization / 100;
-            if (play_dur > 0) {
-                shared_sleep_ms(mctx->shared, play_dur);
-            }
-
-            /* Note off for all */
-            for (int i = 0; i < count; i++) {
-                shared_send_note_off(mctx->shared, mctx->channel, pitches[i]);
-            }
-
-            /* Rest gap */
-            int rest_dur = mctx->duration_ms - play_dur;
-            if (rest_dur > 0) {
-                shared_sleep_ms(mctx->shared, rest_dur);
-            }
-        }
-
         joy_value_free(&val);
     } else {
         joy_value_free(&val);
         joy_error("chord: expected integer or list");
+        return;
     }
+
+    if (count == 0) return;
+
+    /* Check if we're in scheduling mode */
+    if (is_scheduling()) {
+        MidiSchedule* sched = get_current_schedule();
+        if (sched) {
+            int play_dur = mctx->duration_ms * mctx->quantization / 100;
+            int current_time = get_schedule_time();
+            int channel = get_schedule_channel();
+
+            /* Add all notes at the same time */
+            for (int i = 0; i < count; i++) {
+                schedule_add_event(sched, current_time, channel,
+                                  pitches[i], mctx->velocity, play_dur);
+            }
+
+            /* Advance time by one note duration (chord = 1 beat) */
+            advance_schedule_time(mctx->duration_ms);
+        }
+        return;
+    }
+
+    /* Non-scheduling mode: build a schedule and play asynchronously */
+    MidiSchedule* sched = schedule_new();
+    if (!sched) {
+        joy_error("chord: failed to create schedule");
+        return;
+    }
+
+    int play_dur = mctx->duration_ms * mctx->quantization / 100;
+
+    /* Add all notes at time 0 (simultaneous) */
+    for (int i = 0; i < count; i++) {
+        schedule_add_event(sched, 0, mctx->channel, pitches[i],
+                          mctx->velocity, play_dur);
+    }
+
+    /* Play asynchronously (non-blocking) */
+    schedule_play_async_ctx(sched, mctx);
+    schedule_free(sched);
 }
 
 /* ============================================================================

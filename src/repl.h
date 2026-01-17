@@ -41,6 +41,12 @@ void repl_editor_cleanup(ReplLineEditor *ed);
 /* Add a line to history */
 void repl_add_history(ReplLineEditor *ed, const char *line);
 
+/* Load history from file (one entry per line) */
+int repl_history_load(ReplLineEditor *ed, const char *filepath);
+
+/* Save history to file (one entry per line) */
+int repl_history_save(ReplLineEditor *ed, const char *filepath);
+
 /* Enable/disable terminal raw mode for REPL */
 int repl_enable_raw_mode(void);
 void repl_disable_raw_mode(void);

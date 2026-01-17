@@ -34,7 +34,7 @@ target_include_directories(alda
         ${PSND_ROOT_DIR}/thirdparty/miniaudio
 )
 
-target_link_libraries(alda PUBLIC shared libremidi uv_a)
+target_link_libraries(alda PUBLIC shared libremidi)
 
 if(APPLE)
     target_link_libraries(alda PUBLIC

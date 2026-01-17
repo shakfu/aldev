@@ -12,6 +12,7 @@ set(LIBJOY_SOURCES
     # MIDI
     ${PSND_ROOT_DIR}/src/lang/joy/midi/joy_midi_backend.c
     ${PSND_ROOT_DIR}/src/lang/joy/midi/midi_primitives.c
+    ${PSND_ROOT_DIR}/src/lang/joy/midi/joy_async.c
 )
 
 add_library(joy STATIC ${LIBJOY_SOURCES})

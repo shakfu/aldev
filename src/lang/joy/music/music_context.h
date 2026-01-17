@@ -12,7 +12,7 @@
 /* Forward declaration */
 struct SharedContext;
 
-typedef struct {
+typedef struct MusicContext {
     int octave;           /* Current octave (0-9, default 4) */
     int duration_ms;      /* Current duration in ms (default 500) */
     int duration_value;   /* Note value: 1=whole, 2=half, 4=quarter, 8=eighth, 16=sixteenth */

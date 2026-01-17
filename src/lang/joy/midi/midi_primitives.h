@@ -65,7 +65,7 @@ void joy_midi_register_primitives(JoyContext* ctx);
  * ============================================================================ */
 
 /* A single scheduled MIDI event */
-typedef struct {
+typedef struct ScheduledEvent {
     int time_ms;        /* Start time relative to sequence start */
     int channel;        /* MIDI channel (1-16) */
     int pitch;          /* MIDI pitch (0-127) */
@@ -74,7 +74,7 @@ typedef struct {
 } ScheduledEvent;
 
 /* A MIDI schedule (collection of events) */
-typedef struct {
+typedef struct MidiSchedule {
     ScheduledEvent* events;
     size_t count;
     size_t capacity;
@@ -86,7 +86,8 @@ MidiSchedule* schedule_new(void);
 void schedule_free(MidiSchedule* sched);
 void schedule_add_event(MidiSchedule* sched, int time_ms, int channel,
                         int pitch, int velocity, int duration_ms);
-void schedule_play_ctx(MidiSchedule* sched, MusicContext* mctx);  /* Context-aware */
+void schedule_play_ctx(MidiSchedule* sched, MusicContext* mctx);  /* Context-aware, blocking */
+int schedule_play_async_ctx(MidiSchedule* sched, MusicContext* mctx);  /* Context-aware, non-blocking */
 void schedule_play(MidiSchedule* sched);  /* Deprecated - use schedule_play_ctx */
 
 /* Scheduling mode - when active, play adds to schedule instead of playing */
