@@ -112,5 +112,8 @@ void joy_dispatch_init(void);
 #ifdef LANG_TR7
 void tr7_dispatch_init(void);
 #endif
+#ifdef LANG_BOG
+void bog_dispatch_init(void);
+#endif
 
 #endif /* PSND_LANG_DISPATCH_H */

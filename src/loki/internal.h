@@ -111,6 +111,9 @@ struct LokiJoyState;
 /* TR7 state - opaque pointer, defined in lang/tr7.c */
 struct LokiTr7State;
 
+/* Bog state - opaque pointer, defined in lang/bog/register.c */
+struct LokiBogState;
+
 /* ======================= Data Structures ================================== */
 
 /* Syntax highlighting color definition */
@@ -178,6 +181,9 @@ typedef struct EditorModel {
 #endif
 #ifdef LANG_TR7
     struct LokiTr7State *tr7_state;
+#endif
+#ifdef LANG_BOG
+    struct LokiBogState *bog_state;
 #endif
 } EditorModel;
 

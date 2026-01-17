@@ -218,5 +218,8 @@ void joy_loki_lang_init(void);
 #ifdef LANG_TR7
 void tr7_loki_lang_init(void);
 #endif
+#ifdef LANG_BOG
+void bog_loki_lang_init(void);
+#endif
 
 #endif /* LOKI_LANG_BRIDGE_H */

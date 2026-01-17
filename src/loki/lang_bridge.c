@@ -229,4 +229,7 @@ void loki_lang_init(void) {
 #ifdef LANG_TR7
     tr7_loki_lang_init();
 #endif
+#ifdef LANG_BOG
+    bog_loki_lang_init();
+#endif
 }

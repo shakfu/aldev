@@ -47,6 +47,9 @@ endif()
 if(LANG_TR7)
     list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/lang/tr7/register.c)
 endif()
+if(LANG_BOG)
+    list(APPEND LOKI_LANG_SOURCES ${PSND_ROOT_DIR}/src/lang/bog/register.c)
+endif()
 
 add_library(libloki ${LOKI_LIBRARY_TYPE}
     ${LOKI_CORE_SOURCES}
@@ -60,6 +63,7 @@ set(LOKI_PUBLIC_INCLUDES
     ${PSND_ROOT_DIR}/src/lang/joy/impl
     ${PSND_ROOT_DIR}/src/lang/joy/music
     ${PSND_ROOT_DIR}/src/lang/joy/midi
+    ${PSND_ROOT_DIR}/src/lang/bog/impl
     ${PSND_ROOT_DIR}/thirdparty/link-3.1.5/extensions/abl_link/include
     ${PSND_ROOT_DIR}/thirdparty/midifile/include
 )
@@ -92,6 +96,10 @@ endif()
 if(LANG_TR7)
     list(APPEND LOKI_PUBLIC_LIBS tr7)
     target_compile_definitions(libloki PUBLIC LANG_TR7=1)
+endif()
+if(LANG_BOG)
+    list(APPEND LOKI_PUBLIC_LIBS bog)
+    target_compile_definitions(libloki PUBLIC LANG_BOG=1)
 endif()
 
 target_link_libraries(libloki PUBLIC ${LOKI_PUBLIC_LIBS})

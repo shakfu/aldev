@@ -25,6 +25,7 @@ option(BUILD_TESTING "Build tests (default on)" ON)
 option(LANG_ALDA "Include the Alda language" ON)
 option(LANG_JOY "Include the Joy language" ON)
 option(LANG_TR7 "Include the TR7 Scheme language" ON)
+option(LANG_BOG "Include the Bog language" ON)
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
@@ -59,6 +60,10 @@ endif()
 
 if(LANG_JOY)
     include(psnd_joy_library)
+endif()
+
+if(LANG_BOG)
+    include(psnd_bog_library)
 endif()
 
 # binary

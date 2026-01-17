@@ -93,4 +93,7 @@ void lang_dispatch_init(void) {
 #ifdef LANG_TR7
     tr7_dispatch_init();
 #endif
+#ifdef LANG_BOG
+    bog_dispatch_init();
+#endif
 }

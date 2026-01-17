@@ -27,6 +27,12 @@ if(LANG_TR7)
         ${PSND_ROOT_DIR}/src/lang/tr7/async.c
     )
 endif()
+if(LANG_BOG)
+    list(APPEND PSND_LANG_SOURCES
+        ${PSND_ROOT_DIR}/src/lang/bog/repl.c
+        ${PSND_ROOT_DIR}/src/lang/bog/dispatch.c
+    )
+endif()
 
 add_executable(psnd_bin
     ${PSND_ROOT_DIR}/src/main.c
@@ -63,4 +69,7 @@ if(LANG_JOY)
 endif()
 if(LANG_TR7)
     target_compile_definitions(psnd_bin PRIVATE LANG_TR7=1)
+endif()
+if(LANG_BOG)
+    target_compile_definitions(psnd_bin PRIVATE LANG_BOG=1)
 endif()
