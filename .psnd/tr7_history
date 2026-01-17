@@ -1,0 +1,8 @@
+:h
+(play-note 60 80 500)
+(midi-virtual "TR7MIDI")
+(play-note 60 80 500)
+:q
+(midi-virtual "TR7MIDI")
+(play-seq '(60 62 64 65 67 69 71 72))
+:q

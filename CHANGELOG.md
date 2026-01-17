@@ -40,6 +40,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Multiple `play` commands layer concurrently instead of blocking sequentially
   - `:stop` command halts all playback
 
+- **Non-blocking TR7 REPL**: TR7 Scheme REPL now remains responsive during MIDI playback
+  - `async.c/h` - thin wrapper around shared async service
+  - `(play-note pitch [vel] [dur])` returns immediately while note plays in background
+  - `(play-chord '(pitches...) [vel] [dur])` plays chord asynchronously
+  - `(play-seq '(pitches...) [vel] [dur])` plays notes sequentially without blocking
+  - `:stop` command halts all playback
+
 ### Changed
 
 - **Alda Async Migrated to Shared Service**: Alda now uses the shared async playback engine

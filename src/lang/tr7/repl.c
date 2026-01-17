@@ -18,6 +18,7 @@
 #include "context.h"
 #include "midi/midi.h"
 #include "audio/audio.h"
+#include "async.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,6 +64,7 @@ static void print_tr7_repl_help(void) {
     printf("Music Primitives:\n");
     printf("  (play-note pitch [vel] [dur])  Play a MIDI note\n");
     printf("  (play-chord '(p1 p2 ...) [vel] [dur])  Play chord\n");
+    printf("  (play-seq '(p1 p2 ...) [vel] [dur])  Play notes in sequence\n");
     printf("  (note-on pitch [vel])    Send note-on\n");
     printf("  (note-off pitch)         Send note-off\n");
     printf("  (set-tempo bpm)          Set tempo\n");
@@ -131,9 +133,8 @@ static tr7_C_return_t repl_scm_play_note(tr7_engine_t tsc, int nvalues, const tr
     if (velocity < 0) velocity = 0;
     if (velocity > 127) velocity = 127;
 
-    shared_send_note_on(g_tr7_repl_shared, g_tr7_music.channel, pitch, velocity);
-    tr7_sleep_ms(duration);
-    shared_send_note_off(g_tr7_repl_shared, g_tr7_music.channel, pitch);
+    /* Use async playback to avoid blocking the REPL */
+    tr7_async_play_note(g_tr7_repl_shared, g_tr7_music.channel, pitch, velocity, duration);
 
     return tr7_C_return_single(tsc, TR7_VOID);
 }
@@ -198,16 +199,48 @@ static tr7_C_return_t repl_scm_play_chord(tr7_engine_t tsc, int nvalues, const t
         list = TR7_CDR(list);
     }
 
-    /* Play all notes */
-    for (int i = 0; i < count; i++) {
-        shared_send_note_on(g_tr7_repl_shared, g_tr7_music.channel, pitches[i], velocity);
+    /* Use async playback to avoid blocking the REPL */
+    if (count > 0) {
+        tr7_async_play_chord(g_tr7_repl_shared, g_tr7_music.channel,
+                             pitches, count, velocity, duration);
     }
 
-    tr7_sleep_ms(duration);
+    return tr7_C_return_single(tsc, TR7_VOID);
+}
 
-    /* Stop all notes */
-    for (int i = 0; i < count; i++) {
-        shared_send_note_off(g_tr7_repl_shared, g_tr7_music.channel, pitches[i]);
+static tr7_C_return_t repl_scm_play_seq(tr7_engine_t tsc, int nvalues, const tr7_t *values, void *closure) {
+    (void)closure;
+    if (!g_tr7_repl_shared) {
+        return tr7_C_raise_error(tsc, "Music backend not initialized", TR7_NIL, 0);
+    }
+
+    if (!TR7_IS_PAIR(values[0]) && !TR7_IS_NIL(values[0])) {
+        return tr7_C_raise_error(tsc, "play-seq: expected list of pitches", values[0], 0);
+    }
+
+    int velocity = (nvalues >= 2) ? TR7_TO_INT(values[1]) : g_tr7_music.velocity;
+    int duration = (nvalues >= 3) ? TR7_TO_INT(values[2]) : g_tr7_music.duration_ms;
+
+    /* Collect pitches */
+    int pitches[128];
+    int count = 0;
+    tr7_t list = values[0];
+
+    while (TR7_IS_PAIR(list) && count < 128) {
+        tr7_t note = TR7_CAR(list);
+        if (TR7_IS_INT(note)) {
+            int p = TR7_TO_INT(note);
+            if (p >= 0 && p <= 127) {
+                pitches[count++] = p;
+            }
+        }
+        list = TR7_CDR(list);
+    }
+
+    /* Use async playback to play notes sequentially without blocking */
+    if (count > 0) {
+        tr7_async_play_sequence(g_tr7_repl_shared, g_tr7_music.channel,
+                                pitches, count, velocity, duration);
     }
 
     return tr7_C_return_single(tsc, TR7_VOID);
@@ -457,6 +490,7 @@ static const tr7_C_func_def_t tr7_repl_music_funcs[] = {
     {"note-on", repl_scm_note_on, NULL, TR7ARG_INTEGER, 1, 2},
     {"note-off", repl_scm_note_off, NULL, TR7ARG_INTEGER, 1, 1},
     {"play-chord", repl_scm_play_chord, NULL, TR7ARG_PROPER_LIST, 1, 3},
+    {"play-seq", repl_scm_play_seq, NULL, TR7ARG_PROPER_LIST, 1, 3},
 
     /* State setters */
     {"set-tempo", repl_scm_set_tempo, NULL, TR7ARG_INTEGER, 1, 1},
@@ -498,6 +532,7 @@ static void tr7_repl_register_music_funcs(tr7_engine_t engine) {
 
 /* Stop callback for TR7 REPL */
 static void tr7_stop_playback(void) {
+    tr7_async_stop();
     if (g_tr7_repl_shared) {
         shared_send_panic(g_tr7_repl_shared);
     }
@@ -691,10 +726,14 @@ static void tr7_cb_list_ports(void) {
 
 /* Initialize TR7 context and MIDI/audio */
 static void *tr7_cb_init(const SharedReplArgs *args) {
+    /* Initialize async playback system */
+    tr7_async_init();
+
     /* Initialize TR7 engine */
     g_tr7_repl_engine = tr7_engine_create(0);
     if (!g_tr7_repl_engine) {
         fprintf(stderr, "Error: Failed to create TR7 engine\n");
+        tr7_async_cleanup();
         return NULL;
     }
 
@@ -769,6 +808,10 @@ static void *tr7_cb_init(const SharedReplArgs *args) {
 /* Cleanup TR7 context and MIDI/audio */
 static void tr7_cb_cleanup(void *lang_ctx) {
     (void)lang_ctx;
+
+    /* Wait for async playback to finish, then cleanup */
+    tr7_async_wait(1000);  /* Wait up to 1 second */
+    tr7_async_cleanup();
 
     /* Wait for audio buffer to drain */
     if (g_tr7_repl_shared && g_tr7_repl_shared->tsf_enabled) {

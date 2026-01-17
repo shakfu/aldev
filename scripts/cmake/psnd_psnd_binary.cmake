@@ -24,6 +24,7 @@ if(LANG_TR7)
     list(APPEND PSND_LANG_SOURCES
         ${PSND_ROOT_DIR}/src/lang/tr7/repl.c
         ${PSND_ROOT_DIR}/src/lang/tr7/dispatch.c
+        ${PSND_ROOT_DIR}/src/lang/tr7/async.c
     )
 endif()
 
