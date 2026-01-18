@@ -286,17 +286,6 @@ int loki_alda_csound_playback_active(void);
  */
 void loki_alda_csound_stop_playback(void);
 
-/* ======================= Main Loop Integration ======================= */
-
-/**
- * Check for completed async operations and invoke callbacks.
- * Should be called from the editor's main loop.
- *
- * @param ctx Editor context
- * @param L Lua state for callback invocation
- */
-void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L);
-
 /* ======================= MIDI Export Support ======================= */
 
 /* Include context.h for AldaScheduledEvent type */

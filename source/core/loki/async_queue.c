@@ -483,7 +483,7 @@ void async_handler_lang_callback(AsyncEvent *event, void *ctx) {
     /* Get the callback function */
     lua_getglobal(L, callback);
     if (lua_isfunction(L, -1)) {
-        /* Create result table matching loki_alda_check_callbacks format */
+        /* Create result table for language callback */
         lua_newtable(L);
 
         /* status field */

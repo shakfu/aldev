@@ -69,11 +69,15 @@ static ScalaScale *g_current_scale = NULL;
 
 /* Info passed to async completion callback */
 typedef struct {
+    LokiAldaState *state;       /* Alda state for slot management */
     int alda_slot_id;           /* Alda slot index */
     int events_played;          /* Number of events played */
     time_t start_time;          /* When playback started */
     char lua_callback[ASYNC_CALLBACK_NAME_SIZE];  /* Lua callback function name */
 } AldaCallbackInfo;
+
+/* Forward declaration */
+static void clear_slot(LokiAldaState *state, int slot_id);
 
 /* Completion callback invoked when playback finishes */
 static void on_alda_playback_complete(int slot_id, int stopped, void *userdata) {
@@ -96,6 +100,13 @@ static void on_alda_playback_complete(int slot_id, int stopped, void *userdata) 
         info->lua_callback[0] ? info->lua_callback : NULL,
         NULL   /* no error */
     );
+
+    /* Clear the slot (thread-safe via mutex) */
+    if (info->state) {
+        pthread_mutex_lock(&info->state->mutex);
+        clear_slot(info->state, info->alda_slot_id);
+        pthread_mutex_unlock(&info->state->mutex);
+    }
 
     /* Free the callback info */
     free(info);
@@ -305,16 +316,19 @@ int loki_alda_eval_async(editor_ctx_t *ctx, const char *code, const char *lua_ca
     slot->events_played = state->alda_ctx.event_count;
     slot->start_time = time(NULL);
 
-    /* Create callback info for completion notification */
-    AldaCallbackInfo *cb_info = NULL;
-    if (lua_callback) {
-        cb_info = (AldaCallbackInfo *)malloc(sizeof(AldaCallbackInfo));
-        if (cb_info) {
-            cb_info->alda_slot_id = slot_id;
-            cb_info->events_played = state->alda_ctx.event_count;
-            cb_info->start_time = slot->start_time;
+    /* Create callback info for completion notification.
+     * Always create it so slots get cleared even without Lua callback. */
+    AldaCallbackInfo *cb_info = (AldaCallbackInfo *)malloc(sizeof(AldaCallbackInfo));
+    if (cb_info) {
+        cb_info->state = state;
+        cb_info->alda_slot_id = slot_id;
+        cb_info->events_played = state->alda_ctx.event_count;
+        cb_info->start_time = slot->start_time;
+        if (lua_callback) {
             strncpy(cb_info->lua_callback, lua_callback, ASYNC_CALLBACK_NAME_SIZE - 1);
             cb_info->lua_callback[ASYNC_CALLBACK_NAME_SIZE - 1] = '\0';
+        } else {
+            cb_info->lua_callback[0] = '\0';
         }
     }
 
@@ -742,40 +756,6 @@ int loki_alda_csound_playback_active(void) {
 
 void loki_alda_csound_stop_playback(void) {
     alda_csound_stop_playback();
-}
-
-/* ======================= Main Loop Integration ======================= */
-
-void loki_alda_check_callbacks(editor_ctx_t *ctx, lua_State *L) {
-    LokiAldaState *state = get_alda_state(ctx);
-    if (!state || !state->initialized) return;
-    (void)L;  /* Lua callbacks are now handled by the async event queue */
-
-    pthread_mutex_lock(&state->mutex);
-
-    /* Check if async playback has completed */
-    int still_playing = alda_async_is_playing();
-
-    for (int i = 0; i < LOKI_ALDA_MAX_SLOTS; i++) {
-        AldaPlaybackSlot *slot = &state->slots[i];
-
-        if (!slot->active) continue;
-
-        /* Check if this slot's playback completed */
-        if (slot->playing && !still_playing) {
-            slot->playing = 0;
-            slot->completed = 1;
-            slot->status = LOKI_ALDA_STATUS_COMPLETE;
-            slot->duration_ms = (int)((time(NULL) - slot->start_time) * 1000);
-        }
-
-        /* Clear completed slots - Lua callback invocation is handled by async queue */
-        if (slot->completed) {
-            clear_slot(state, i);
-        }
-    }
-
-    pthread_mutex_unlock(&state->mutex);
 }
 
 /* ======================= Utility Functions ======================= */
@@ -1348,8 +1328,8 @@ static const LokiLangOps alda_lang_ops = {
     .cleanup = loki_alda_cleanup,
     .is_initialized = loki_alda_is_initialized,
 
-    /* Main loop */
-    .check_callbacks = loki_alda_check_callbacks,
+    /* Main loop - callbacks handled via async event queue */
+    .check_callbacks = NULL,
 
     /* Playback */
     .eval = alda_bridge_eval,

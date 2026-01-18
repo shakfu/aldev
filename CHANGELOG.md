@@ -259,6 +259,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Unified Async Event Queue**: Migrated language playback callbacks to event-driven architecture
+  - Replaced polling-based `loki_alda_check_callbacks()` with completion callback mechanism
+  - Playback completion now pushes events to unified async queue via `on_alda_playback_complete()`
+  - Main loop dispatches all async events through single `async_queue_dispatch_lua()` call
+  - Link callbacks, beat boundaries, and language callbacks all use the same event path
+  - Added `shared_async_play_ex()` with completion callback parameter
+  - Added `alda_events_play_async_ex()` for callback-based playback
+  - Extended `async_queue_push_lang_callback()` with events_played, duration_ms, callback name, error
+  - Removed `loki_alda_check_callbacks()` - slot clearing now happens in completion callback
+  - Marginal efficiency gain (no polling when idle), but main benefit is architectural consistency
+
 - **Makefile Build Targets**: Separated clean and reset functionality
   - `make clean` now uses CMake's clean target (removes compiled objects, keeps cache for faster rebuilds)
   - `make reset` removes the entire build directory (forces full CMake reconfiguration)

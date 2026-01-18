@@ -96,7 +96,7 @@ Order reflects dependency chain - earlier tasks unblock later ones.
   - Commands: load file, save, apply keystroke, get view state
   - Terminal binary can talk to it locally (proves abstraction)
 
-- [ ] Add event queue for async tasks
+- [x] Add event queue for async tasks
   - Leverage libuv (already a playback dependency)
   - Language callbacks, timers, UI events scheduled without blocking render
   - Web host drives session via async RPC instead of `while(1)` loop
