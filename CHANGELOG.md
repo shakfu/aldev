@@ -19,6 +19,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Renderer Interface**: Abstract rendering layer for platform-agnostic output
+  - Decouples editor logic from terminal-specific VT100 escape codes
+  - Enables alternative frontends (web, GUI, tests) via renderer callbacks
+  - `Renderer` interface with callbacks for:
+    - Frame management (`begin_frame`, `end_frame`)
+    - Content rendering (`render_tabs`, `render_row`, `render_status`, `render_message`, `render_repl`)
+    - Cursor management (`set_cursor`, `show_cursor`, `hide_cursor`)
+    - Clipboard operations (`clipboard_copy`)
+  - Built-in renderer implementations:
+    - `terminal_renderer_create()` - VT100 terminal output
+    - `null_renderer_create()` - Discards output (for testing/headless)
+  - Structured render data types:
+    - `RenderSegment` - Text spans with highlight type and selection state
+    - `StatusInfo` - Status bar information (mode, filename, position)
+    - `ReplInfo` - REPL pane state (prompt, input, log lines)
+    - `HighlightType` - Abstract highlight categories (comment, keyword, string, etc.)
+  - `editor_refresh_screen()` now delegates to renderer when available
+    - Uses `build_render_segments()` to convert row content to segments
+    - Falls back to legacy VT100 code path when no renderer is set
+  - OSC-52 clipboard abstracted behind renderer interface
+    - `copy_selection_to_clipboard()` uses renderer if available
+    - Falls back to direct terminal output for backwards compatibility
+  - `editor_ctx_set_renderer()` to set/replace context renderer
+  - `buffers_get_tab_info()` / `buffers_free_tab_info()` for tab rendering abstraction
+  - **Files Added**: `source/core/loki/renderer.h`, `source/core/loki/renderer.c`
+  - **Files Modified**: `source/core/loki/internal.h`, `source/core/loki/core.c`, `source/core/loki/selection.c`, `source/core/loki/buffers.h`, `source/core/loki/buffers.c`, `source/core/CMakeLists.txt`
+
 - **Abstract Input Handling Layer**: Structured event abstraction for editor input
   - Replaces raw keycodes with `EditorEvent` objects for cleaner input processing
   - Modifier flags (`MOD_CTRL`, `MOD_SHIFT`, `MOD_ALT`) separated from keycodes

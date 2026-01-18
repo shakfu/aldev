@@ -91,8 +91,27 @@ char *base64_encode(const char *input, size_t len) {
     return output;
 }
 
-/* Copy selected text to clipboard using OSC 52 escape sequence.
- * This works over SSH and doesn't require X11 or platform-specific clipboard APIs.
+/* Copy text to clipboard using renderer abstraction or fallback to OSC-52.
+ * This allows different clipboard implementations for different frontends. */
+static int clipboard_copy_text(editor_ctx_t *ctx, const char *text, size_t len) {
+    /* Use renderer if available */
+    if (ctx->renderer && ctx->renderer->clipboard_copy) {
+        return ctx->renderer->clipboard_copy(ctx->renderer, text, len);
+    }
+
+    /* Fallback: Direct OSC-52 sequence (terminal-specific)
+     * This works over SSH and doesn't require X11 or platform-specific APIs. */
+    char *encoded = base64_encode(text, len);
+    if (!encoded) return -1;
+
+    printf("\033]52;c;%s\007", encoded);
+    fflush(stdout);
+    free(encoded);
+    return 0;
+}
+
+/* Copy selected text to clipboard.
+ * Uses renderer abstraction if available, otherwise falls back to OSC-52.
  * Clears the selection after successful copy. */
 void copy_selection_to_clipboard(editor_ctx_t *ctx) {
     if (!ctx->view.sel_active) {
@@ -141,18 +160,16 @@ void copy_selection_to_clipboard(editor_ctx_t *ctx) {
     }
     text[text_len] = '\0';
 
-    /* Base64 encode */
-    char *encoded = base64_encode(text, text_len);
+    /* Copy to clipboard using abstraction */
+    int result = clipboard_copy_text(ctx, text, text_len);
     free(text);
-    if (!encoded) return;
 
-    /* Send OSC 52 sequence: ESC]52;c;<base64>BEL */
-    printf("\033]52;c;%s\007", encoded);
-    fflush(stdout);
-    free(encoded);
-
-    editor_set_status_msg(ctx, "Copied %d bytes to clipboard", (int)text_len);
-    ctx->view.sel_active = 0;  /* Clear selection after copy */
+    if (result == 0) {
+        editor_set_status_msg(ctx, "Copied %d bytes to clipboard", (int)text_len);
+        ctx->view.sel_active = 0;  /* Clear selection after copy */
+    } else {
+        editor_set_status_msg(ctx, "Failed to copy to clipboard");
+    }
 }
 
 /* Forward declarations for row operations */

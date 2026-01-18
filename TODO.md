@@ -63,17 +63,17 @@ Order reflects dependency chain - earlier tasks unblock later ones.
 
 #### Phase 4: Introduce Renderer Interface
 
-- [ ] Replace `editor_refresh_screen()` with renderer callbacks
+- [x] Replace `editor_refresh_screen()` with renderer callbacks
   - Current code emits VT100 directly (`core.c:544-782`)
   - Define interface: emit rows, gutter, status segments, REPL panes
   - Terminal renderer translates to VT100
   - Web renderer serializes JSON diff to client
 
-- [ ] Route REPL output through renderer abstraction
+- [x] Route REPL output through renderer abstraction
   - `lua.c:1675-1709` currently emits terminal escapes directly
   - Store REPL logs as plain strings/events, let front-end paint them
 
-- [ ] Abstract OSC-52 clipboard (`selection.c:94-100`)
+- [x] Abstract OSC-52 clipboard (`selection.c:94-100`)
   - Guard behind `TerminalAdapter` so web host never links against it
   - Web host uses browser clipboard API instead
 

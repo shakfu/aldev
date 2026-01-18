@@ -113,6 +113,12 @@ void editor_ctx_free(editor_ctx_t *ctx) {
     /* Note: We don't free ctx->lua_host (LuaHost) as it's shared across contexts
      * and managed separately by editor_cleanup_resources() */
 
+    /* Free renderer if owned by this context */
+    if (ctx->renderer) {
+        ctx->renderer->destroy(ctx->renderer);
+        ctx->renderer = NULL;
+    }
+
     /* Free command mode state */
     command_mode_free(ctx);
 
@@ -124,6 +130,16 @@ void editor_ctx_free(editor_ctx_t *ctx) {
 
     /* Clear the structure */
     memset(ctx, 0, sizeof(editor_ctx_t));
+}
+
+/* Set the renderer for this editor context.
+ * If a renderer was previously set, it is destroyed.
+ * The context takes ownership of the renderer. */
+void editor_ctx_set_renderer(editor_ctx_t *ctx, Renderer *renderer) {
+    if (ctx->renderer) {
+        ctx->renderer->destroy(ctx->renderer);
+    }
+    ctx->renderer = renderer;
 }
 
 /* =========================== Syntax highlights DB =========================
@@ -547,9 +563,205 @@ writeerr:
 
 /* Screen buffer functions are now in loki_terminal.c */
 
+/* Maximum render segments per row - handles syntax changes within a line */
+#define MAX_RENDER_SEGMENTS 256
+
+/* Build render segments from a row for the renderer interface.
+ * Returns number of segments created, or 0 for empty row.
+ * Caller provides segments array (must be at least MAX_RENDER_SEGMENTS). */
+static int build_render_segments(editor_ctx_t *ctx, t_erow *row, int row_idx,
+                                 int coloff, int max_cols,
+                                 RenderSegment *segments) {
+    if (!row || row->rsize <= coloff) return 0;
+
+    int len = row->rsize - coloff;
+    if (len > max_cols) len = max_cols;
+    if (len <= 0) return 0;
+
+    char *c = row->render + coloff;
+    unsigned char *hl = row->hl + coloff;
+    int seg_count = 0;
+
+    int seg_start = 0;
+    int current_hl = hl[0];
+    int current_selected = is_selected(ctx, row_idx, coloff);
+
+    for (int j = 1; j <= len && seg_count < MAX_RENDER_SEGMENTS - 1; j++) {
+        int next_hl = (j < len) ? hl[j] : -1;
+        int next_selected = (j < len) ? is_selected(ctx, row_idx, coloff + j) : 0;
+
+        /* End segment if highlight or selection changes */
+        if (j == len || next_hl != current_hl || next_selected != current_selected) {
+            segments[seg_count].text = c + seg_start;
+            segments[seg_count].len = j - seg_start;
+            segments[seg_count].hl_type = hl_const_to_type(current_hl);
+            segments[seg_count].selected = current_selected;
+            seg_count++;
+            seg_start = j;
+            current_hl = next_hl;
+            current_selected = next_selected;
+        }
+    }
+
+    return seg_count;
+}
+
+/* Refresh screen using renderer interface.
+ * This is the abstract rendering path that doesn't emit VT100 directly. */
+static void editor_refresh_screen_via_renderer(editor_ctx_t *ctx) {
+    Renderer *r = ctx->renderer;
+    int tabs_showing = (buffer_count() > 1) ? 1 : 0;
+    int available_rows = ctx->view.screenrows - tabs_showing;
+
+    /* Calculate gutter width for line numbers */
+    int gutter_width = 0;
+    if (ctx->view.line_numbers && ctx->model.numrows > 0) {
+        int max_line = ctx->model.numrows;
+        gutter_width = 1;
+        while (max_line >= 10) {
+            gutter_width++;
+            max_line /= 10;
+        }
+        gutter_width += 1; /* Space separator */
+    }
+
+    int text_cols = ctx->view.screencols - gutter_width;
+    if (text_cols < 1) text_cols = 1;
+
+    /* Begin frame */
+    r->begin_frame(r, ctx->view.screencols, ctx->view.screenrows);
+
+    /* Render buffer tabs if multiple buffers */
+    if (tabs_showing) {
+        char **tabs = NULL;
+        int tab_count = 0, active_tab = 0;
+        if (buffers_get_tab_info(&tabs, &tab_count, &active_tab) == 0 && tab_count > 0) {
+            r->render_tabs(r, (const char **)tabs, tab_count, active_tab, ctx->view.screencols);
+            buffers_free_tab_info(tabs, tab_count);
+        }
+    }
+
+    /* Render each row */
+    RenderSegment segments[MAX_RENDER_SEGMENTS];
+    for (int y = 0; y < available_rows; y++) {
+        int filerow = ctx->view.rowoff + y;
+        int is_empty = (filerow >= ctx->model.numrows);
+
+        if (is_empty) {
+            r->render_row(r, 0, NULL, 0, gutter_width, 1);
+        } else {
+            t_erow *row = &ctx->model.row[filerow];
+            int seg_count = build_render_segments(ctx, row, filerow,
+                                                  ctx->view.coloff, text_cols, segments);
+            r->render_row(r, filerow + 1, segments, seg_count, gutter_width, 0);
+        }
+    }
+
+    /* Build status info */
+    const char *mode_str = "";
+    int link_active = loki_link_is_initialized(ctx) && loki_link_is_enabled(ctx);
+    switch(ctx->view.mode) {
+        case MODE_NORMAL: mode_str = link_active ? "LINK" : "NORMAL"; break;
+        case MODE_INSERT: mode_str = "INSERT"; break;
+        case MODE_VISUAL: mode_str = "VISUAL"; break;
+        case MODE_COMMAND: mode_str = "COMMAND"; break;
+    }
+
+    const LokiLangOps *lang = loki_lang_for_file(ctx->model.filename);
+    static char lang_buf[16] = "";
+    if (lang && lang->is_initialized && lang->is_initialized(ctx)) {
+        snprintf(lang_buf, sizeof(lang_buf), "%s ", lang->name);
+        for (int i = 0; lang_buf[i] && i < 15; i++) {
+            if (lang_buf[i] >= 'a' && lang_buf[i] <= 'z') {
+                lang_buf[i] -= 32;
+            }
+        }
+    } else {
+        lang_buf[0] = '\0';
+    }
+
+    StatusInfo status_info = {
+        .mode = mode_str,
+        .filename = ctx->model.filename,
+        .lang = lang_buf,
+        .numrows = ctx->model.numrows,
+        .current_row = ctx->view.rowoff + ctx->view.cy + 1,
+        .dirty = ctx->model.dirty,
+        .playing = loki_lang_is_playing(ctx),
+        .link_active = link_active,
+    };
+    r->render_status(r, &status_info, ctx->view.screencols);
+
+    /* Render message line */
+    const char *msg = NULL;
+    if (ctx->view.statusmsg[0] && time(NULL) - ctx->view.statusmsg_time < 5) {
+        msg = ctx->view.statusmsg;
+    }
+    r->render_message(r, msg, ctx->view.screencols);
+
+    /* Render REPL if active */
+    t_lua_repl *repl = ctx_repl(ctx);
+    if (repl && repl->active) {
+        ReplInfo repl_info = {
+            .prompt = LUA_REPL_PROMPT,
+            .input = repl->input,
+            .input_len = repl->input_len,
+            .log_lines = (const char **)repl->log,
+            .log_count = repl->log_len,
+            .max_display_lines = LUA_REPL_OUTPUT_ROWS,
+        };
+        r->render_repl(r, &repl_info, ctx->view.screencols);
+    }
+
+    /* Calculate and set cursor position */
+    int cursor_row = 1, cursor_col = 1;
+    if (repl && repl->active) {
+        int prompt_len = (int)strlen(LUA_REPL_PROMPT);
+        int visible = repl->input_len;
+        if (prompt_len + visible >= ctx->view.screencols) {
+            visible = ctx->view.screencols > prompt_len ? ctx->view.screencols - prompt_len : 0;
+        }
+        cursor_row = ctx->view.screenrows + STATUS_ROWS + LUA_REPL_OUTPUT_ROWS + 1;
+        cursor_col = prompt_len + visible + 1;
+        if (cursor_col < 1) cursor_col = 1;
+        if (cursor_col > ctx->view.screencols) cursor_col = ctx->view.screencols;
+    } else {
+        int cx = 1;
+        int filerow = ctx->view.rowoff + ctx->view.cy;
+        t_erow *row = (filerow >= ctx->model.numrows) ? NULL : &ctx->model.row[filerow];
+        if (row) {
+            for (int j = ctx->view.coloff; j < (ctx->view.cx + ctx->view.coloff); j++) {
+                if (j < row->size && row->chars[j] == TAB)
+                    cx += 7 - ((cx) % 8);
+                cx++;
+            }
+        }
+        if (ctx->view.line_numbers && ctx->model.numrows > 0) {
+            int gw = 1, max_ln = ctx->model.numrows;
+            while (max_ln >= 10) { gw++; max_ln /= 10; }
+            gw += 1;
+            cx += gw;
+        }
+        int tab_offset = tabs_showing ? 1 : 0;
+        cursor_row = ctx->view.cy + 1 + tab_offset;
+        cursor_col = cx;
+        if (cursor_col > ctx->view.screencols) cursor_col = ctx->view.screencols;
+    }
+
+    r->set_cursor(r, cursor_row, cursor_col);
+
+    /* End frame */
+    r->end_frame(r);
+}
+
 /* This function writes the whole screen using VT100 escape characters
  * starting from the logical state of the editor in the global state 'E'. */
 void editor_refresh_screen(editor_ctx_t *ctx) {
+    /* Use renderer if available */
+    if (ctx->renderer) {
+        editor_refresh_screen_via_renderer(ctx);
+        return;
+    }
     int y;
     t_erow *r;
     char buf[32];

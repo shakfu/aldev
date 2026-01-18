@@ -14,6 +14,7 @@
 #include <lua.h>
 #include "loki/core.h"  /* Public API types (EditorMode, etc.) */
 #include "event.h"      /* Event abstraction layer */
+#include "renderer.h"   /* Renderer abstraction layer */
 
 /* ======================= Syntax Highlighting Constants ==================== */
 
@@ -229,6 +230,7 @@ struct editor_ctx {
     EditorModel model;        /* Document state (buffer, file, undo, languages) */
     EditorView view;          /* Presentation state (cursor, viewport, UI) */
     LuaHost *lua_host;        /* Lua host */
+    Renderer *renderer;       /* Rendering abstraction (may be NULL for direct VT100) */
 };
 
 /* ======================= Compatibility Macros ============================== */
@@ -293,6 +295,7 @@ struct abuf {
 /* Context management (for future split windows and multi-buffer support) */
 void editor_ctx_init(editor_ctx_t *ctx);
 void editor_ctx_free(editor_ctx_t *ctx);
+void editor_ctx_set_renderer(editor_ctx_t *ctx, Renderer *renderer);
 
 /* Status message */
 void editor_set_status_msg(editor_ctx_t *ctx, const char *fmt, ...);

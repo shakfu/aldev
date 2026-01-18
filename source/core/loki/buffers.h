@@ -115,4 +115,14 @@ void buffers_restore_state(editor_ctx_t *ctx);
  * This refreshes the cached display name based on the current filename */
 void buffer_update_display_name(int buffer_id);
 
+/* Get tab info for renderer abstraction
+ * tabs: Output array of tab labels (caller must free each string and the array)
+ * tab_count: Output number of tabs
+ * active_tab: Output index of active tab
+ * Returns: 0 on success, -1 on failure */
+int buffers_get_tab_info(char ***tabs, int *tab_count, int *active_tab);
+
+/* Free tab info allocated by buffers_get_tab_info */
+void buffers_free_tab_info(char **tabs, int tab_count);
+
 #endif /* LOKI_BUFFERS_H */

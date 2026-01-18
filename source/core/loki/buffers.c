@@ -439,3 +439,60 @@ void buffers_render_tabs(struct abuf *ab, int max_width) {
     terminal_buffer_append(ab, "\x1b[0K", 4);  /* Clear to end of line */
     terminal_buffer_append(ab, "\r\n", 2);
 }
+
+/* Get tab info for renderer abstraction */
+int buffers_get_tab_info(char ***tabs, int *tab_count, int *active_tab) {
+    if (!buffer_state.initialized || !tabs || !tab_count || !active_tab) {
+        return -1;
+    }
+
+    int count = buffer_count();
+    if (count <= 1) {
+        *tabs = NULL;
+        *tab_count = 0;
+        *active_tab = 0;
+        return 0;
+    }
+
+    /* Allocate array of tab labels */
+    char **labels = malloc(count * sizeof(char *));
+    if (!labels) return -1;
+
+    int idx = 0;
+    int active_idx = 0;
+    for (int i = 0; i < MAX_BUFFERS && idx < count; i++) {
+        if (!buffer_state.buffers[i].active) continue;
+
+        buffer_entry_t *buf = &buffer_state.buffers[i];
+
+        /* Create label: "[N]" format */
+        labels[idx] = malloc(8);
+        if (!labels[idx]) {
+            /* Cleanup on failure */
+            for (int j = 0; j < idx; j++) free(labels[j]);
+            free(labels);
+            return -1;
+        }
+        snprintf(labels[idx], 8, "[%d]", buf->id);
+
+        if (buf->id == buffer_state.current_buffer_id) {
+            active_idx = idx;
+        }
+        idx++;
+    }
+
+    *tabs = labels;
+    *tab_count = count;
+    *active_tab = active_idx;
+    return 0;
+}
+
+/* Free tab info allocated by buffers_get_tab_info */
+void buffers_free_tab_info(char **tabs, int tab_count) {
+    if (tabs) {
+        for (int i = 0; i < tab_count; i++) {
+            free(tabs[i]);
+        }
+        free(tabs);
+    }
+}

@@ -90,6 +90,7 @@ function(psnd_build_loki)
         ${PSND_CORE_DIR}/loki/search.c
         ${PSND_CORE_DIR}/loki/modal.c
         ${PSND_CORE_DIR}/loki/event.c
+        ${PSND_CORE_DIR}/loki/renderer.c
         ${PSND_CORE_DIR}/loki/command.c
         ${PSND_CORE_DIR}/loki/command/file.c
         ${PSND_CORE_DIR}/loki/command/basic.c
