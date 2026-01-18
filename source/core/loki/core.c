@@ -456,7 +456,7 @@ void editor_del_char(editor_ctx_t *ctx) {
 }
 
 /* Load the specified program in the editor memory and returns 0 on success
- * or 1 on error. */
+ * or -1 on error. */
 int editor_open(editor_ctx_t *ctx, char *filename) {
     FILE *fp;
 
@@ -476,7 +476,7 @@ int editor_open(editor_ctx_t *ctx, char *filename) {
             perror("Opening file");
             exit(1);
         }
-        return 1;
+        return -1;
     }
 
     /* Check if file appears to be binary by looking for null bytes in first 1KB */
@@ -486,7 +486,7 @@ int editor_open(editor_ctx_t *ctx, char *filename) {
         if (probe[i] == '\0') {
             fclose(fp);
             editor_set_status_msg(ctx, "Cannot open binary file");
-            return 1;
+            return -1;
         }
     }
     rewind(fp);  /* Go back to start of file to read normally */
@@ -506,20 +506,20 @@ int editor_open(editor_ctx_t *ctx, char *filename) {
     return 0;
 }
 
-/* Save the current file on disk. Return 0 on success, 1 on error. */
+/* Save the current file on disk. Return 0 on success, -1 on error. */
 int editor_save(editor_ctx_t *ctx) {
     int len;
     char *buf = editor_rows_to_string(ctx, &len);
     if (buf == NULL) {
         editor_set_status_msg(ctx, "Can't save! Out of memory");
-        return 1;
+        return -1;
     }
 
     /* Check if buffer has a filename */
     if (ctx->model.filename == NULL) {
         free(buf);
         editor_set_status_msg(ctx, "No file name (use :w <filename> to save)");
-        return 1;
+        return -1;
     }
 
     int fd = open(ctx->model.filename,O_RDWR|O_CREAT,0644);
@@ -540,7 +540,7 @@ writeerr:
     free(buf);
     if (fd != -1) close(fd);
     editor_set_status_msg(ctx, "Can't save! I/O error: %s",strerror(errno));
-    return 1;
+    return -1;
 }
 
 /* ============================= Terminal update ============================ */

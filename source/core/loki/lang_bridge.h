@@ -111,7 +111,7 @@ const LokiLangOps **loki_lang_all(int *count);
  * Dispatches to appropriate language based on ctx->model.filename.
  *
  * @param ctx Editor context
- * @return 0 on success, -1 on error, 1 if no language for file
+ * @return 0 on success, -1 on error (including no language for file)
  */
 int loki_lang_init_for_file(editor_ctx_t *ctx);
 
@@ -135,7 +135,7 @@ void loki_lang_check_callbacks(editor_ctx_t *ctx, lua_State *L);
  *
  * @param ctx Editor context
  * @param code Code to evaluate
- * @return 0 on success, -1 on error, 1 if no language
+ * @return 0 on success, -1 on error (including no language for file)
  */
 int loki_lang_eval(editor_ctx_t *ctx, const char *code);
 
@@ -194,7 +194,7 @@ const char *loki_lang_get_error(editor_ctx_t *ctx);
  * @param ctx Editor context
  * @param sf_path Soundfont path (NULL if not specified)
  * @param csd_path Csound CSD path (NULL if not specified)
- * @return 0 on success, -1 on error, 1 if no language or not supported
+ * @return 0 on success, -1 on error (including no language or not supported)
  */
 int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const char *csd_path);
 

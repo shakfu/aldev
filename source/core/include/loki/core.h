@@ -85,10 +85,10 @@ void editor_insert_newline(editor_ctx_t *ctx);
  * File Operations
  * ============================================================================ */
 
-/* Save current buffer to file (returns 0 on success, 1 on error) */
+/* Save current buffer to file (returns 0 on success, -1 on error) */
 int editor_save(editor_ctx_t *ctx);
 
-/* Open a file */
+/* Open a file (returns 0 on success, -1 on error) */
 int editor_open(editor_ctx_t *ctx, char *filename);
 
 /* ============================================================================

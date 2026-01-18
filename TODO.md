@@ -114,6 +114,53 @@ Order reflects dependency chain - earlier tasks unblock later ones.
 
 ## Medium Priority
 
+### Code Quality (from REVIEW.md Phase 1-2)
+
+#### Error Handling
+- [x] Standardize error return conventions across critical modules
+  - Fixed `lang_bridge.c`: Changed tri-state (0/1/-1) to binary (0=success, -1=error)
+  - Fixed `core.c`: Changed `editor_open()` and `editor_save()` from 1=error to -1=error
+  - Remaining: `command.c` and `undo.c` use boolean (1=success) consistently - documented as intentional
+
+#### Architecture
+- [ ] Centralize SharedContext ownership
+  - Multiple `SharedContext` instances created (one per language) can conflict on singleton backends
+  - Editor should own single context, languages share it
+  - Location: `source/core/shared/context.c`
+
+- [ ] Extract buffer manager to injectable service
+  - Remove global `buffer_state` in `buffers.c`
+  - Enables multi-editor and better testability
+
+- [ ] Add explicit language selection API
+  - Currently uses filename extension lookup only
+  - Add `:setlang <name>` command for override
+  - Location: `source/core/loki/lang_bridge.c`
+
+### Testing (from REVIEW.md Phase 3)
+
+- [ ] Add synthesis backend tests
+  - `csound_backend.c` - untested
+  - `tsf_backend.c` - untested
+  - Critical for verifying audio output
+
+- [ ] Add scanner/lexer unit tests for all languages
+  - Alda scanner vulnerable to malformed input
+  - Joy/Bog/TR7 lexers untested
+
+- [x] Add TR7 test suite
+  - Added `source/langs/tr7/tests/test_music.c` with 38 tests covering:
+    - Engine creation and basic evaluation
+    - Scheme arithmetic and list operations
+    - MIDI value clamping (velocity, pitch, channel)
+    - Duration calculation from tempo
+    - Note name to MIDI pitch conversion
+    - State management defaults and ranges
+
+- [ ] Add fuzzing infrastructure
+  - Parser robustness for malformed input
+  - Consider AFL or libFuzzer integration
+
 ### Feature Completeness
 
 - [x] Implement `:play` command with file-type dispatch
@@ -201,6 +248,29 @@ Three levels of Link synchronization with other Link-enabled devices:
 ---
 
 ## Low Priority
+
+### Code Consolidation (from REVIEW.md Phase 4)
+
+- [x] Unify Lua binding pattern across languages
+  - Added `loki_lua_begin_api()`, `loki_lua_add_func()`, `loki_lua_end_api()` helpers
+  - Reduced boilerplate from ~80 lines to ~20 lines per language
+  - Location: `source/core/loki/lua.c`, `source/core/include/loki/lua.h`
+
+- [ ] Consolidate dispatch boilerplate
+  - 4 files x 26 lines = 104 lines of identical structure
+  - Consider macro template in `lang_dispatch.h`
+
+- [ ] Extract shared REPL module
+  - ~150 lines of help functions duplicated per language
+  - `shared_print_command_help()` exists but underutilized
+
+- [ ] Centralize platform CMake logic
+  - Platform detection repeated in 6+ CMakeLists.txt files
+  - Create `psnd_platform.cmake` module
+
+- [ ] Remove Joy music notation duplication
+  - 405 lines duplicated from Alda's music theory code
+  - Extract to shared module
 
 ### Platform Support
 

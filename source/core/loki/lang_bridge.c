@@ -85,7 +85,7 @@ int loki_lang_init_for_file(editor_ctx_t *ctx) {
     if (!ctx) return -1;
 
     const LokiLangOps *ops = loki_lang_for_file(ctx->model.filename);
-    if (!ops) return 1;  /* No language for this file type */
+    if (!ops) return -1;  /* No language for this file type */
 
     if (ops->is_initialized && ops->is_initialized(ctx)) {
         return 0;  /* Already initialized */
@@ -123,7 +123,7 @@ int loki_lang_eval(editor_ctx_t *ctx, const char *code) {
     if (!ctx || !code) return -1;
 
     const LokiLangOps *ops = loki_lang_for_file(ctx->model.filename);
-    if (!ops) return 1;  /* No language for this file type */
+    if (!ops) return -1;  /* No language for this file type */
 
     /* Ensure initialized */
     if (ops->is_initialized && !ops->is_initialized(ctx)) {
@@ -238,9 +238,9 @@ int loki_lang_configure_backend(editor_ctx_t *ctx, const char *sf_path, const ch
     if (!ctx) return -1;
 
     const LokiLangOps *ops = loki_lang_for_file(ctx->model.filename);
-    if (!ops) return 1;  /* No language for this file type */
+    if (!ops) return -1;  /* No language for this file type */
 
-    if (!ops->configure_backend) return 1;  /* Language doesn't support backend config */
+    if (!ops->configure_backend) return -1;  /* Language doesn't support backend config */
 
     return ops->configure_backend(ctx, sf_path, csd_path);
 }
