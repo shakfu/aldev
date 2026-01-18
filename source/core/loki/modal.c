@@ -989,7 +989,48 @@ void modal_process_event(editor_ctx_t *ctx, const EditorEvent *event) {
             break;
 
         case EVENT_MOUSE:
-            /* Mouse events not yet implemented */
+            /* Handle mouse click to position cursor */
+            if (event->data.mouse.pressed && event->data.mouse.button == 0) {
+                /* Left click - position cursor */
+                int click_row = event->data.mouse.y - 1;  /* 1-based to 0-based */
+                int click_col = event->data.mouse.x - 1;
+
+                /* Account for tab bar if multiple buffers */
+                int tab_offset = (buffer_count() > 1) ? 1 : 0;
+                click_row -= tab_offset;
+
+                /* Account for gutter (line numbers) */
+                int gutter_width = 0;
+                if (ctx->view.line_numbers && ctx->model.numrows > 0) {
+                    int max_line = ctx->model.numrows;
+                    gutter_width = 1;
+                    while (max_line >= 10) { gutter_width++; max_line /= 10; }
+                    gutter_width += 1;
+                }
+                click_col -= gutter_width;
+
+                if (click_row >= 0 && click_col >= 0) {
+                    /* Convert screen position to file position */
+                    int file_row = ctx->view.rowoff + click_row;
+                    if (file_row < ctx->model.numrows) {
+                        ctx->view.cy = click_row;
+                        /* Convert screen column to file column (handle tabs) */
+                        t_erow *row = &ctx->model.row[file_row];
+                        int file_col = 0;
+                        int screen_col = 0;
+                        while (file_col < row->size && screen_col < click_col + ctx->view.coloff) {
+                            if (row->chars[file_col] == '\t') {
+                                screen_col += 7 - (screen_col % 8) + 1;  /* Tab width = 8 */
+                            } else {
+                                screen_col++;
+                            }
+                            if (screen_col <= click_col + ctx->view.coloff) file_col++;
+                        }
+                        ctx->view.cx = file_col;
+                        if (ctx->view.cx > row->size) ctx->view.cx = row->size;
+                    }
+                }
+            }
             return;
     }
 

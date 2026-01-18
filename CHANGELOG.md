@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ## [Unreleased]
 
+## [0.1.3]
+
 ### Added
 
 - **Renderer Interface**: Abstract rendering layer for platform-agnostic output
@@ -156,6 +158,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Foundation for future transports (WebSocket, RPC)
   - **Files Added**: `source/core/loki/event.c`, `source/core/loki/event.h`
   - **Files Modified**: `source/core/loki/modal.c`, `source/core/loki/internal.h`, `source/core/CMakeLists.txt`
+
+- **Web Host Mode**: Browser-based editor using xterm.js terminal emulation
+  - Access the editor via web browser at `http://localhost:8080`
+  - Full terminal emulation with xterm.js
+  - WebSocket-based communication for real-time editing
+  - **CLI Flags**:
+    - `--web` - Start web server (default port 8080)
+    - `--web-port N` - Use custom port
+  - **Features**:
+    - Mouse click-to-position support
+    - All editor keybindings work as in terminal mode
+    - Language switching commands (`:alda`, `:joy`, `:langs`, `:lang NAME`)
+    - First-line directives (`#alda`, `#joy`) for automatic language detection
+    - REPL mode with language-aware evaluation
+  - **Build Options**:
+    - `-DBUILD_WEB_HOST=ON` - Enable web server mode
+    - `-DLOKI_EMBED_XTERM=ON` - Embed xterm.js in binary (no CDN dependency)
+  - Embedded mode adds ~300KB to binary size but enables offline use
+  - **Dependencies**: mongoose (embedded web server), xterm.js (terminal emulator)
+  - **Files Added**: `source/core/loki/host_web.c`, `source/core/loki/host_web.h`, `source/core/loki/host_web_xterm.h`
 
 - **Live Loop Feature**: Re-evaluate buffer content on beat boundaries synced to Ableton Link
   - `:loop <beats>` - Start live loop that re-evaluates buffer every N beats (e.g., `:loop 4`)

@@ -253,8 +253,44 @@ static const char *EMBEDDED_HTML =
 "    send({cmd: 'snapshot'});\n"
 "  });\n"
 "\n"
-"  document.getElementById('terminal').addEventListener('contextmenu', function(e) { e.preventDefault(); });\n"
-"  document.getElementById('terminal').addEventListener('click', function() { term.focus(); });\n"
+"  /* Mouse click to position cursor */\n"
+"  var termEl = document.getElementById('terminal');\n"
+"  var mouseDownPos = null;\n"
+"  var isSelecting = false;\n"
+"\n"
+"  termEl.addEventListener('mousedown', function(e) {\n"
+"    if (e.button !== 0) return;\n"
+"    mouseDownPos = { x: e.clientX, y: e.clientY };\n"
+"    isSelecting = false;\n"
+"  });\n"
+"\n"
+"  termEl.addEventListener('mousemove', function(e) {\n"
+"    if (mouseDownPos && (Math.abs(e.clientX - mouseDownPos.x) > 3 || Math.abs(e.clientY - mouseDownPos.y) > 3)) {\n"
+"      isSelecting = true;\n"
+"    }\n"
+"  });\n"
+"\n"
+"  termEl.addEventListener('mouseup', function(e) {\n"
+"    if (e.button !== 0 || !mouseDownPos) { mouseDownPos = null; return; }\n"
+"    if (!isSelecting) {\n"
+"      var screen = termEl.querySelector('.xterm-screen');\n"
+"      if (screen) {\n"
+"        var rect = screen.getBoundingClientRect();\n"
+"        var cellW = rect.width / term.cols;\n"
+"        var cellH = rect.height / term.rows;\n"
+"        var x = Math.floor((e.clientX - rect.left) / cellW) + 1;\n"
+"        var y = Math.floor((e.clientY - rect.top) / cellH) + 1;\n"
+"        if (x > 0 && y > 0 && x <= term.cols && y <= term.rows) {\n"
+"          send({cmd: 'event', type: 'mouse', x: x, y: y, button: 0, pressed: 1});\n"
+"        }\n"
+"      }\n"
+"    }\n"
+"    mouseDownPos = null;\n"
+"    isSelecting = false;\n"
+"  });\n"
+"\n"
+"\n"
+"  termEl.addEventListener('contextmenu', function(e) { e.preventDefault(); });\n"
 "\n"
 "  document.getElementById('btn-play').addEventListener('click', function() {\n"
 "    send({cmd: 'event', type: 'key', code: 16, modifiers: 1}); term.focus();\n"
@@ -783,6 +819,21 @@ static void web_host_process_message(WebHostData *data, struct mg_connection *c,
             event.type = EVENT_KEY;
             event.data.key.keycode = code;
             event.data.key.modifiers = (uint8_t)mods;
+            web_host_queue_event(data, &event);
+        } else if (type && strcmp(type, "mouse") == 0) {
+            /* Mouse event: {"cmd": "event", "type": "mouse", "x": 10, "y": 5, "button": 0, "pressed": 1} */
+            int x = json_object_get_int(&cmd, "x", 0);
+            int y = json_object_get_int(&cmd, "y", 0);
+            int button = json_object_get_int(&cmd, "button", 0);
+            int pressed = json_object_get_int(&cmd, "pressed", 1);
+            int mods = json_object_get_int(&cmd, "modifiers", 0);
+
+            event.type = EVENT_MOUSE;
+            event.data.mouse.x = x;
+            event.data.mouse.y = y;
+            event.data.mouse.button = button;
+            event.data.mouse.pressed = pressed;
+            event.data.mouse.modifiers = (uint8_t)mods;
             web_host_queue_event(data, &event);
         }
     } else if (strcmp(cmd_type, "resize") == 0) {

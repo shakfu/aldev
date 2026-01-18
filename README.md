@@ -14,13 +14,14 @@ All are practical for daily live-coding, REPL sketches, and headless playback. T
 ## Features
 
 - **Vim-style editor** with INSERT/NORMAL modes, live evaluation shortcuts, and Lua scripting (built on [loki](https://github.com/shakfu/loki), a fork of [kilo](https://github.com/antirez/kilo))
+- **Web-based editor** accessible via browser using xterm.js terminal emulator (optional)
 - **Language-aware REPLs** for interactive composition (Alda, Joy, TR7 Scheme, Bog)
 - **Headless play mode** for batch jobs and automation
 - **Non-blocking async playback** through [libuv](https://github.com/libuv/libuv) - REPLs remain responsive during playback
 - **Integrated MIDI routing** powered by [libremidi](https://github.com/celtera/libremidi)
 - **MIDI file export** using [midifile](https://github.com/craigsapp/midifile)
 - **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
-- **Optional [csound](ttps://csound.com/) backend** for deeper sound design workflows
+- **Optional [Csound](https://csound.com/) backend** for deeper sound design workflows
 - **[Ableton Link](https://github.com/Ableton/link) support** for networked tempo sync (playback matches Link session tempo)
 - **[Scala .scl](https://www.huygens-fokker.org/scala/scl_format.html) import support** for microtuning
 - **Lua APIs** for editor automation, playback control, and extensibility
@@ -33,7 +34,15 @@ psnd is in active development. Alda, Joy, TR7 Scheme, and Bog are the four fully
 
 ```bash
 make              # Standard build with TinySoundFont
-make csound       # Build with Csound synthesis backend (larger binary)
+make csound       # Build with Csound synthesis backend
+make web          # Build with web server host (mongoose + xterm.js)
+```
+
+CMake options:
+```bash
+cmake -B build -DBUILD_WEB_HOST=ON      # Enable web server mode
+cmake -B build -DBUILD_CSOUND_BACKEND=ON # Enable Csound synthesis
+cmake -B build -DLOKI_EMBED_XTERM=ON    # Embed xterm.js in binary (no CDN)
 ```
 
 ## Usage
@@ -229,6 +238,30 @@ psnd play song.csd               # Play Csound file and exit
 psnd play -sf gm.sf2 song.alda   # Play Alda with built-in synth
 psnd play -v song.csd            # Play with verbose output
 ```
+
+### Web Mode
+
+Run psnd as a web server and access the editor through a browser using xterm.js terminal emulation.
+
+```bash
+psnd --web                           # Start web server on port 8080
+psnd --web --web-port 3000           # Use custom port
+psnd --web song.alda                 # Open file in web editor
+psnd --web -sf gm.sf2 song.joy       # Web editor with soundfont
+```
+
+Then open `http://localhost:8080` in your browser.
+
+**Features:**
+- Full terminal emulation via xterm.js
+- Mouse click-to-position support
+- Language switching with `:alda`, `:joy`, `:langs` commands
+- First-line directives (`#alda`, `#joy`) for automatic language detection
+- All editor keybindings work as in terminal mode
+
+**Build requirement:** Web mode requires building with `-DBUILD_WEB_HOST=ON`.
+
+**Embedded mode:** Build with `-DLOKI_EMBED_XTERM=ON` to embed xterm.js in the binary, eliminating CDN dependency for offline use.
 
 ### Piped Input
 
@@ -773,35 +806,44 @@ The `.psnd/scales/` directory includes example scales:
 
 ## Roadmap
 
-- Integrate additional MIDI DSLs from [midi-langs](https://github.com/shakfu/midi-langs), leveraging the modular dispatch system
-- Enhance language-specific Lua APIs for deeper editor integration
-- Experiment with additional backends (JACK, plugin bridges) where it improves workflows
+**Recent additions:**
+- Web-based editor using xterm.js terminal emulation
+- Mouse click-to-position support in web mode
+- Language switching commands in web REPL
+
+**Planned:**
+- Multi-client support for web mode (currently single connection)
+- Session persistence across server restarts
+- Beat-aligned playback with Ableton Link
+- Integrate additional MIDI DSLs from [midi-langs](https://github.com/shakfu/midi-langs)
+- Playback visualization (highlight currently playing region)
 
 Feedback and experiments are welcome - polyglot support will be guided by real-world usage.
 
 ## Project Structure
 
 ```text
-src/
-  lang/           # Language implementations
-    alda/         # Alda music language (parser, interpreter, backends)
-    joy/          # Joy language runtime (parser, primitives, MIDI)
-    tr7/          # TR7 Scheme (R7RS-small + music extensions)
-    bog/          # Bog language (Prolog-based live coding)
-  loki/           # Editor components (core, modal, syntax, lua, etc.)
-  shared/         # Language-agnostic shared backend (audio, MIDI, Link)
-  main.c          # Entry point and CLI dispatch
-  repl.c          # Shared REPL utilities
-  lang_dispatch.c # Modular language registration
-include/
-  loki/           # Public loki headers
+source/
+  core/
+    loki/           # Editor components (core, modal, syntax, lua, hosts)
+      host_terminal.c  # Terminal-based host
+      host_web.c       # Web server host (mongoose + xterm.js)
+      host_headless.c  # Headless playback host
+    shared/         # Language-agnostic backend (audio, MIDI, Link)
+    include/        # Public headers
+  langs/
+    alda/           # Alda music language (parser, interpreter, backends)
+    joy/            # Joy language runtime (parser, primitives, MIDI)
+    tr7/            # TR7 Scheme (R7RS-small + music extensions)
+    bog/            # Bog language (Prolog-based live coding)
+  main.c            # Entry point and CLI dispatch
+  thirdparty/       # External dependencies (lua, libremidi, TinySoundFont, mongoose, xterm.js)
 tests/
-  loki/           # Editor unit tests
-  alda/           # Alda parser tests
-  joy/            # Joy parser and MIDI tests
-  bog/            # Bog parser and runtime tests
-  shared/         # Shared backend tests
-thirdparty/       # External dependencies (lua, libremidi, TinySoundFont, etc.)
+  loki/             # Editor unit tests
+  alda/             # Alda parser tests
+  joy/              # Joy parser and MIDI tests
+  bog/              # Bog parser and runtime tests
+  shared/           # Shared backend tests
 ```
 
 ## Documentation
@@ -822,6 +864,8 @@ See the `docs` folder for full technical documentation.
 - [libremidi](https://github.com/celtera/libremidi) - Modern C++ MIDI 1 / MIDI 2 real-time & file I/O library
 - [TinySoundFont](https://github.com/schellingb/TinySoundFont) - SoundFont2 synthesizer library in a single C/C++ file
 - [miniaudio](https://github.com/mackron/miniaudio) - Audio playback and capture library written in C, in a single source file
+- [mongoose](https://github.com/cesanta/mongoose) - Embedded web server/networking library (optional, for web mode)
+- [xterm.js](https://xtermjs.org/) - Terminal emulator for the browser (optional, for web mode)
 
 ## License
 
