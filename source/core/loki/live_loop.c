@@ -7,6 +7,7 @@
 #include "buffers.h"
 #include "loki/link.h"
 #include "lang_bridge.h"
+#include "async_queue.h"
 #include "internal.h"
 #include <math.h>
 #include <string.h>
@@ -154,8 +155,9 @@ void live_loop_tick(void) {
         double last_cycle = floor(entry->last_beat / interval);
 
         if (current_cycle > last_cycle) {
-            /* Fire! Evaluate the buffer content */
-            loki_lang_eval_buffer(ctx);
+            /* Push beat boundary event to async queue.
+             * The handler will call loki_lang_eval_buffer(). */
+            async_queue_push_beat(NULL, current_beat, interval, entry->buffer_id);
         }
 
         entry->last_beat = current_beat;

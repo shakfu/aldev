@@ -13,6 +13,7 @@
 #include "lang_bridge.h"
 #include "loki/link.h"
 #include "live_loop.h"
+#include "async_queue.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>

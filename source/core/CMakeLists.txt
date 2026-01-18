@@ -117,6 +117,7 @@ function(psnd_build_loki)
         ${PSND_CORE_DIR}/loki/host.c
         ${PSND_CORE_DIR}/loki/json.c
         ${PSND_CORE_DIR}/loki/jsonrpc.c
+        ${PSND_CORE_DIR}/loki/async_queue.c
     )
 
     # Collect language-specific register sources

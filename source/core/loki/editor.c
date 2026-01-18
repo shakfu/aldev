@@ -31,6 +31,7 @@
 #include "lang_bridge.h"
 #include "loki/link.h"
 #include "live_loop.h"
+#include "async_queue.h"
 
 /* ======================== Main Editor Instance ============================ */
 
@@ -278,6 +279,11 @@ int loki_editor_main(int argc, char **argv) {
     /* Initialize language bridge system */
     loki_lang_init();
 
+    /* Initialize async event queue */
+    if (async_queue_init() != 0) {
+        fprintf(stderr, "Warning: Failed to initialize async event queue\n");
+    }
+
     /* Register cleanup handler early to ensure terminal is always restored */
     atexit(editor_atexit);
 
@@ -430,18 +436,24 @@ int loki_editor_main(int argc, char **argv) {
 
         terminal_handle_resize(ctx);
 
-        /* Process any pending Link callbacks */
-        if (ctx_L(ctx)) {
-            loki_link_check_callbacks(ctx, ctx_L(ctx));
-        }
+        /* Check live loops for beat boundary triggers (pushes events to queue) */
+        live_loop_tick();
 
-        /* Process any pending language callbacks */
+        /* Dispatch all pending async events.
+         * This handles:
+         * - Language callbacks (playback completion)
+         * - Link callbacks (tempo, peers, transport changes)
+         * - Beat boundary events (live loop triggers)
+         * - Custom events */
         if (ctx_L(ctx)) {
+            async_queue_dispatch_lua(NULL, ctx, ctx_L(ctx));
+
+            /* Also run legacy polling for backward compatibility.
+             * These may still be needed for events that haven't been
+             * migrated to the queue yet. */
+            loki_link_check_callbacks(ctx, ctx_L(ctx));
             loki_lang_check_callbacks(ctx, ctx_L(ctx));
         }
-
-        /* Check live loops for beat boundary triggers */
-        live_loop_tick();
 
         editor_refresh_screen(ctx);
         editor_process_keypress(ctx, STDIN_FILENO);
@@ -459,6 +471,9 @@ void editor_cleanup_resources(editor_ctx_t *ctx) {
 
     /* Clean up all language subsystems (stops all playback) */
     loki_lang_cleanup_all(ctx);
+
+    /* Clean up async event queue */
+    async_queue_cleanup();
 
     /* Clean up LuaHost (includes REPL and Lua state) */
     if (ctx->lua_host) {

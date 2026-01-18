@@ -11,13 +11,14 @@
 
 #include "loki/link.h"
 #include "internal.h"
+#include "async_queue.h"
 
 /* Ableton Link C wrapper */
 #include <abl_link.h>
 
 /* Lua headers for callbacks */
-#include "lua.h"
-#include "lauxlib.h"
+#include <lua.h>
+#include <lauxlib.h>
 
 /* ======================= Internal State ======================= */
 
@@ -57,6 +58,9 @@ static void on_peers_changed(uint64_t num_peers, void *context) {
     g_link_state.pending_peers = num_peers;
     g_link_state.peers_changed = 1;
     pthread_mutex_unlock(&g_link_state.mutex);
+
+    /* Push event to async queue for unified event handling */
+    async_queue_push_link_peers(NULL, num_peers);
 }
 
 /* Called on Link-managed thread when tempo changes */
@@ -66,6 +70,9 @@ static void on_tempo_changed(double tempo, void *context) {
     g_link_state.pending_tempo = tempo;
     g_link_state.tempo_changed = 1;
     pthread_mutex_unlock(&g_link_state.mutex);
+
+    /* Push event to async queue for unified event handling */
+    async_queue_push_link_tempo(NULL, tempo);
 }
 
 /* Called on Link-managed thread when start/stop state changes */
@@ -75,6 +82,9 @@ static void on_start_stop_changed(bool is_playing, void *context) {
     g_link_state.pending_playing = is_playing ? 1 : 0;
     g_link_state.playing_changed = 1;
     pthread_mutex_unlock(&g_link_state.mutex);
+
+    /* Push event to async queue for unified event handling */
+    async_queue_push_link_transport(NULL, is_playing ? 1 : 0);
 }
 
 /* ======================= Initialization ======================= */
