@@ -108,6 +108,7 @@ function(psnd_build_loki)
         ${PSND_CORE_DIR}/loki/lang_bridge.c
         ${PSND_CORE_DIR}/loki/live_loop.c
         ${PSND_CORE_DIR}/loki/repl_launcher.c
+        ${PSND_CORE_DIR}/loki/repl_helpers.c
         ${PSND_CORE_DIR}/loki/serialize.c
     )
 
@@ -162,7 +163,11 @@ function(psnd_build_binary)
         ${PSND_CORE_DIR}/repl.c
         ${PSND_ALL_LANG_REPL_SOURCES}
     )
-    set_target_properties(psnd_bin PROPERTIES OUTPUT_NAME "psnd")
+
+    set_target_properties(psnd_bin PROPERTIES 
+        OUTPUT_NAME "psnd"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    )
 
     if(NOT MSVC)
         add_custom_command(TARGET psnd_bin POST_BUILD

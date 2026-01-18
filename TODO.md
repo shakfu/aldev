@@ -260,9 +260,18 @@ Three levels of Link synchronization with other Link-enabled devices:
   - 4 files x 26 lines = 104 lines of identical structure
   - Consider macro template in `lang_dispatch.h`
 
-- [ ] Extract shared REPL module
-  - ~150 lines of help functions duplicated per language
-  - `shared_print_command_help()` exists but underutilized
+- [x] Extract shared REPL helper utilities
+  - Added `source/core/loki/repl_helpers.h` with:
+    - `repl_starts_with()` - string prefix check
+    - `repl_strip_newlines()` - strip trailing newlines
+    - `repl_get_history_path()` - determine history file path (~15 lines of duplication removed per REPL)
+    - `repl_pipe_loop()` - generic piped input loop helper
+  - All four language REPLs (Alda, Joy, Bog, TR7) updated to use helpers
+  - Estimated ~80 lines of duplication removed across REPLs
+
+- [ ] Extract shared REPL loop skeleton
+  - ~150 lines of help functions still duplicated per language
+  - Interactive loop structure still duplicated (could use callback pattern)
 
 - [ ] Centralize platform CMake logic
   - Platform detection repeated in 6+ CMakeLists.txt files

@@ -9,6 +9,7 @@
 #include "loki/internal.h"
 #include "loki/syntax.h"
 #include "loki/lua.h"
+#include "loki/repl_helpers.h"
 #include "shared/repl_commands.h"
 
 /* Alda library headers */
@@ -82,10 +83,7 @@ static void print_repl_help(void) {
  * REPL Loop
  * ============================================================================ */
 
-/* Check if string starts with prefix */
-static int starts_with(const char* str, const char* prefix) {
-    return strncmp(str, prefix, strlen(prefix)) == 0;
-}
+/* Note: Using repl_repl_starts_with() from loki/repl_helpers.h */
 
 /* Process an Alda REPL command. Returns: 0=continue, 1=quit, 2=interpret as Alda */
 static int alda_process_command(AldaContext *ctx, const char *input) {
@@ -115,7 +113,7 @@ static int alda_process_command(AldaContext *ctx, const char *input) {
     }
 
     /* :play file.alda - interpret and play an Alda file */
-    if (starts_with(cmd, "play ")) {
+    if (repl_starts_with(cmd, "play ")) {
         const char* path = cmd + 5;
         while (*path == ' ') path++;
         if (*path) {
@@ -156,11 +154,7 @@ static void alda_repl_loop_pipe(AldaContext *ctx) {
 
     while (fgets(line, sizeof(line), stdin) != NULL) {
         /* Strip trailing newline */
-        size_t len = strlen(line);
-        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-            line[--len] = '\0';
-        }
-
+        size_t len = repl_strip_newlines(line);
         if (len == 0) continue;
 
         int result = alda_process_command(ctx, line);
@@ -195,21 +189,7 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     repl_editor_init(&ed);
 
     /* Build history file path and load history */
-    /* Prefer local .psnd/ if it exists, otherwise use ~/.psnd/ if it exists */
-    struct stat st;
-    if (stat(".psnd", &st) == 0 && S_ISDIR(st.st_mode)) {
-        snprintf(history_path, sizeof(history_path), ".psnd/alda_history");
-    } else {
-        const char *home = getenv("HOME");
-        if (home) {
-            char global_psnd[512];
-            snprintf(global_psnd, sizeof(global_psnd), "%s/.psnd", home);
-            if (stat(global_psnd, &st) == 0 && S_ISDIR(st.st_mode)) {
-                snprintf(history_path, sizeof(history_path), "%s/alda_history", global_psnd);
-            }
-        }
-    }
-    if (history_path[0]) {
+    if (repl_get_history_path("alda", history_path, sizeof(history_path))) {
         repl_history_load(&ed, history_path);
     }
 

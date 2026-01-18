@@ -17,6 +17,7 @@
 #include "loki/syntax.h"
 #include "loki/lua.h"
 #include "loki/repl_launcher.h"
+#include "loki/repl_helpers.h"
 #include "shared/repl_commands.h"
 #include "shared/context.h"
 #include "shared/midi/midi.h"
@@ -399,10 +400,7 @@ static void bog_stop_playback(void) {
     }
 }
 
-/* Check if string starts with prefix */
-static int starts_with(const char *str, const char *prefix) {
-    return strncmp(str, prefix, strlen(prefix)) == 0;
-}
+/* Note: Using repl_repl_starts_with() from loki/repl_helpers.h */
 
 /* Process a Bog REPL command. Returns: 0=continue, 1=quit, 2=evaluate as Bog */
 static int bog_process_command(const char *input) {
@@ -427,7 +425,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :tempo BPM */
-    if (starts_with(cmd, "tempo ")) {
+    if (repl_starts_with(cmd, "tempo ")) {
         double bpm = atof(cmd + 6);
         if (bpm >= 20.0 && bpm <= 400.0) {
             g_bog_repl_tempo = bpm;
@@ -442,7 +440,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :swing AMOUNT */
-    if (starts_with(cmd, "swing ")) {
+    if (repl_starts_with(cmd, "swing ")) {
         double swing = atof(cmd + 6);
         if (swing >= 0.0 && swing <= 1.0) {
             g_bog_repl_swing = swing;
@@ -457,7 +455,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :play FILE */
-    if (starts_with(cmd, "play ")) {
+    if (repl_starts_with(cmd, "play ")) {
         const char *path = cmd + 5;
         while (*path == ' ') path++;
         if (*path) {
@@ -500,7 +498,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :def NAME RULE - define or replace a named slot */
-    if (starts_with(cmd, "def ") || starts_with(cmd, "d ")) {
+    if (repl_starts_with(cmd, "def ") || repl_starts_with(cmd, "d ")) {
         const char *rest = cmd + (cmd[1] == 'e' ? 4 : 2);
         while (*rest == ' ') rest++;
         /* Parse name (until space) */
@@ -537,7 +535,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :undef NAME - remove a named slot */
-    if (starts_with(cmd, "undef ") || starts_with(cmd, "u ")) {
+    if (repl_starts_with(cmd, "undef ") || repl_starts_with(cmd, "u ")) {
         const char *name = cmd + (cmd[1] == 'n' ? 6 : 2);
         while (*name == ' ') name++;
         if (!*name) {
@@ -584,7 +582,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :mute NAME - mute a slot */
-    if (starts_with(cmd, "mute ")) {
+    if (repl_starts_with(cmd, "mute ")) {
         const char *name = cmd + 5;
         while (*name == ' ') name++;
         char *name_copy = strdup(name);
@@ -602,7 +600,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :unmute NAME - unmute a slot */
-    if (starts_with(cmd, "unmute ")) {
+    if (repl_starts_with(cmd, "unmute ")) {
         const char *name = cmd + 7;
         while (*name == ' ') name++;
         char *name_copy = strdup(name);
@@ -620,7 +618,7 @@ static int bog_process_command(const char *input) {
     }
 
     /* :solo NAME - mute all except named slot */
-    if (starts_with(cmd, "solo ")) {
+    if (repl_starts_with(cmd, "solo ")) {
         const char *name = cmd + 5;
         while (*name == ' ') name++;
         char *name_copy = strdup(name);
@@ -667,11 +665,7 @@ static void bog_repl_loop_pipe(void) {
 
     while (fgets(line, sizeof(line), stdin) != NULL) {
         /* Strip trailing newline */
-        size_t len = strlen(line);
-        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-            line[--len] = '\0';
-        }
-
+        size_t len = repl_strip_newlines(line);
         if (len == 0) continue;
 
         int result = bog_process_command(line);
@@ -717,20 +711,7 @@ static void bog_repl_loop(editor_ctx_t *syntax_ctx) {
     repl_editor_init(&ed);
 
     /* Build history file path and load history */
-    struct stat st;
-    if (stat(".psnd", &st) == 0 && S_ISDIR(st.st_mode)) {
-        snprintf(history_path, sizeof(history_path), ".psnd/bog_history");
-    } else {
-        const char *home = getenv("HOME");
-        if (home) {
-            char global_psnd[512];
-            snprintf(global_psnd, sizeof(global_psnd), "%s/.psnd", home);
-            if (stat(global_psnd, &st) == 0 && S_ISDIR(st.st_mode)) {
-                snprintf(history_path, sizeof(history_path), "%s/bog_history", global_psnd);
-            }
-        }
-    }
-    if (history_path[0]) {
+    if (repl_get_history_path("bog", history_path, sizeof(history_path))) {
         repl_history_load(&ed, history_path);
     }
 
