@@ -260,6 +260,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Now properly initializes editor context, default colors, and Lua host for theme loading
   - Updated template in `scripts/new_lang.py` for future language generation
 
+- **PEG Parser Exits on Syntax Error**: Fixed REPL crash on invalid input in languages created by `new_lang_peg.py`
+  - PackCC's default `PCC_ERROR` macro calls `exit(1)` on parse failure
+  - Added `#define PCC_ERROR(auxil) ((void)0)` to suppress exit behavior
+  - Parser now returns failure instead of terminating, REPL continues with error message
+  - Updated template in `scripts/new_lang_peg.py` for future language generation
+
 - **Panic Leaves Stuck Notes on Secondary Backends**: Fixed `shared_send_panic()` only silencing the highest-priority backend
   - Previously returned after first active backend (Csound > TSF > MIDI), leaving other backends ringing
   - Now broadcasts "all notes off" to ALL enabled backends regardless of priority
