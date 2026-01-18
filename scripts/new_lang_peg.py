@@ -166,6 +166,9 @@ static inline int {name}_note_to_midi(const char* s, int len) {{
 
 %source {{
 #define PCC_GETCHAR(auxil) ((auxil)->input[(auxil)->pos] ? (int)(unsigned char)(auxil)->input[(auxil)->pos++] : -1)
+
+/* Override PCC_ERROR to not exit - just set error flag and return */
+#define PCC_ERROR(auxil) ((void)0)
 }}
 
 program
@@ -1038,9 +1041,28 @@ int {name}_repl_main(int argc, char **argv) {{
     }}
 
     if (!input_file || isatty(STDIN_FILENO)) {{
-        editor_ctx_t syntax_ctx = {{0}};
-        syntax_select_for_filename(&syntax_ctx, (char *)".{ext}");
+        editor_ctx_t syntax_ctx;
+        editor_ctx_init(&syntax_ctx);
+        syntax_init_default_colors(&syntax_ctx);
+        syntax_select_for_filename(&syntax_ctx, "input.{ext}");
+
+        /* Load Lua for syntax highlighting and themes */
+        LuaHost *lua_host = lua_host_create();
+        if (lua_host) {{
+            syntax_ctx.lua_host = lua_host;
+            struct loki_lua_opts lua_opts = {{
+                .bind_editor = 1,
+                .load_config = 1,
+            }};
+            lua_host->L = loki_lua_bootstrap(&syntax_ctx, &lua_opts);
+        }}
+
         {name}_repl_loop(&syntax_ctx);
+
+        if (syntax_ctx.lua_host) {{
+            lua_host_free(syntax_ctx.lua_host);
+            syntax_ctx.lua_host = NULL;
+        }}
     }}
 
     /* Cleanup */
