@@ -26,6 +26,10 @@ typedef struct {
     int show_version;           /* User requested version (-v, --version) */
     int line_numbers;           /* Enable line numbers (--line-numbers) */
     int word_wrap;              /* Enable word wrap (--word-wrap) */
+    int json_rpc;               /* Run in JSON-RPC mode (--json-rpc) */
+    int json_rpc_single;        /* Single-shot JSON-RPC (--json-rpc-single) */
+    int rows;                   /* Screen rows for headless mode (--rows) */
+    int cols;                   /* Screen cols for headless mode (--cols) */
 } EditorCliArgs;
 
 /**

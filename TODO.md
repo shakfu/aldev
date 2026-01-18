@@ -79,13 +79,13 @@ Order reflects dependency chain - earlier tasks unblock later ones.
 
 #### Phase 5: Host-Agnostic Session API
 
-- [ ] Create `EditorSession` opaque handle
+- [x] Create `EditorSession` opaque handle
   - `editor_session_new(const EditorConfig*)` - create session
   - `editor_session_handle_event(session, const EditorEvent*)` - process input
   - `editor_session_snapshot(session, EditorViewModel*)` - get render state
   - Terminal mode becomes one consumer; web server another
 
-- [ ] Extract CLI parsing + terminal orchestration into thin wrapper
+- [x] Extract CLI parsing + terminal orchestration into thin wrapper
   - Separate from session logic
   - Enables alternate hosts (HTTP server, headless scripting harness)
 

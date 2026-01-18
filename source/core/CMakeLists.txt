@@ -115,6 +115,8 @@ function(psnd_build_loki)
         ${PSND_CORE_DIR}/loki/session.c
         ${PSND_CORE_DIR}/loki/cli.c
         ${PSND_CORE_DIR}/loki/host.c
+        ${PSND_CORE_DIR}/loki/json.c
+        ${PSND_CORE_DIR}/loki/jsonrpc.c
     )
 
     # Collect language-specific register sources

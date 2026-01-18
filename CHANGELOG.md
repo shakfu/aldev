@@ -104,6 +104,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Added**: `source/core/loki/host.h`, `source/core/loki/host.c`, `source/core/loki/cli.h`, `source/core/loki/cli.c`
   - **Files Modified**: `source/core/CMakeLists.txt`
 
+- **JSON-RPC Test Harness**: stdio-based command interface for testing editor abstractions
+  - Validates EditorSession API without terminal I/O
+  - Enables automated integration testing and scripting
+  - **Commands**:
+    - `{"cmd": "load", "file": "path"}` - Load file into editor
+    - `{"cmd": "save"}` - Save current file
+    - `{"cmd": "event", "type": "key", "code": N, "modifiers": M}` - Send key event
+    - `{"cmd": "event", "type": "resize", "rows": N, "cols": M}` - Send resize event
+    - `{"cmd": "event", "type": "quit"}` - Send quit event
+    - `{"cmd": "insert", "text": "..."}` - Insert text as key events
+    - `{"cmd": "snapshot"}` - Get full viewmodel as JSON
+    - `{"cmd": "status"}` - Get editor status (mode, filename, dirty)
+    - `{"cmd": "resize", "rows": N, "cols": M}` - Resize screen
+    - `{"cmd": "quit"}` - Exit harness
+  - **Responses**: `{"ok": true, ...}` or `{"ok": false, "error": "message"}`
+  - **Run modes**:
+    - `jsonrpc_run_interactive()` - Read commands from stdin until quit/EOF
+    - `jsonrpc_run_single()` - Process single command and exit
+  - **CLI flags** for invoking JSON-RPC mode:
+    - `--json-rpc` - Run in interactive JSON-RPC mode
+    - `--json-rpc-single` - Run single JSON-RPC command and exit
+    - `--rows N` - Screen rows for headless mode (default: 24)
+    - `--cols N` - Screen cols for headless mode (default: 80)
+  - Minimal JSON library (no external dependency):
+    - `JsonBuilder` - Streaming JSON serialization
+    - `json_parse()` - Parse JSON from string
+    - `json_object_get_string()`, `json_object_get_int()`, `json_object_get_bool()` - Value accessors
+  - `jsonrpc_serialize_viewmodel()` - Full viewmodel to JSON for snapshot command
+  - **Files Added**: `source/core/loki/json.h`, `source/core/loki/json.c`, `source/core/loki/jsonrpc.h`, `source/core/loki/jsonrpc.c`
+  - **Files Modified**: `source/core/loki/cli.h`, `source/core/loki/cli.c`, `source/core/CMakeLists.txt`
+
 - **Abstract Input Handling Layer**: Structured event abstraction for editor input
   - Replaces raw keycodes with `EditorEvent` objects for cleaner input processing
   - Modifier flags (`MOD_CTRL`, `MOD_SHIFT`, `MOD_ALT`) separated from keycodes
