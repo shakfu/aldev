@@ -121,6 +121,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Changed
 
+- **Makefile Build Targets**: Separated clean and reset functionality
+  - `make clean` now uses CMake's clean target (removes compiled objects, keeps cache for faster rebuilds)
+  - `make reset` removes the entire build directory (forces full CMake reconfiguration)
+  - `make remake` combines reset + build for convenience
+  - Use `make reset && make` after adding new languages with `new_lang.py`
+
 - **LuaHost Architecture Refactoring**: Moved Lua state from EditorView to dedicated LuaHost struct
   - Previously `lua_State *L` and `t_lua_repl repl` were embedded in `EditorView`, but Lua is a scripting platform, not a presentation concern
   - New `LuaHost` struct owns both Lua state and REPL state, stored as pointer in `editor_ctx`
@@ -247,6 +253,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Link tests excluded from ctest (network discovery can hang); run manually with `./build/tests/shared/test_link`
 
 ### Fixed
+
+- **REPL Syntax Highlighting in Generated Languages**: Fixed black text in REPLs created by `new_lang.py`
+  - Generated REPLs were missing `editor_ctx_init()` and `syntax_init_default_colors()` calls
+  - Without color initialization, all text rendered as black (default zero values)
+  - Now properly initializes editor context, default colors, and Lua host for theme loading
+  - Updated template in `scripts/new_lang.py` for future language generation
 
 - **Panic Leaves Stuck Notes on Secondary Backends**: Fixed `shared_send_panic()` only silencing the highest-priority backend
   - Previously returned after first active backend (Csound > TSF > MIDI), leaving other backends ringing
