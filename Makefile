@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := all
 .PHONY: all build configure library alda editor repl clean reset test show-config \
-		csound configure-csound rebuild remake
+		csound configure-csound web configure-web rebuild remake
 
 BUILD_DIR ?= build
 CMAKE ?= cmake
@@ -22,6 +22,13 @@ rebuild: clean configure-csound test
 
 # Build with Csound synthesis backend
 csound: configure-csound
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+configure-web:
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_WEB_HOST=ON -DBUILD_TESTING=ON
+
+# Build with web server host (mongoose-based HTTP/WebSocket)
+web: configure-web
 	@$(CMAKE) --build $(BUILD_DIR) --config Release
 
 library: configure

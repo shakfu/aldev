@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>psnd web editor</title>
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/monokai.css">
+
+  <!-- jQuery Terminal -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery.terminal@2.37.2/css/jquery.terminal.min.css">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">psnd</span>
+        <span class="filename" id="filename">[No Name]</span>
+        <span class="dirty" id="dirty"></span>
+      </div>
+      <div class="header-right">
+        <span class="lang" id="lang"></span>
+        <span class="status" id="status">Disconnected</span>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <div class="main">
+      <!-- Editor panel -->
+      <div class="panel editor-panel">
+        <div class="panel-header">
+          <span class="panel-title">Editor</span>
+          <div class="panel-actions">
+            <button id="btn-run" class="btn" title="Run code (Ctrl+Enter)">Run</button>
+            <button id="btn-save" class="btn" title="Save (Ctrl+S)">Save</button>
+          </div>
+        </div>
+        <div class="panel-content">
+          <textarea id="editor"></textarea>
+        </div>
+      </div>
+
+      <!-- Resizer -->
+      <div class="resizer" id="resizer"></div>
+
+      <!-- REPL panel -->
+      <div class="panel repl-panel">
+        <div class="panel-header">
+          <span class="panel-title">REPL</span>
+          <div class="panel-actions">
+            <button id="btn-clear" class="btn" title="Clear output">Clear</button>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div id="terminal"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <footer class="footer">
+      <span class="mode" id="mode">NORMAL</span>
+      <span class="position" id="position">Ln 1, Col 1</span>
+      <span class="message" id="message"></span>
+    </footer>
+  </div>
+
+  <!-- Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/matchbrackets.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/addon/edit/closebrackets.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery.terminal@2.37.2/js/jquery.terminal.min.js"></script>
+
+  <script src="editor.js"></script>
+</body>
+</html>

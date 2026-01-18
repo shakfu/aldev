@@ -120,6 +120,14 @@ function(psnd_build_loki)
         ${PSND_CORE_DIR}/loki/async_queue.c
     )
 
+    # Web host sources (mongoose-based HTTP/WebSocket server)
+    if(BUILD_WEB_HOST)
+        list(APPEND LOKI_CORE_SOURCES
+            ${PSND_CORE_DIR}/loki/host_web.c
+            ${PSND_ROOT_DIR}/source/thirdparty/mongoose-7.20/mongoose.c
+        )
+    endif()
+
     # Collect language-specific register sources
     psnd_collect_lang_sources()
 
@@ -136,6 +144,16 @@ function(psnd_build_loki)
         ${PSND_ROOT_DIR}/source/thirdparty/midifile/include
         ${PSND_ALL_LANG_INCLUDES}
     )
+
+    # Web host configuration (mongoose-based HTTP/WebSocket server)
+    if(BUILD_WEB_HOST)
+        target_compile_definitions(libloki PUBLIC LOKI_WEB_HOST)
+        # Disable mongoose debug logging
+        target_compile_definitions(libloki PRIVATE MG_ENABLE_LOG=0)
+        target_include_directories(libloki PRIVATE
+            ${PSND_ROOT_DIR}/source/thirdparty/mongoose-7.20
+        )
+    endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(libloki PRIVATE -Wall -Wextra -pedantic)
@@ -198,6 +216,11 @@ function(psnd_build_binary)
 
     target_link_libraries(psnd_bin PRIVATE libloki)
     psnd_apply_lang_definitions(psnd_bin)
+
+    # Web host configuration for the binary
+    if(BUILD_WEB_HOST)
+        target_compile_definitions(psnd_bin PRIVATE LOKI_WEB_HOST)
+    endif()
 endfunction()
 
 # ==============================================================================

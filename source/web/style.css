@@ -1,0 +1,353 @@
+/* psnd web editor styles - Hybrid layout with CodeMirror + REPL */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d2d;
+  --bg-panel: #1a1a1a;
+  --text-primary: #cccccc;
+  --text-secondary: #888888;
+  --text-muted: #666666;
+  --accent: #4ec9b0;
+  --accent-secondary: #569cd6;
+  --border: #3c3c3c;
+  --error: #f44747;
+  --warning: #cca700;
+  --success: #4ec9b0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Main container */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 16px;
+  color: var(--accent);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.filename {
+  color: var(--text-secondary);
+}
+
+.dirty {
+  color: var(--warning);
+  font-weight: bold;
+}
+
+.lang {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.status {
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status.connected {
+  background-color: var(--success);
+  color: var(--bg-primary);
+}
+
+.status.disconnected {
+  background-color: var(--error);
+  color: white;
+}
+
+.status.connecting {
+  background-color: var(--warning);
+  color: var(--bg-primary);
+}
+
+/* Main content area */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Panels */
+.panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-panel {
+  flex: 1;
+  min-width: 200px;
+}
+
+.repl-panel {
+  width: 40%;
+  min-width: 200px;
+  border-left: 1px solid var(--border);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--text-muted);
+}
+
+.btn:active {
+  background-color: var(--bg-primary);
+}
+
+.panel-content {
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--bg-panel);
+}
+
+/* Resizer handle */
+.resizer {
+  width: 4px;
+  cursor: col-resize;
+  background-color: var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.resizer:hover {
+  background-color: var(--accent);
+}
+
+/* CodeMirror customizations */
+.CodeMirror {
+  height: 100% !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.CodeMirror-gutters {
+  background-color: var(--bg-secondary) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+.CodeMirror-linenumber {
+  color: var(--text-muted) !important;
+  padding: 0 8px !important;
+}
+
+.CodeMirror-cursor {
+  border-left-color: var(--text-primary) !important;
+}
+
+.CodeMirror-selected {
+  background-color: rgba(100, 100, 100, 0.4) !important;
+}
+
+/* jQuery Terminal customizations */
+#terminal {
+  height: 100%;
+}
+
+.terminal {
+  height: 100% !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+  font-size: 13px !important;
+  padding: 8px !important;
+}
+
+.terminal .terminal-output {
+  line-height: 1.4;
+}
+
+.cmd {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+  font-size: 13px !important;
+}
+
+.cmd-prompt {
+  color: var(--accent) !important;
+}
+
+/* Terminal scrollbar */
+.terminal-scroller::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-scroller::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.terminal-scroller::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.terminal-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Footer / Status bar */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 16px;
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.mode {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  background-color: var(--accent-secondary);
+  color: white;
+  text-transform: uppercase;
+}
+
+.position {
+  color: var(--text-muted);
+}
+
+.message {
+  flex: 1;
+  text-align: center;
+}
+
+.message.error {
+  color: var(--error);
+}
+
+.message.success {
+  color: var(--success);
+}
+
+/* Output styling in terminal */
+.terminal .output-info {
+  color: var(--text-secondary);
+}
+
+.terminal .output-success {
+  color: var(--success);
+}
+
+.terminal .output-error {
+  color: var(--error);
+}
+
+.terminal .output-warning {
+  color: var(--warning);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .main {
+    flex-direction: column;
+  }
+
+  .editor-panel, .repl-panel {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .repl-panel {
+    height: 40%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .resizer {
+    width: 100%;
+    height: 4px;
+    cursor: row-resize;
+  }
+}
+
+@media (max-width: 600px) {
+  .header {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .header-left {
+    gap: 8px;
+  }
+
+  .footer {
+    padding: 3px 12px;
+    font-size: 11px;
+  }
+}

@@ -26,10 +26,19 @@ void editor_cli_print_usage(void) {
     printf("  --json-rpc-single   Run single JSON-RPC command and exit\n");
     printf("  --rows N            Screen rows for headless mode (default: 24)\n");
     printf("  --cols N            Screen cols for headless mode (default: 80)\n");
+#ifdef LOKI_WEB_HOST
+    printf("\nWeb Server Mode:\n");
+    printf("  --web               Run as web server (browser-based editing)\n");
+    printf("  --web-port N        Web server port (default: 8080)\n");
+    printf("  --web-root PATH     Directory containing web UI files\n");
+#endif
     printf("\nInteractive mode (default):\n");
     printf("  " PSND_NAME " <file.alda>           Open file in editor\n");
     printf("  " PSND_NAME " -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
     printf("  " PSND_NAME " -cs inst.csd song.alda Open with Csound synthesis\n");
+#ifdef LOKI_WEB_HOST
+    printf("  " PSND_NAME " --web song.alda       Open in browser at localhost:8080\n");
+#endif
     printf("\nKeybindings:\n");
     printf("  Ctrl-E    Play current part or selection\n");
     printf("  Ctrl-P    Play entire file\n");
@@ -130,6 +139,36 @@ int editor_cli_parse(int argc, char **argv, EditorCliArgs *args) {
                 fprintf(stderr, "Error: --cols must be a positive number\n");
                 return -1;
             }
+            continue;
+        }
+
+        /* Web server mode */
+        if (strcmp(arg, "--web") == 0) {
+            args->web_mode = 1;
+            continue;
+        }
+
+        /* Web server port */
+        if (strcmp(arg, "--web-port") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --web-port requires a number argument\n");
+                return -1;
+            }
+            args->web_port = atoi(argv[++i]);
+            if (args->web_port <= 0 || args->web_port > 65535) {
+                fprintf(stderr, "Error: --web-port must be between 1 and 65535\n");
+                return -1;
+            }
+            continue;
+        }
+
+        /* Web root directory */
+        if (strcmp(arg, "--web-root") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --web-root requires a path argument\n");
+                return -1;
+            }
+            args->web_root = argv[++i];
             continue;
         }
 

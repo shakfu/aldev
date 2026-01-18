@@ -12,6 +12,8 @@
 #include "undo.h"
 #include "lang_bridge.h"
 #include "loki/link.h"
+#include "loki/lua.h"
+#include "syntax.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -165,7 +167,46 @@ EditorSession *editor_session_new(const EditorConfig *config) {
 
         /* Open initial file if specified */
         if (config->filename) {
+            syntax_select_for_filename(&session->ctx, (char *)config->filename);
             editor_open(&session->ctx, (char *)config->filename);
+        }
+
+        /* Initialize Lua if requested */
+        if (config->enable_lua) {
+            LuaHost *lua_host = lua_host_create();
+            if (lua_host) {
+                session->ctx.lua_host = lua_host;
+
+                struct loki_lua_opts opts = {
+                    .bind_editor = 1,
+                    .bind_http = 0,
+                    .load_config = 1,
+                    .config_override = NULL,
+                    .project_root = NULL,
+                    .extra_lua_path = NULL,
+                    .reporter = NULL,
+                    .reporter_userdata = NULL
+                };
+
+                lua_host->L = loki_lua_bootstrap(&session->ctx, &opts);
+                if (lua_host->L) {
+                    lua_host_init_repl(lua_host);
+
+                    /* Initialize language for file type, or default language if no file */
+                    if (loki_lang_init_for_file(&session->ctx) != 0) {
+                        /* No file or unrecognized extension - try to init first available language */
+                        int lang_count = 0;
+                        const LokiLangOps **langs = loki_lang_all(&lang_count);
+                        for (int i = 0; i < lang_count; i++) {
+                            if (langs[i]->init) {
+                                if (langs[i]->init(&session->ctx) == 0) {
+                                    break;  /* Successfully initialized */
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     } else {
         session->ctx.view.screenrows = 24;
@@ -180,6 +221,12 @@ EditorSession *editor_session_new(const EditorConfig *config) {
 
 void editor_session_free(EditorSession *session) {
     if (!session) return;
+
+    /* Clean up Lua host if we created one */
+    if (session->ctx.lua_host) {
+        lua_host_free(session->ctx.lua_host);
+        session->ctx.lua_host = NULL;
+    }
 
     editor_ctx_free(&session->ctx);
     free(session);
@@ -435,4 +482,9 @@ int editor_session_open(EditorSession *session, const char *filename) {
 int editor_session_save(EditorSession *session) {
     if (!session) return -1;
     return editor_save(&session->ctx);
+}
+
+editor_ctx_t *editor_session_get_ctx(EditorSession *session) {
+    if (!session) return NULL;
+    return &session->ctx;
 }

@@ -244,6 +244,17 @@ int editor_session_open(EditorSession *session, const char *filename);
  */
 int editor_session_save(EditorSession *session);
 
+/**
+ * Get the editor context from a session.
+ *
+ * This provides direct access to the internal editor context for advanced
+ * operations like language evaluation. Use with caution.
+ *
+ * @param session  Editor session
+ * @return Editor context pointer, or NULL on error
+ */
+struct editor_ctx *editor_session_get_ctx(EditorSession *session);
+
 #ifdef __cplusplus
 }
 #endif
