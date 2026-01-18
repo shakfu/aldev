@@ -931,6 +931,110 @@ void modal_process_keypress(editor_ctx_t *ctx, int fd) {
 }
 
 /* ============================================================================
+ * Event-Based Entry Point
+ * ============================================================================
+ * This function provides an event-based interface for modal processing,
+ * enabling cleaner modifier handling and test injection.
+ */
+
+/**
+ * Process an EditorEvent through the modal system.
+ *
+ * This is the preferred entry point for:
+ * - Test code (inject events without terminal I/O)
+ * - Future transports (WebSocket, RPC)
+ *
+ * Internally converts to keycode and dispatches to existing handlers.
+ *
+ * Note: For Ctrl-X prefix sequences that require a second key read,
+ * this function cannot be used (use modal_process_keypress with fd).
+ */
+void modal_process_event(editor_ctx_t *ctx, const EditorEvent *event) {
+    if (!ctx || !event) return;
+
+    /* Handle non-key events directly */
+    switch (event->type) {
+        case EVENT_NONE:
+            return;
+
+        case EVENT_QUIT:
+            exit(0);
+
+        case EVENT_RESIZE:
+            /* Update screen dimensions */
+            ctx->view.screenrows = event->data.resize.rows - STATUS_ROWS;
+            ctx->view.screencols = event->data.resize.cols;
+            editor_refresh_screen(ctx);
+            return;
+
+        case EVENT_COMMAND:
+            /* Execute ex-command directly */
+            if (event->data.command.command) {
+                command_execute(ctx, event->data.command.command);
+            }
+            return;
+
+        case EVENT_ACTION:
+            /* Named actions could be dispatched here in the future */
+            return;
+
+        case EVENT_KEY:
+            /* Fall through to keypress handling */
+            break;
+
+        case EVENT_MOUSE:
+            /* Mouse events not yet implemented */
+            return;
+    }
+
+    /* Convert event to legacy keycode for existing handlers */
+    int c = event_to_keycode(event);
+    if (c == 0) return;
+
+    /* Static quit counter (must persist across calls) */
+    static int quit_times = KILO_QUIT_TIMES;
+
+    /* REPL keypress handling */
+    if (ctx_repl(ctx) && ctx_repl(ctx)->active) {
+        lua_repl_handle_keypress(ctx, c);
+        return;
+    }
+
+    /* Handle quit globally (works in all modes) */
+    if (c == CTRL_Q) {
+        if (ctx->model.dirty && quit_times) {
+            editor_set_status_msg(ctx, "WARNING!!! File has unsaved changes. "
+                "Press Ctrl-Q %d more times to quit.", quit_times);
+            quit_times--;
+            return;
+        }
+        exit(0);
+    }
+
+    /* Note: Ctrl-X prefix sequences cannot be handled here because
+     * they require reading a second key from the terminal fd.
+     * Use modal_process_keypress() for full functionality. */
+
+    /* Dispatch to mode-specific handler (fd=0, no recursive reads) */
+    switch(ctx->view.mode) {
+        case MODE_NORMAL:
+            process_normal_mode(ctx, 0, c);
+            break;
+        case MODE_INSERT:
+            process_insert_mode(ctx, 0, c);
+            break;
+        case MODE_VISUAL:
+            process_visual_mode(ctx, 0, c);
+            break;
+        case MODE_COMMAND:
+            command_mode_handle_key(ctx, 0, c);
+            break;
+    }
+
+    quit_times = KILO_QUIT_TIMES; /* Reset it to the original value. */
+}
+
+/* ============================================================================
  * Test Functions - For unit testing only
  * ============================================================================
  * These functions expose the internal mode handlers for unit testing.

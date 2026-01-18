@@ -13,6 +13,7 @@
 #include <signal.h>
 #include <lua.h>
 #include "loki/core.h"  /* Public API types (EditorMode, etc.) */
+#include "event.h"      /* Event abstraction layer */
 
 /* ======================= Syntax Highlighting Constants ==================== */
 
@@ -331,6 +332,12 @@ void editor_process_keypress(editor_ctx_t *ctx, int fd);
 
 /* Cursor movement */
 void editor_move_cursor(editor_ctx_t *ctx, int key);
+
+/* Modal editing - event-based entry point
+ * Process an EditorEvent through the modal system.
+ * Preferred for testing and non-terminal input sources.
+ * Note: Does not support Ctrl-X prefix sequences (use modal_process_keypress). */
+void modal_process_event(editor_ctx_t *ctx, const EditorEvent *event);
 
 /* Modal editing test functions - for testing only
  * These functions expose the internal mode handlers for unit testing.
