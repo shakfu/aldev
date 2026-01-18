@@ -140,6 +140,14 @@ int command_history_len(void) {
     return command_history_count;
 }
 
+void command_history_free(void) {
+    for (int i = 0; i < command_history_count; i++) {
+        free(command_history[i]);
+        command_history[i] = NULL;
+    }
+    command_history_count = 0;
+}
+
 /* ======================== Command Lookup ======================== */
 
 /* Find command definition (builtin or dynamic) */

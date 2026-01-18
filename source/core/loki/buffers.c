@@ -137,13 +137,17 @@ void buffers_free(void) {
     /* Free all active buffers */
     for (int i = 0; i < MAX_BUFFERS; i++) {
         if (buffer_state.buffers[i].active) {
+            /* Note: Don't free lua_host here - it's shared and freed separately */
+            buffer_state.buffers[i].ctx.lua_host = NULL;
             editor_ctx_free(&buffer_state.buffers[i].ctx);
             buffer_state.buffers[i].active = 0;
         }
     }
 
+    /* Reset buffer manager state completely */
     buffer_state.initialized = 0;
-    buffer_state.current_buffer_id = -1;
+    buffer_state.current_buffer_id = 0;
+    buffer_state.next_id = 1;
 }
 
 /* ======================== Buffer Operations ======================== */

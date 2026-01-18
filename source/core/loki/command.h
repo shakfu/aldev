@@ -64,6 +64,9 @@ const char* command_history_get(int index);
 /* Get command history length */
 int command_history_len(void);
 
+/* Free all command history (cleanup) */
+void command_history_free(void);
+
 /* ======================== Built-in Command Handlers ======================== */
 
 /* :w [filename] - Write (save) file */
