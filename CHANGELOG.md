@@ -57,6 +57,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Callback registration examples for peers, tempo, and transport changes
   - **Files Modified**: `.psnd/init.lua`
 
+- **Build System Improvements**:
+  - **AddressSanitizer**: `cmake -B build -DPSND_ENABLE_ASAN=ON .` for memory error detection
+  - **Code Coverage**: `cmake -B build -DPSND_ENABLE_COVERAGE=ON .` for gcov/lcov reports
+  - **Install Target**: `cmake --install build` installs binary to `bin/` and config to `share/psnd/`
+  - **Files Modified**: `CMakeLists.txt`
+
+- **MIDI Port Selection from Editor**: Full Lua API for MIDI port management
+  - `midi.list_ports()` - Get table of all available MIDI port names
+  - `midi.port_count()` - Get number of available MIDI ports
+  - `midi.port_name(index)` - Get name of port at index (1-based)
+  - `midi.open_port(index)` - Open MIDI port by index (1-based)
+  - `midi.open_by_name(name)` - Open first port matching name substring
+  - `midi.open_virtual(name)` - Create virtual MIDI port (default: "PSND_MIDI")
+  - `midi.close()` - Close current MIDI port
+  - `midi.is_open()` - Check if a MIDI port is currently open
+  - **Files Modified**: `source/core/loki/lua.c`
+
+- **Global Lua Module Aliases**: Commonly used modules available without `loki.` prefix
+  - `midi` is now a global alias for `loki.midi`
+  - `link` is now a global alias for `loki.link`
+  - Shortens commands in Ctrl-L REPL: `midi.list_ports()` instead of `loki.midi.list_ports()`
+  - **Files Modified**: `source/core/loki/lua.c`
+
 ### Changed
 
 - **Unified MIDI Port Name**: All languages now use `PSND_MIDI` as the default virtual MIDI port name

@@ -38,6 +38,7 @@
 #include "export.h"          /* MIDI export control */
 #include "buffers.h"    /* Buffer management for buffer_get_current() */
 #include "shared/context.h"  /* SharedContext for launch_quantize */
+#include "shared/midi/midi.h"  /* MIDI port functions */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -1349,6 +1350,133 @@ static void lua_register_link_module(lua_State *L) {
     lua_setfield(L, -2, "link");  /* Set as loki.link */
 }
 
+/* ======================= MIDI Port Lua Bindings ======================= */
+
+/* Lua API: loki.midi.port_count() - Get number of available MIDI output ports */
+static int lua_midi_port_count(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+    lua_pushinteger(L, shared_midi_get_port_count(ctx->model.shared));
+    return 1;
+}
+
+/* Lua API: loki.midi.port_name(index) - Get name of MIDI port at index (1-based) */
+static int lua_midi_port_name(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushnil(L);
+        return 1;
+    }
+    int idx = (int)luaL_checkinteger(L, 1) - 1;  /* Convert to 0-based */
+    const char *name = shared_midi_get_port_name(ctx->model.shared, idx);
+    if (name) {
+        lua_pushstring(L, name);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+/* Lua API: loki.midi.list_ports() - Get table of all MIDI port names */
+static int lua_midi_list_ports(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_newtable(L);
+        return 1;
+    }
+    int count = shared_midi_get_port_count(ctx->model.shared);
+    lua_createtable(L, count, 0);
+    for (int i = 0; i < count; i++) {
+        const char *name = shared_midi_get_port_name(ctx->model.shared, i);
+        if (name) {
+            lua_pushstring(L, name);
+            lua_rawseti(L, -2, i + 1);  /* 1-based Lua index */
+        }
+    }
+    return 1;
+}
+
+/* Lua API: loki.midi.open_port(index) - Open MIDI port by index (1-based) */
+static int lua_midi_open_port(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+    int idx = (int)luaL_checkinteger(L, 1) - 1;  /* Convert to 0-based */
+    if (shared_midi_open_port(ctx->model.shared, idx) == 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to open port");
+        return 2;
+    }
+}
+
+/* Lua API: loki.midi.open_by_name(name) - Open MIDI port by name (substring match) */
+static int lua_midi_open_by_name(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+    const char *name = luaL_checkstring(L, 1);
+    if (shared_midi_open_by_name(ctx->model.shared, name) == 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No port matching name");
+        return 2;
+    }
+}
+
+/* Lua API: loki.midi.open_virtual(name) - Create virtual MIDI port */
+static int lua_midi_open_virtual(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+    const char *name = luaL_optstring(L, 1, "PSND_MIDI");
+    if (shared_midi_open_virtual(ctx->model.shared, name) == 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to create virtual port");
+        return 2;
+    }
+}
+
+/* Lua API: loki.midi.close() - Close current MIDI port */
+static int lua_midi_close(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        return 0;
+    }
+    shared_midi_close(ctx->model.shared);
+    return 0;
+}
+
+/* Lua API: loki.midi.is_open() - Check if MIDI port is open */
+static int lua_midi_is_open(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+    lua_pushboolean(L, shared_midi_is_open(ctx->model.shared));
+    return 1;
+}
+
 /* ======================= MIDI Export Lua Bindings ======================= */
 
 /* Lua API: loki.midi.export(filename) - Export events to MIDI file
@@ -1378,6 +1506,33 @@ static void lua_register_midi_module(lua_State *L) {
     /* Assumes loki table is on top of stack */
     lua_newtable(L);  /* Create midi subtable */
 
+    /* Port enumeration */
+    lua_pushcfunction(L, lua_midi_port_count);
+    lua_setfield(L, -2, "port_count");
+
+    lua_pushcfunction(L, lua_midi_port_name);
+    lua_setfield(L, -2, "port_name");
+
+    lua_pushcfunction(L, lua_midi_list_ports);
+    lua_setfield(L, -2, "list_ports");
+
+    /* Port connection */
+    lua_pushcfunction(L, lua_midi_open_port);
+    lua_setfield(L, -2, "open_port");
+
+    lua_pushcfunction(L, lua_midi_open_by_name);
+    lua_setfield(L, -2, "open_by_name");
+
+    lua_pushcfunction(L, lua_midi_open_virtual);
+    lua_setfield(L, -2, "open_virtual");
+
+    lua_pushcfunction(L, lua_midi_close);
+    lua_setfield(L, -2, "close");
+
+    lua_pushcfunction(L, lua_midi_is_open);
+    lua_setfield(L, -2, "is_open");
+
+    /* Export */
     lua_pushcfunction(L, lua_midi_export);
     lua_setfield(L, -2, "export");
 
@@ -1507,6 +1662,15 @@ void loki_lua_bind_editor(lua_State *L) {
 
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");
+
+    /* Create global aliases for commonly used submodules */
+    /* Allows: midi.list_ports() instead of loki.midi.list_ports() */
+    lua_getglobal(L, "loki");
+    lua_getfield(L, -1, "midi");
+    lua_setglobal(L, "midi");
+    lua_getfield(L, -1, "link");
+    lua_setglobal(L, "link");
+    lua_pop(L, 1);  /* pop loki table */
 
     /* Register language-specific Lua APIs via the bridge */
     loki_lang_register_lua_apis(L);

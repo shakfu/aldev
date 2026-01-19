@@ -65,8 +65,10 @@ The web host is functional with xterm.js terminal emulator. Remaining work:
   - Highlight currently playing region
   - Show playback progress in status bar
 
-- [ ] MIDI port selection from editor
-  - Currently only configurable via CLI
+- [x] MIDI port selection from editor
+  - Added `loki.midi.list_ports()`, `loki.midi.port_count()`, `loki.midi.port_name(index)`
+  - Added `loki.midi.open_port(index)`, `loki.midi.open_by_name(name)`
+  - Added `loki.midi.open_virtual(name)`, `loki.midi.close()`, `loki.midi.is_open()`
 
 - [ ] Tempo tap
   - Tap key to set tempo
@@ -83,14 +85,17 @@ The web host is functional with xterm.js terminal emulator. Remaining work:
 
 ### Build System
 
-- [ ] Add AddressSanitizer build target
-  - `option(PSND_ENABLE_ASAN "Enable AddressSanitizer" OFF)`
+- [x] Add AddressSanitizer build target
+  - `cmake -B build -DPSND_ENABLE_ASAN=ON .`
 
-- [ ] Add code coverage target
-  - `option(PSND_ENABLE_COVERAGE "Enable code coverage" OFF)`
+- [x] Add code coverage target
+  - `cmake -B build -DPSND_ENABLE_COVERAGE=ON .`
+  - Use lcov/gcov to generate reports
 
-- [ ] Add install target
-  - Currently no `make install` support
+- [x] Add install target
+  - `cmake --install build [--prefix /usr/local]`
+  - Installs binary to `bin/psnd`
+  - Installs config to `share/psnd/`
 
 ### Test Framework
 
