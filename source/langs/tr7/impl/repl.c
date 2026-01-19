@@ -528,6 +528,25 @@ static void tr7_repl_register_music_funcs(tr7_engine_t engine) {
 }
 
 /* ============================================================================
+ * TR7 Tab Completion
+ * ============================================================================ */
+
+/* TR7 completion words: music primitive names */
+static const char *tr7_completion_words[] = {
+    /* Note playing */
+    "play-note", "note-on", "note-off", "play-chord", "play-seq",
+    /* State setters */
+    "set-tempo", "set-octave", "set-velocity", "set-channel",
+    /* State getters */
+    "tempo", "octave", "velocity", "channel",
+    /* MIDI control */
+    "midi-list", "midi-open", "midi-virtual", "midi-panic",
+    /* Utilities */
+    "tsf-load", "sleep-ms", "program-change", "control-change", "note",
+};
+#define TR7_COMPLETION_WORD_COUNT (sizeof(tr7_completion_words) / sizeof(tr7_completion_words[0]))
+
+/* ============================================================================
  * TR7 REPL Loop
  * ============================================================================ */
 
@@ -653,6 +672,9 @@ static void tr7_repl_loop(editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Set up tab completion for TR7 music primitives */
+    repl_set_completion_words(&ed, tr7_completion_words, TR7_COMPLETION_WORD_COUNT);
 
     /* Build history file path and load history */
     if (repl_get_history_path("tr7", history_path, sizeof(history_path))) {

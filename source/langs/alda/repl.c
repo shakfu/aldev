@@ -21,6 +21,7 @@
 #include "alda/scheduler.h"
 #include "alda/interpreter.h"
 #include "alda/async.h"
+#include "alda/instruments.h"
 
 /* Shared context for REPL-owned state */
 #include "shared/context.h"
@@ -178,6 +179,12 @@ static void alda_repl_loop_pipe(AldaContext *ctx) {
     }
 }
 
+/* Tab completion callback for Alda REPL - completes instrument names */
+static char **alda_completion_callback(const char *prefix, int *count, void *user_data) {
+    (void)user_data;  /* Alda completion doesn't need context */
+    return alda_instrument_get_completions(prefix, count, REPL_COMPLETIONS_MAX);
+}
+
 static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
@@ -190,6 +197,9 @@ static void repl_loop(AldaContext *ctx, editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Set up tab completion for instrument names */
+    repl_set_completion(&ed, alda_completion_callback, NULL);
 
     /* Build history file path and load history */
     if (repl_get_history_path("alda", history_path, sizeof(history_path))) {

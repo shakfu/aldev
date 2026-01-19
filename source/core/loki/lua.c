@@ -1539,7 +1539,6 @@ static void lua_register_midi_module(lua_State *L) {
     lua_setfield(L, -2, "midi");  /* Set as loki.midi */
 }
 
-
 void loki_lua_bind_minimal(lua_State *L) {
     lua_getglobal(L, "loki");
     if (!lua_istable(L, -1)) {

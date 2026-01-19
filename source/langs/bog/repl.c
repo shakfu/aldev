@@ -380,6 +380,32 @@ static void repl_audio_noise(void *userdata, double time, double velocity) {
 }
 
 /* ============================================================================
+ * Bog Tab Completion
+ * ============================================================================ */
+
+/* Bog completion words: built-in predicates + voice names */
+static const char *bog_completion_words[] = {
+    /* Voice names */
+    "kick", "snare", "hat", "clap", "noise",
+    "sine", "square", "triangle",
+    /* Main predicate */
+    "event",
+    /* Timing predicates */
+    "every", "beat", "phase", "euc",
+    /* Comparison */
+    "eq", "lt", "gt", "lte", "gte", "within",
+    /* Arithmetic */
+    "is", "add", "range",
+    /* Music theory */
+    "scale", "chord", "transpose", "rotate",
+    /* Randomness */
+    "prob", "rand", "randint", "choose", "pick", "cycle",
+    /* State */
+    "distinct", "cooldown",
+};
+#define BOG_COMPLETION_WORD_COUNT (sizeof(bog_completion_words) / sizeof(bog_completion_words[0]))
+
+/* ============================================================================
  * Bog REPL Loop
  * ============================================================================ */
 
@@ -709,6 +735,9 @@ static void bog_repl_loop(editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Set up tab completion for Bog predicates and voices */
+    repl_set_completion_words(&ed, bog_completion_words, BOG_COMPLETION_WORD_COUNT);
 
     /* Build history file path and load history */
     if (repl_get_history_path("bog", history_path, sizeof(history_path))) {

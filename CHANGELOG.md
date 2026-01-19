@@ -19,6 +19,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **REPL Tab Completion**: TAB key now cycles through completions in all language REPLs
+  - Standard mechanism: `repl_set_completion_words(ed, words, count)` for static word lists
+  - Callback mechanism: `repl_set_completion(ed, callback, user_data)` for dynamic sources
+  - TAB cycles through matches; any other key clears completion state
+  - **Joy**: Completes dictionary words (including user-defined words via DEFINE)
+  - **Alda**: Completes General MIDI instrument names (128 instruments + percussion)
+  - **TR7**: Completes music primitives (play-note, set-tempo, midi-list, etc.)
+  - **Bog**: Completes built-in predicates (every, beat, euc, scale, chord) and voices (kick, snare, hat, etc.)
+  - **Files Modified**: `source/core/repl.h`, `source/core/repl.c`
+  - **Files Modified**: `source/langs/joy/repl.c`, `source/langs/alda/repl.c`, `source/langs/tr7/impl/repl.c`, `source/langs/bog/repl.c`
+
 - **FluidSynth Backend**: Optional higher-quality synthesizer as alternative to TinySoundFont
   - Compile-time selection: TinySoundFont and FluidSynth are mutually exclusive
   - Same API: `-sf soundfont.sf2` works with either backend

@@ -170,6 +170,14 @@ static void joy_repl_loop_pipe(JoyContext *ctx) {
     }
 }
 
+/* Tab completion callback for Joy REPL */
+static char **joy_completion_callback(const char *prefix, int *count, void *user_data) {
+    JoyContext *ctx = (JoyContext *)user_data;
+    if (!ctx || !ctx->dictionary) return NULL;
+
+    return joy_dict_get_completions(ctx->dictionary, prefix, count, REPL_COMPLETIONS_MAX);
+}
+
 static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
     ReplLineEditor ed;
     char *input;
@@ -183,6 +191,9 @@ static void joy_repl_loop(JoyContext *ctx, editor_ctx_t *syntax_ctx) {
     }
 
     repl_editor_init(&ed);
+
+    /* Set up tab completion for Joy dictionary words */
+    repl_set_completion(&ed, joy_completion_callback, ctx);
 
     /* Build history file path and load history */
     if (repl_get_history_path("joy", history_path, sizeof(history_path))) {

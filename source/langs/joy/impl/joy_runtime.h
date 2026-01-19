@@ -224,6 +224,17 @@ void joy_dict_define_seq(JoyDict* dict, const char* name, SeqDefinition* seq);
 JoyWord* joy_dict_lookup(JoyDict* dict, const char* name);
 bool joy_dict_remove(JoyDict* dict, const char* name);
 
+/**
+ * Get all dictionary entries matching a prefix for tab completion.
+ *
+ * @param dict    The dictionary to search
+ * @param prefix  Prefix to match (empty string matches all)
+ * @param count   Output: number of completions returned
+ * @param max     Maximum number of completions to return
+ * @return Array of strdup'd strings (caller frees array and strings), or NULL
+ */
+char** joy_dict_get_completions(JoyDict* dict, const char* prefix, int* count, int max);
+
 /* Sequence definition helpers */
 SeqDefinition* seq_definition_new(void);
 void seq_definition_free(SeqDefinition* seq);

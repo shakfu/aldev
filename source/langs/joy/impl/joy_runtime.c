@@ -872,6 +872,65 @@ JoyWord* joy_dict_lookup(JoyDict* dict, const char* name) {
     return NULL;
 }
 
+char** joy_dict_get_completions(JoyDict* dict, const char* prefix, int* count, int max) {
+    if (!dict || !count) return NULL;
+    *count = 0;
+
+    size_t prefix_len = prefix ? strlen(prefix) : 0;
+
+    /* First pass: count matches */
+    int match_count = 0;
+    for (size_t i = 0; i < dict->bucket_count && match_count < max; i++) {
+        JoyDictEntry* entry = dict->buckets[i];
+        while (entry && match_count < max) {
+            if (prefix_len == 0 || strncmp(entry->key, prefix, prefix_len) == 0) {
+                match_count++;
+            }
+            entry = entry->next;
+        }
+    }
+
+    if (match_count == 0) return NULL;
+
+    /* Allocate result array */
+    char** result = malloc((match_count + 1) * sizeof(char*));
+    if (!result) return NULL;
+
+    /* Second pass: collect matches */
+    int idx = 0;
+    for (size_t i = 0; i < dict->bucket_count && idx < match_count; i++) {
+        JoyDictEntry* entry = dict->buckets[i];
+        while (entry && idx < match_count) {
+            if (prefix_len == 0 || strncmp(entry->key, prefix, prefix_len) == 0) {
+                result[idx] = strdup(entry->key);
+                if (!result[idx]) {
+                    /* Cleanup on allocation failure */
+                    for (int j = 0; j < idx; j++) free(result[j]);
+                    free(result);
+                    return NULL;
+                }
+                idx++;
+            }
+            entry = entry->next;
+        }
+    }
+    result[idx] = NULL;  /* NULL terminate */
+
+    /* Sort completions alphabetically */
+    for (int i = 0; i < idx - 1; i++) {
+        for (int j = i + 1; j < idx; j++) {
+            if (strcmp(result[i], result[j]) > 0) {
+                char* tmp = result[i];
+                result[i] = result[j];
+                result[j] = tmp;
+            }
+        }
+    }
+
+    *count = idx;
+    return result;
+}
+
 /* ---------- Execution ---------- */
 
 JoyContext* joy_context_new(void) {

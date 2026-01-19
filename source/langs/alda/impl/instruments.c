@@ -558,3 +558,76 @@ int alda_instrument_is_percussion(const char* name) {
 
     return 0;
 }
+
+#include <stdlib.h>
+
+char** alda_instrument_get_completions(const char* prefix, int* count, int max) {
+    if (!count) return NULL;
+    *count = 0;
+
+    size_t prefix_len = prefix ? strlen(prefix) : 0;
+
+    /* First pass: count matches using canonical names only (avoids duplicates) */
+    int match_count = 0;
+    for (int i = 0; i < 128 && match_count < max; i++) {
+        const char* name = CANONICAL_NAMES[i];
+        if (prefix_len == 0 || strncmp(name, prefix, prefix_len) == 0) {
+            match_count++;
+        }
+    }
+    /* Also check percussion instruments */
+    for (int i = 0; PERCUSSION_INSTRUMENTS[i] != NULL && match_count < max; i++) {
+        const char* name = PERCUSSION_INSTRUMENTS[i];
+        if (prefix_len == 0 || strncmp(name, prefix, prefix_len) == 0) {
+            match_count++;
+        }
+    }
+
+    if (match_count == 0) return NULL;
+
+    /* Allocate result array */
+    char** result = malloc((match_count + 1) * sizeof(char*));
+    if (!result) return NULL;
+
+    /* Second pass: collect matches */
+    int idx = 0;
+    for (int i = 0; i < 128 && idx < match_count; i++) {
+        const char* name = CANONICAL_NAMES[i];
+        if (prefix_len == 0 || strncmp(name, prefix, prefix_len) == 0) {
+            result[idx] = strdup(name);
+            if (!result[idx]) {
+                for (int j = 0; j < idx; j++) free(result[j]);
+                free(result);
+                return NULL;
+            }
+            idx++;
+        }
+    }
+    for (int i = 0; PERCUSSION_INSTRUMENTS[i] != NULL && idx < match_count; i++) {
+        const char* name = PERCUSSION_INSTRUMENTS[i];
+        if (prefix_len == 0 || strncmp(name, prefix, prefix_len) == 0) {
+            result[idx] = strdup(name);
+            if (!result[idx]) {
+                for (int j = 0; j < idx; j++) free(result[j]);
+                free(result);
+                return NULL;
+            }
+            idx++;
+        }
+    }
+    result[idx] = NULL;
+
+    /* Sort completions alphabetically */
+    for (int i = 0; i < idx - 1; i++) {
+        for (int j = i + 1; j < idx; j++) {
+            if (strcmp(result[i], result[j]) > 0) {
+                char* tmp = result[i];
+                result[i] = result[j];
+                result[j] = tmp;
+            }
+        }
+    }
+
+    *count = idx;
+    return result;
+}

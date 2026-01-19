@@ -19,6 +19,28 @@
 #define CTRL_K 11
 #endif
 
+#define REPL_COMPLETIONS_MAX 256
+
+/**
+ * Completion callback type.
+ *
+ * @param prefix  The word prefix to complete (may be empty string)
+ * @param count   Output: number of completions returned
+ * @param user_data  User-provided context (e.g., JoyContext*)
+ * @return Array of completion strings (caller must free array and strings),
+ *         or NULL if no completions. Strings must be strdup'd.
+ */
+typedef char **(*ReplCompletionCallback)(const char *prefix, int *count, void *user_data);
+
+/* Completion state for TAB cycling */
+typedef struct {
+    char **completions;     /* Current completion candidates */
+    int count;              /* Number of candidates */
+    int index;              /* Current index (-1 = none selected) */
+    int word_start;         /* Start position of word being completed */
+    int word_len;           /* Original length of word being completed */
+} ReplCompletionState;
+
 /* Line editor state for syntax-highlighted REPL input */
 typedef struct {
     char buf[MAX_INPUT_LENGTH];      /* Input buffer */
@@ -30,6 +52,17 @@ typedef struct {
     char saved_buf[MAX_INPUT_LENGTH];/* Saved current input when browsing history */
     int saved_len;                   /* Saved length */
     unsigned char hl[MAX_INPUT_LENGTH]; /* Highlight types per character */
+
+    /* Completion support - word list (standard mechanism) */
+    const char **completion_words;         /* NULL-terminated array of completion words */
+    int completion_word_count;             /* Number of words in array */
+
+    /* Completion support - callback (advanced, optional) */
+    ReplCompletionCallback completion_cb;  /* Custom callback (overrides word list) */
+    void *completion_user_data;            /* User data for callback */
+
+    /* Completion state */
+    ReplCompletionState completion;        /* Current completion state */
 } ReplLineEditor;
 
 /* Initialize line editor state */
@@ -59,5 +92,14 @@ void repl_highlight_line(editor_ctx_t *syntax_ctx, ReplLineEditor *ed);
 
 /* Render the current line with highlighting */
 void repl_render_line(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *prompt);
+
+/* Set completion words for TAB completion (standard mechanism) */
+void repl_set_completion_words(ReplLineEditor *ed, const char **words, int count);
+
+/* Set completion callback for TAB completion (advanced, overrides word list) */
+void repl_set_completion(ReplLineEditor *ed, ReplCompletionCallback cb, void *user_data);
+
+/* Clear completion state (call when input changes non-TAB) */
+void repl_completion_clear(ReplLineEditor *ed);
 
 #endif /* PSND_REPL_H */

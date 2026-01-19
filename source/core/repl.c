@@ -31,7 +31,32 @@ void repl_editor_cleanup(ReplLineEditor *ed) {
     for (int i = 0; i < ed->history_len; i++) {
         free(ed->history[i]);
     }
+    repl_completion_clear(ed);
     memset(ed, 0, sizeof(*ed));
+}
+
+void repl_set_completion_words(ReplLineEditor *ed, const char **words, int count) {
+    ed->completion_words = words;
+    ed->completion_word_count = count;
+}
+
+void repl_set_completion(ReplLineEditor *ed, ReplCompletionCallback cb, void *user_data) {
+    ed->completion_cb = cb;
+    ed->completion_user_data = user_data;
+}
+
+void repl_completion_clear(ReplLineEditor *ed) {
+    if (ed->completion.completions) {
+        for (int i = 0; i < ed->completion.count; i++) {
+            free(ed->completion.completions[i]);
+        }
+        free(ed->completion.completions);
+    }
+    ed->completion.completions = NULL;
+    ed->completion.count = 0;
+    ed->completion.index = -1;
+    ed->completion.word_start = 0;
+    ed->completion.word_len = 0;
 }
 
 void repl_add_history(ReplLineEditor *ed, const char *line) {
@@ -278,6 +303,167 @@ void repl_render_line(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *
 }
 
 /* ============================================================================
+ * Tab Completion
+ * ============================================================================ */
+
+/* Find the start of the word at or before cursor position */
+static int repl_find_word_start(const char *buf, int pos) {
+    int start = pos;
+    while (start > 0 && !isspace((unsigned char)buf[start - 1])) {
+        start--;
+    }
+    return start;
+}
+
+/* Generate completions from word list */
+static char **repl_completions_from_words(const char **words, int word_count,
+                                           const char *prefix, int *out_count) {
+    if (!words || word_count == 0) {
+        *out_count = 0;
+        return NULL;
+    }
+
+    size_t prefix_len = prefix ? strlen(prefix) : 0;
+
+    /* Count matches */
+    int matches = 0;
+    for (int i = 0; i < word_count; i++) {
+        if (words[i] && strncmp(words[i], prefix, prefix_len) == 0) {
+            matches++;
+        }
+    }
+
+    if (matches == 0) {
+        *out_count = 0;
+        return NULL;
+    }
+
+    /* Allocate result array */
+    char **result = malloc(sizeof(char*) * matches);
+    if (!result) {
+        *out_count = 0;
+        return NULL;
+    }
+
+    /* Fill matches */
+    int idx = 0;
+    for (int i = 0; i < word_count && idx < matches; i++) {
+        if (words[i] && strncmp(words[i], prefix, prefix_len) == 0) {
+            result[idx] = strdup(words[i]);
+            if (!result[idx]) {
+                for (int j = 0; j < idx; j++) free(result[j]);
+                free(result);
+                *out_count = 0;
+                return NULL;
+            }
+            idx++;
+        }
+    }
+
+    *out_count = matches;
+    return result;
+}
+
+/* Handle TAB key - initiate or cycle through completions */
+static void repl_handle_tab(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *prompt) {
+    /* Need either a callback or a word list */
+    if (!ed->completion_cb && !ed->completion_words) return;
+
+    ReplCompletionState *cs = &ed->completion;
+
+    /* If we already have completions, cycle to next */
+    if (cs->completions && cs->count > 0) {
+        cs->index = (cs->index + 1) % cs->count;
+
+        /* Replace current completion with next one */
+        int new_len = strlen(cs->completions[cs->index]);
+        int old_completion_len = ed->pos - cs->word_start;
+        int delta = new_len - old_completion_len;
+
+        /* Check if it fits */
+        if (ed->len + delta >= MAX_INPUT_LENGTH) return;
+
+        /* Move text after cursor */
+        memmove(&ed->buf[ed->pos + delta],
+                &ed->buf[ed->pos],
+                ed->len - ed->pos + 1);
+
+        /* Insert new completion */
+        memcpy(&ed->buf[cs->word_start], cs->completions[cs->index], new_len);
+
+        ed->len += delta;
+        ed->pos = cs->word_start + new_len;
+        ed->buf[ed->len] = '\0';
+
+        repl_render_line(syntax_ctx, ed, prompt);
+        return;
+    }
+
+    /* Start new completion */
+    int word_start = repl_find_word_start(ed->buf, ed->pos);
+    int word_len = ed->pos - word_start;
+
+    /* Extract prefix */
+    char prefix[MAX_INPUT_LENGTH];
+    if (word_len > 0) {
+        memcpy(prefix, &ed->buf[word_start], word_len);
+    }
+    prefix[word_len] = '\0';
+
+    /* Get completions - callback takes priority over word list */
+    int count = 0;
+    char **completions;
+    if (ed->completion_cb) {
+        completions = ed->completion_cb(prefix, &count, ed->completion_user_data);
+    } else {
+        completions = repl_completions_from_words(ed->completion_words,
+                                                   ed->completion_word_count,
+                                                   prefix, &count);
+    }
+
+    if (!completions || count == 0) {
+        /* No completions - beep or do nothing */
+        return;
+    }
+
+    /* Store completion state */
+    cs->completions = completions;
+    cs->count = count;
+    cs->index = 0;
+    cs->word_start = word_start;
+    cs->word_len = word_len;
+
+    /* If only one completion and it matches prefix exactly, do nothing */
+    if (count == 1 && strcmp(completions[0], prefix) == 0) {
+        repl_completion_clear(ed);
+        return;
+    }
+
+    /* Apply first completion */
+    int new_len = strlen(completions[0]);
+    int delta = new_len - word_len;
+
+    if (ed->len + delta >= MAX_INPUT_LENGTH) {
+        repl_completion_clear(ed);
+        return;
+    }
+
+    /* Move text after cursor */
+    memmove(&ed->buf[ed->pos + delta],
+            &ed->buf[ed->pos],
+            ed->len - ed->pos + 1);
+
+    /* Insert completion */
+    memcpy(&ed->buf[word_start], completions[0], new_len);
+
+    ed->len += delta;
+    ed->pos = word_start + new_len;
+    ed->buf[ed->len] = '\0';
+
+    repl_render_line(syntax_ctx, ed, prompt);
+}
+
+/* ============================================================================
  * Line Reading
  * ============================================================================ */
 
@@ -323,7 +509,14 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
                 memmove(&ed->buf[ed->pos], &ed->buf[ed->pos + 1], ed->len - ed->pos);
                 ed->len--;
             }
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
+            continue;
+        }
+
+        if (c == TAB) {
+            /* Tab completion */
+            repl_handle_tab(syntax_ctx, ed, prompt);
             continue;
         }
 
@@ -334,6 +527,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
                 ed->pos--;
                 ed->len--;
             }
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -344,30 +538,35 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
                 memmove(&ed->buf[ed->pos], &ed->buf[ed->pos + 1], ed->len - ed->pos);
                 ed->len--;
             }
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == ARROW_LEFT) {
             if (ed->pos > 0) ed->pos--;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == ARROW_RIGHT) {
             if (ed->pos < ed->len) ed->pos++;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == HOME_KEY || c == CTRL_A) {
             ed->pos = 0;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
 
         if (c == END_KEY || c == CTRL_E) {
             ed->pos = ed->len;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -391,6 +590,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
             strcpy(ed->buf, ed->history[ed->history_idx]);
             ed->len = strlen(ed->buf);
             ed->pos = ed->len;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -411,6 +611,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
                 ed->len = ed->saved_len;
                 ed->pos = ed->len;
             }
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -420,6 +621,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
             ed->buf[0] = '\0';
             ed->len = 0;
             ed->pos = 0;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -428,6 +630,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
             /* Kill to end of line */
             ed->len = ed->pos;
             ed->buf[ed->len] = '\0';
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
             continue;
         }
@@ -438,6 +641,7 @@ char *repl_readline(editor_ctx_t *syntax_ctx, ReplLineEditor *ed, const char *pr
             ed->buf[ed->pos] = c;
             ed->pos++;
             ed->len++;
+            repl_completion_clear(ed);
             repl_render_line(syntax_ctx, ed, prompt);
         }
     }
