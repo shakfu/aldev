@@ -101,6 +101,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Added**: `source/core/tests/shared/test_tsf_backend.c`, `source/core/tests/shared/test_csound_backend.c`
   - **Files Modified**: `source/core/tests/shared/CMakeLists.txt`
 
+- **Lua-to-Joy Primitive Callbacks**: Register Lua functions as Joy primitives
+  - `loki.joy.register_primitive(name, callback)` - Register a Lua function as a Joy word
+  - Callback receives Joy stack as Lua array (index 1 = bottom, #stack = top)
+  - Return modified stack or `nil, "error"` on failure
+  - Supports all Joy types: integers, floats, booleans, strings, lists, quotations, symbols, sets
+  - Quotations represented as `{type="quotation", value={...terms...}}`
+  - Up to 64 Lua primitives can be registered
+  - Example:
+    ```lua
+    loki.joy.register_primitive("double", function(stack)
+        if #stack < 1 then return nil, "stack underflow" end
+        local top = table.remove(stack)
+        table.insert(stack, top * 2)
+        return stack
+    end)
+    ```
+  - Enables extending Joy with Lua's ecosystem (HTTP, JSON, file I/O, etc.)
+  - **Files Modified**: `source/langs/joy/register.c`
+
 ### Changed
 
 - **Unified MIDI Port Name**: All languages now use `PSND_MIDI` as the default virtual MIDI port name

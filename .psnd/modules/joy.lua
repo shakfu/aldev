@@ -64,6 +64,30 @@
 --   loki.joy.get_error()          Get last error message
 --                                 Returns: string or nil
 --
+-- Extension:
+--   loki.joy.register_primitive(name, callback)
+--                                 Register a Lua function as a Joy word
+--                                 name: word name (e.g., "lua-double")
+--                                 callback: function(stack) -> stack or nil, error
+--                                   stack: Lua array (index 1 = bottom, #stack = top)
+--                                   Return: modified stack, or nil + error string
+--                                 Returns: true on success, nil + error on failure
+--
+--   Stack values in callbacks:
+--     integers, floats, booleans, strings -> Lua native types
+--     lists -> Lua arrays
+--     quotations -> {type="quotation", value={...terms...}}
+--     symbols -> {type="symbol", value="name"}
+--     sets -> {type="set", value=number}
+--
+--   Example:
+--     loki.joy.register_primitive("lua-double", function(stack)
+--         if #stack < 1 then return nil, "stack underflow" end
+--         local top = table.remove(stack)
+--         table.insert(stack, top * 2)
+--         return stack
+--     end)
+--
 -- ==============================================================================
 -- Joy Music Primitives (partial list)
 -- ==============================================================================
@@ -310,6 +334,38 @@ function M.ports()
 end
 
 -- ==============================================================================
+-- Extension Helpers
+-- ==============================================================================
+
+-- Register a Lua function as a Joy primitive
+-- Example: joy.primitive("double", function(stack) ... return stack end)
+function M.primitive(name, callback)
+    if not loki.joy.is_initialized() then
+        status("Joy not initialized")
+        return false
+    end
+
+    if type(name) ~= "string" or name == "" then
+        status("Primitive name must be a non-empty string")
+        return false
+    end
+
+    if type(callback) ~= "function" then
+        status("Callback must be a function")
+        return false
+    end
+
+    local ok, err = loki.joy.register_primitive(name, callback)
+    if not ok then
+        status("Register failed: " .. (err or "unknown"))
+        return false
+    end
+
+    status("Registered: " .. name)
+    return true
+end
+
+-- ==============================================================================
 -- Register with REPL help
 -- ==============================================================================
 
@@ -319,6 +375,7 @@ if loki.repl and loki.repl.register then
     loki.repl.register("joy.eval_file", "Evaluate current buffer (editor mode)")
     loki.repl.register("joy.eval_line", "Evaluate current line (editor mode)")
     loki.repl.register("joy.define", "Define a word: joy.define('my-chord', 'c e g')")
+    loki.repl.register("joy.primitive", "Register Lua primitive: joy.primitive('name', function(stack) ... end)")
     loki.repl.register("joy.stop", "Stop all playback")
     loki.repl.register("joy.info", "Show Joy status info")
     loki.repl.register("joy.ports", "List available MIDI ports")

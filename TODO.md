@@ -162,12 +162,52 @@ The web host is functional with xterm.js terminal emulator. Remaining work:
 
 ### Future Architecture
 
-- [ ] Lua-to-language primitive callbacks
+- [x] Lua-to-language primitive callbacks (Joy implemented)
   - Allow registering Lua functions as language primitives
-  - Joy: `loki.joy.register_primitive("name", lua_callback)` with stack access
-  - TR7: `loki.tr7.register_primitive("name", lua_callback, arity)` with args/return
-  - Bog: `lua_call/N` predicate or registered predicates
   - Enables extending languages with Lua's ecosystem (HTTP, JSON, etc.)
+
+  **Joy** (stack-based) - IMPLEMENTED:
+  - API: `loki.joy.register_primitive("name", lua_callback)`
+  - Callback receives: `function(stack) ... return modified_stack end`
+  - Stack is a Lua array (index 1 = bottom, #stack = top)
+  - Values: integers, floats, booleans, strings, tables (for lists/quotations)
+  - Quotations represented as `{type="quotation", value={...tokens...}}`
+  - Return modified stack or `nil, "error message"` on failure
+  - Example:
+    ```lua
+    loki.joy.register_primitive("double", function(stack)
+        if #stack < 1 then return nil, "stack underflow" end
+        local top = table.remove(stack)
+        table.insert(stack, top * 2)
+        return stack
+    end)
+    ```
+  - Files: `source/langs/joy/register.c` (lua_joy_register_primitive, joy_lua_primitive_wrapper)
+
+  **TR7** (Scheme) - NOT YET IMPLEMENTED:
+  - API: `loki.tr7.register_primitive("name", lua_callback, min_args, max_args)`
+  - Callback receives: `function(arg1, arg2, ...) return result end`
+  - Uses TR7's `tr7_C_func_def_t` registration with Lua state as closure
+  - Type conversion via `TR7_FROM_*`/`TR7_TO_*` macros
+  - Return value becomes Scheme result; `nil, "error"` raises exception
+  - Implementation requires:
+    - C wrapper `lua_proc_wrapper(tr7_engine_t, int nvalues, tr7_t* values, void* L)`
+    - Convert `tr7_t` args to Lua values, call Lua function, convert result back
+    - Register via `tr7_register_C_func(engine, &def)`
+  - Complexity: Moderate (value conversion, error handling)
+
+  **Bog** (Prolog) - NOT YET IMPLEMENTED:
+  - API: `loki.bog.register_predicate("name", arity, lua_callback)`
+  - Callback receives: `function(args_table, env_table) return solutions end`
+  - `args_table`: array of terms (numbers, atoms, compounds, lists)
+  - `env_table`: current variable bindings `{X = value, Y = value}`
+  - Return: array of solution environments `{{X=1, Y=2}, {X=3, Y=4}}` or empty for failure
+  - Implementation requires:
+    - Extend `BogBuiltins` to support dynamic registration
+    - C wrapper converting `BogTerm**` to Lua tables and back
+    - Thread `lua_State*` through `BogContext` or scheduler
+    - Handle non-determinism (multiple solutions)
+  - Complexity: High (unification semantics, backtracking, term conversion)
 
 - [ ] Plugin architecture for language modules
   - Dynamic loading of language support
