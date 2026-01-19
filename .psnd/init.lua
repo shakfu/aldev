@@ -107,11 +107,15 @@ end
 -- Load Keybindings
 -- ==============================================================================
 
--- Debug logging (set DEBUG_ENABLED = true to enable, writes to /tmp/psnd_debug.log)
+-- Debug logging (requires -DLUA_SANDBOX=OFF build, writes to /tmp/psnd_debug.log)
+-- Note: io and os libraries are disabled by default for security (sandbox mode)
 DEBUG_ENABLED = false
-local log_file = DEBUG_ENABLED and io.open("/tmp/psnd_debug.log", "w") or nil
+local log_file = nil
+if DEBUG_ENABLED and io and io.open then
+    log_file = io.open("/tmp/psnd_debug.log", "w")
+end
 function dbg(msg)
-    if log_file then
+    if log_file and os and os.date then
         log_file:write(os.date("%H:%M:%S") .. " " .. tostring(msg) .. "\n")
         log_file:flush()
     end

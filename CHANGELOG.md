@@ -40,6 +40,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - `source/langs/alda/async.c`
     - `source/langs/joy/midi/joy_async.c`
 
+- **Lua Sandbox Mode**: Lua scripting is sandboxed by default for security
+  - Disables dangerous libraries: `os` (shell execution), `io` (file access), `debug`
+  - Removes `load`, `loadfile`, `dofile` from base library
+  - Keeps safe libraries: `table`, `string`, `math`, `utf8`, `coroutine`, `package`
+  - Protects against malicious `.psnd/init.lua` in cloned repositories
+  - Compile-time option: `-DLUA_SANDBOX=ON` (default) or `-DLUA_SANDBOX=OFF` for full access
+  - **Files Modified**:
+    - `CMakeLists.txt` - Added `LUA_SANDBOX` option
+    - `source/core/CMakeLists.txt` - Passes define to libloki
+    - `source/core/loki/lua.c` - Conditional library loading
+    - `.psnd/init.lua` - Updated debug logging to handle sandbox
+
+- **Ableton Link Configuration in init.lua**: Added commented configuration options
+  - All Link options documented with descriptions (init, enable, tempo, launch_quantize, etc.)
+  - Callback registration examples for peers, tempo, and transport changes
+  - **Files Modified**: `.psnd/init.lua`
+
 ### Changed
 
 - **Unified MIDI Port Name**: All languages now use `PSND_MIDI` as the default virtual MIDI port name

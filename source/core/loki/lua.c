@@ -1765,7 +1765,46 @@ lua_State *loki_lua_bootstrap(editor_ctx_t *ctx, const struct loki_lua_opts *opt
         lua_settable(L, LUA_REGISTRYINDEX);
     }
 
+#ifdef LUA_SANDBOX
+    /* Sandboxed mode: load only safe libraries */
+
+    /* Base library (print, pairs, ipairs, type, tonumber, tostring, etc.) */
+    luaL_requiref(L, "_G", luaopen_base, 1);
+    lua_pop(L, 1);
+
+    /* Remove dangerous functions from base */
+    lua_pushnil(L);
+    lua_setglobal(L, "load");       /* load(chunk) - execute arbitrary code */
+    lua_pushnil(L);
+    lua_setglobal(L, "loadfile");   /* loadfile(path) - execute arbitrary file */
+    lua_pushnil(L);
+    lua_setglobal(L, "dofile");     /* dofile(path) - execute arbitrary file */
+
+    /* Safe libraries */
+    luaL_requiref(L, LUA_TABLIBNAME, luaopen_table, 1);
+    lua_pop(L, 1);
+    luaL_requiref(L, LUA_STRLIBNAME, luaopen_string, 1);
+    lua_pop(L, 1);
+    luaL_requiref(L, LUA_MATHLIBNAME, luaopen_math, 1);
+    lua_pop(L, 1);
+    luaL_requiref(L, LUA_UTF8LIBNAME, luaopen_utf8, 1);
+    lua_pop(L, 1);
+    luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, 1);
+    lua_pop(L, 1);
+
+    /* Package library for require() - needed for .psnd modules */
+    luaL_requiref(L, LUA_LOADLIBNAME, luaopen_package, 1);
+    lua_pop(L, 1);
+
+    /* Skipped (dangerous):
+     * - os: os.execute(), os.remove(), os.rename(), os.exit()
+     * - io: io.open(), io.popen(), file read/write
+     * - debug: can bypass metatables, inspect/modify internals
+     */
+#else
+    /* Unsandboxed mode: full Lua access (use -DLUA_SANDBOX=OFF) */
     luaL_openlibs(L);
+#endif
     loki_lua_extend_path(L, &effective);
 
     if (effective.bind_editor) {

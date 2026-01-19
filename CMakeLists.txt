@@ -21,6 +21,7 @@ option(ENABLE_LTO_IPO "Enable Link-time interprocedural optimization" OFF)
 option(BUILD_CSOUND_BACKEND "Build with Csound synthesis backend (requires libsndfile)" OFF)
 option(BUILD_TESTING "Build tests (default on)" ON)
 option(BUILD_WEB_HOST "Build web server host with mongoose" OFF)
+option(LUA_SANDBOX "Sandbox Lua: disable os, io, debug, load* (default on)" ON)
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
