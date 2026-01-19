@@ -36,7 +36,7 @@
 static void sync_shared_context(AldaContext* ctx) {
     if (!ctx || !ctx->shared) return;
 
-    ctx->shared->tsf_enabled = ctx->tsf_enabled;
+    ctx->shared->builtin_synth_enabled = ctx->builtin_synth_enabled;
     ctx->shared->csound_enabled = ctx->csound_enabled;
     ctx->shared->no_sleep_mode = ctx->no_sleep_mode;
     ctx->shared->tempo = ctx->global_tempo;

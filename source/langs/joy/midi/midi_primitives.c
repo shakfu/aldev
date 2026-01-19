@@ -43,7 +43,7 @@
 static int music_output_available(MusicContext* mctx) {
     if (!mctx || !mctx->shared) return 0;
     SharedContext* s = mctx->shared;
-    return s->midi_out || s->tsf_enabled || s->csound_enabled;
+    return s->midi_out || s->builtin_synth_enabled || s->csound_enabled;
 }
 
 /* Send note-on using MusicContext's channel and SharedContext */

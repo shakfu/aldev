@@ -5,9 +5,10 @@ local M = {}
 
 -- Add themes directory to package.path
 local function setup_theme_path()
+    local home = os and os.getenv and os.getenv("HOME") or ""
     local theme_paths = {
         ".psnd/themes/?.lua",
-        (os.getenv("HOME") or "") .. "/.psnd/themes/?.lua"
+        home .. "/.psnd/themes/?.lua"
     }
 
     for _, path in ipairs(theme_paths) do

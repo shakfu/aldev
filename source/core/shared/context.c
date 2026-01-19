@@ -3,7 +3,10 @@
  * @brief Shared audio/MIDI context implementation.
  *
  * Handles context lifecycle and priority-based event routing to backends.
- * Priority: Csound > TSF > MIDI
+ * Priority: Csound > Built-in Synth (FluidSynth or TSF) > MIDI
+ *
+ * BUILD_FLUID_BACKEND selects FluidSynth as the built-in synth.
+ * Otherwise, TinySoundFont is used.
  */
 
 #include "context.h"
@@ -20,6 +23,46 @@
 #define usleep(us) Sleep((us) / 1000)
 #else
 #include <unistd.h>
+#endif
+
+/* ============================================================================
+ * Built-in Synth Abstraction (FluidSynth or TSF)
+ *
+ * These macros select the appropriate backend at compile time.
+ * ============================================================================ */
+
+#ifdef BUILD_FLUID_BACKEND
+#define BUILTIN_SYNTH_NAME "FluidSynth"
+#define builtin_synth_init()              shared_fluid_init()
+#define builtin_synth_cleanup()           shared_fluid_cleanup()
+#define builtin_synth_load_soundfont(p)   shared_fluid_load_soundfont(p)
+#define builtin_synth_has_soundfont()     shared_fluid_has_soundfont()
+#define builtin_synth_get_preset_count()  shared_fluid_get_preset_count()
+#define builtin_synth_get_preset_name(i)  shared_fluid_get_preset_name(i)
+#define builtin_synth_enable()            shared_fluid_enable()
+#define builtin_synth_disable()           shared_fluid_disable()
+#define builtin_synth_is_enabled()        shared_fluid_is_enabled()
+#define builtin_synth_send_note_on(c,p,v) shared_fluid_send_note_on(c,p,v)
+#define builtin_synth_send_note_off(c,p)  shared_fluid_send_note_off(c,p)
+#define builtin_synth_send_program(c,p)   shared_fluid_send_program(c,p)
+#define builtin_synth_send_cc(c,cc,v)     shared_fluid_send_cc(c,cc,v)
+#define builtin_synth_all_notes_off()     shared_fluid_all_notes_off()
+#else
+#define BUILTIN_SYNTH_NAME "TinySoundFont"
+#define builtin_synth_init()              shared_tsf_init()
+#define builtin_synth_cleanup()           shared_tsf_cleanup()
+#define builtin_synth_load_soundfont(p)   shared_tsf_load_soundfont(p)
+#define builtin_synth_has_soundfont()     shared_tsf_has_soundfont()
+#define builtin_synth_get_preset_count()  shared_tsf_get_preset_count()
+#define builtin_synth_get_preset_name(i)  shared_tsf_get_preset_name(i)
+#define builtin_synth_enable()            shared_tsf_enable()
+#define builtin_synth_disable()           shared_tsf_disable()
+#define builtin_synth_is_enabled()        shared_tsf_is_enabled()
+#define builtin_synth_send_note_on(c,p,v) shared_tsf_send_note_on(c,p,v)
+#define builtin_synth_send_note_off(c,p)  shared_tsf_send_note_off(c,p)
+#define builtin_synth_send_program(c,p)   shared_tsf_send_program(c,p)
+#define builtin_synth_send_cc(c,cc,v)     shared_tsf_send_cc(c,cc,v)
+#define builtin_synth_all_notes_off()     shared_tsf_all_notes_off()
 #endif
 
 /* ============================================================================
@@ -48,9 +91,9 @@ void shared_context_cleanup(SharedContext* ctx) {
     shared_send_panic(ctx);
 
     /* Disable backends that this context had enabled */
-    if (ctx->tsf_enabled) {
-        shared_tsf_disable();
-        ctx->tsf_enabled = 0;
+    if (ctx->builtin_synth_enabled) {
+        builtin_synth_disable();
+        ctx->builtin_synth_enabled = 0;
     }
 
     if (ctx->csound_enabled) {
@@ -83,9 +126,9 @@ void shared_send_note_on(SharedContext* ctx, int channel, int pitch, int velocit
         return;
     }
 
-    /* Priority 2: TSF (if enabled and available) */
-    if (ctx->tsf_enabled && shared_tsf_is_enabled()) {
-        shared_tsf_send_note_on(channel, pitch, velocity);
+    /* Priority 2: Built-in synth (if enabled and available) */
+    if (ctx->builtin_synth_enabled && builtin_synth_is_enabled()) {
+        builtin_synth_send_note_on(channel, pitch, velocity);
         return;
     }
 
@@ -105,9 +148,9 @@ void shared_send_note_on_freq(SharedContext* ctx, int channel, double freq,
         return;
     }
 
-    /* Priority 2: TSF (no native frequency support, use MIDI pitch) */
-    if (ctx->tsf_enabled && shared_tsf_is_enabled()) {
-        shared_tsf_send_note_on(channel, midi_pitch, velocity);
+    /* Priority 2: Built-in synth (no native frequency support, use MIDI pitch) */
+    if (ctx->builtin_synth_enabled && builtin_synth_is_enabled()) {
+        builtin_synth_send_note_on(channel, midi_pitch, velocity);
         return;
     }
 
@@ -126,9 +169,9 @@ void shared_send_note_off(SharedContext* ctx, int channel, int pitch) {
         return;
     }
 
-    /* Priority 2: TSF */
-    if (ctx->tsf_enabled && shared_tsf_is_enabled()) {
-        shared_tsf_send_note_off(channel, pitch);
+    /* Priority 2: Built-in synth */
+    if (ctx->builtin_synth_enabled && builtin_synth_is_enabled()) {
+        builtin_synth_send_note_off(channel, pitch);
         return;
     }
 
@@ -147,9 +190,9 @@ void shared_send_program(SharedContext* ctx, int channel, int program) {
         return;
     }
 
-    /* Priority 2: TSF */
-    if (ctx->tsf_enabled && shared_tsf_is_enabled()) {
-        shared_tsf_send_program(channel, program);
+    /* Priority 2: Built-in synth */
+    if (ctx->builtin_synth_enabled && builtin_synth_is_enabled()) {
+        builtin_synth_send_program(channel, program);
         return;
     }
 
@@ -168,9 +211,9 @@ void shared_send_cc(SharedContext* ctx, int channel, int cc, int value) {
         return;
     }
 
-    /* Priority 2: TSF */
-    if (ctx->tsf_enabled && shared_tsf_is_enabled()) {
-        shared_tsf_send_cc(channel, cc, value);
+    /* Priority 2: Built-in synth */
+    if (ctx->builtin_synth_enabled && builtin_synth_is_enabled()) {
+        builtin_synth_send_cc(channel, cc, value);
         return;
     }
 
@@ -195,9 +238,9 @@ void shared_send_panic(SharedContext* ctx) {
         shared_csound_all_notes_off();
     }
 
-    /* TSF */
-    if (shared_tsf_is_enabled()) {
-        shared_tsf_all_notes_off();
+    /* Built-in synth */
+    if (builtin_synth_is_enabled()) {
+        builtin_synth_all_notes_off();
     }
 
     /* MIDI */

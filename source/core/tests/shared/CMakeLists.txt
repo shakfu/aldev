@@ -78,3 +78,21 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 set_tests_properties(shared_csound_backend_tests PROPERTIES LABELS "unit")
+
+# Test for FluidSynth audio backend
+add_executable(test_fluid_backend test_fluid_backend.c)
+target_include_directories(test_fluid_backend PRIVATE
+    ${PSND_ROOT_DIR}/source/core/include
+    ${PSND_ROOT_DIR}/source/core/shared
+    ${PSND_ROOT_DIR}/source/testing
+)
+target_link_libraries(test_fluid_backend PRIVATE shared test_framework m)
+if(BUILD_FLUID_BACKEND)
+    target_compile_definitions(test_fluid_backend PRIVATE BUILD_FLUID_BACKEND)
+endif()
+add_test(
+    NAME shared_fluid_backend_tests
+    COMMAND $<TARGET_FILE:test_fluid_backend>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(shared_fluid_backend_tests PROPERTIES LABELS "unit")

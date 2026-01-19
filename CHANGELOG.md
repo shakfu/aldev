@@ -19,6 +19,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **FluidSynth Backend**: Optional higher-quality synthesizer as alternative to TinySoundFont
+  - Compile-time selection: TinySoundFont and FluidSynth are mutually exclusive
+  - Same API: `-sf soundfont.sf2` works with either backend
+  - `builtin_synth_*` macro abstraction selects backend at compile time
+  - FluidSynth built with lean configuration (`-Dosal=cpp11`) for smaller binary
+  - **Build Option**: `make psnd-fluid` or `-DBUILD_FLUID_BACKEND=ON`
+  - **Files Added**: `source/core/shared/audio/fluid_backend.c`, `source/core/shared/audio/fluid_backend.h`
+  - **Files Modified**: `source/core/shared/context.c`, `source/langs/alda/backends/tsf_backend_wrapper.c`
+
+- **Build Presets**: Named Makefile targets for common build configurations
+  - `psnd-tsf` (alias: `default`) - TinySoundFont only (smallest)
+  - `psnd-tsf-csound` (alias: `csound`) - TinySoundFont + Csound
+  - `psnd-fluid` - FluidSynth only (higher quality)
+  - `psnd-fluid-csound` - FluidSynth + Csound
+  - `psnd-tsf-web` (alias: `web`) - TinySoundFont + Web UI
+  - `psnd-fluid-web` - FluidSynth + Web UI
+  - `psnd-fluid-csound-web` (alias: `full`) - Everything
+  - **Files Modified**: `Makefile`
+
+- **Dynamic Help Text**: `--help` now shows the correct synth backend name based on build configuration
+  - Shows "TinySoundFont" for TSF builds, "FluidSynth" for Fluid builds
+  - **Files Modified**: `source/core/main.c`, `source/core/CMakeLists.txt`
+
 - **REPL Language Switching**: Switch between language REPLs without exiting
   - `:lang NAME` - Switch to another language REPL (e.g., `:lang joy`, `:lang alda`)
   - `:langs` - List available languages
@@ -121,6 +144,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - **Files Modified**: `source/langs/joy/register.c`
 
 ### Changed
+
+- **Renamed `tsf_enabled` to `builtin_synth_enabled`**: Flag name now reflects that it controls whichever built-in synth is compiled (TSF or FluidSynth)
+  - Updated in `SharedContext`, `AldaContext`, and all language contexts
+  - **Files Modified**: `source/core/shared/context.h`, `source/langs/alda/include/alda/context.h`, and 12+ other files
 
 - **Unified MIDI Port Name**: All languages now use `PSND_MIDI` as the default virtual MIDI port name
   - Previously each language used its own port name (Alda, Loki, JoyMIDI, TR7MIDI, BogMIDI, etc.)

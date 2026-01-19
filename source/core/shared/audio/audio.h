@@ -273,6 +273,129 @@ int shared_csound_playback_active(void);
  */
 void shared_csound_stop_playback(void);
 
+/* ============================================================================
+ * FluidSynth Backend
+ *
+ * Alternative to TinySoundFont with more features and better quality.
+ * Provides full SoundFont 2.x support with reverb and chorus effects.
+ *
+ * Build with -DBUILD_FLUID_BACKEND=ON to enable.
+ * ============================================================================ */
+
+/**
+ * @brief Initialize the FluidSynth backend.
+ * @return 0 on success, -1 on error.
+ */
+int shared_fluid_init(void);
+
+/**
+ * @brief Cleanup FluidSynth resources.
+ */
+void shared_fluid_cleanup(void);
+
+/**
+ * @brief Load a SoundFont file (.sf2 or .sf3).
+ * @param path Path to the SoundFont file.
+ * @return 0 on success, -1 on error.
+ */
+int shared_fluid_load_soundfont(const char* path);
+
+/**
+ * @brief Check if a soundfont is loaded.
+ * @return Non-zero if loaded, 0 if not.
+ */
+int shared_fluid_has_soundfont(void);
+
+/**
+ * @brief Get the number of presets in the loaded soundfont.
+ * @return Number of presets, or 0 if no soundfont loaded.
+ */
+int shared_fluid_get_preset_count(void);
+
+/**
+ * @brief Get the name of a preset by index.
+ * @param index Preset index (0 to preset_count-1).
+ * @return Preset name, or NULL if invalid index.
+ */
+const char* shared_fluid_get_preset_name(int index);
+
+/**
+ * @brief Enable the FluidSynth synth (starts audio output).
+ * @return 0 on success, -1 on error.
+ */
+int shared_fluid_enable(void);
+
+/**
+ * @brief Disable the FluidSynth synth (stops audio output).
+ */
+void shared_fluid_disable(void);
+
+/**
+ * @brief Check if FluidSynth is enabled.
+ * @return Non-zero if enabled, 0 if disabled.
+ */
+int shared_fluid_is_enabled(void);
+
+/**
+ * @brief Send a note-on message to FluidSynth.
+ * @param channel MIDI channel (1-16).
+ * @param pitch Note pitch (0-127).
+ * @param velocity Note velocity (0-127).
+ */
+void shared_fluid_send_note_on(int channel, int pitch, int velocity);
+
+/**
+ * @brief Send a note-off message to FluidSynth.
+ * @param channel MIDI channel (1-16).
+ * @param pitch Note pitch (0-127).
+ */
+void shared_fluid_send_note_off(int channel, int pitch);
+
+/**
+ * @brief Send a program change to FluidSynth.
+ * @param channel MIDI channel (1-16).
+ * @param program GM program number (0-127).
+ */
+void shared_fluid_send_program(int channel, int program);
+
+/**
+ * @brief Send a control change to FluidSynth.
+ * @param channel MIDI channel (1-16).
+ * @param cc Controller number (0-127).
+ * @param value Controller value (0-127).
+ */
+void shared_fluid_send_cc(int channel, int cc, int value);
+
+/**
+ * @brief Send pitch bend to FluidSynth.
+ * @param channel MIDI channel (1-16).
+ * @param bend Pitch bend value (-8192 to 8191, 0 = center).
+ */
+void shared_fluid_send_pitch_bend(int channel, int bend);
+
+/**
+ * @brief Send all notes off to FluidSynth.
+ */
+void shared_fluid_all_notes_off(void);
+
+/**
+ * @brief Set the master gain.
+ * @param gain Gain value (0.0 to 10.0, default 0.2).
+ */
+void shared_fluid_set_gain(float gain);
+
+/**
+ * @brief Get the master gain.
+ * @return Current gain value.
+ */
+float shared_fluid_get_gain(void);
+
+/**
+ * @brief Get the number of active voices.
+ * @return Number of voices currently playing.
+ */
+int shared_fluid_get_active_voice_count(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -28,7 +28,7 @@ extern "C" {
  */
 typedef struct SharedContext {
     /* Backend enable flags */
-    int tsf_enabled;        /* Use TinySoundFont if available */
+    int builtin_synth_enabled;  /* Use built-in synth (TSF or FluidSynth) */
     int csound_enabled;     /* Use Csound if available */
     int link_enabled;       /* Use Ableton Link for tempo */
 

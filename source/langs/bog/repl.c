@@ -913,7 +913,7 @@ static void *bog_cb_init(const SharedReplArgs *args) {
             g_bog_repl_arena = NULL;
             return NULL;
         }
-        g_bog_repl_shared->tsf_enabled = 1;
+        g_bog_repl_shared->builtin_synth_enabled = 1;
         if (args->verbose) {
             printf("Using built-in synth: %s\n", args->soundfont_path);
         }
@@ -973,7 +973,7 @@ static void bog_cb_cleanup(void *lang_ctx) {
     }
 
     /* Wait for audio buffer to drain */
-    if (g_bog_repl_shared && g_bog_repl_shared->tsf_enabled) {
+    if (g_bog_repl_shared && g_bog_repl_shared->builtin_synth_enabled) {
         usleep(300000);  /* 300ms for audio tail */
     }
 

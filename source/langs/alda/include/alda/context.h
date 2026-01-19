@@ -186,7 +186,7 @@ typedef struct AldaContext {
     /* Runtime flags */
     int no_sleep_mode;   /* Disable timing (for tests) */
     int verbose_mode;    /* Debug output */
-    int tsf_enabled;     /* Built-in synth enabled */
+    int builtin_synth_enabled;  /* Built-in synth enabled */
     int csound_enabled;  /* Csound synth enabled */
 
     /* Repeat context for on-repetitions */

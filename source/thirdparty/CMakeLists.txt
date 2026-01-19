@@ -126,5 +126,56 @@ endif()
 # Always build tr7 - it's small and needed for the tr7 language module
 add_subdirectory(tr7)
 
+# FluidSynth - Software SoundFont synthesizer (optional)
+# Alternative to TinySoundFont with more features and better quality
+option(BUILD_FLUID_BACKEND "Build with FluidSynth synthesis backend" OFF)
+if(BUILD_FLUID_BACKEND)
+    message(STATUS "Building with FluidSynth backend (lean configuration)")
+
+    # Disable all audio/midi drivers - we use miniaudio for output
+    set(enable-alsa OFF CACHE BOOL "" FORCE)
+    set(enable-aufile OFF CACHE BOOL "" FORCE)
+    set(enable-coreaudio OFF CACHE BOOL "" FORCE)
+    set(enable-coremidi OFF CACHE BOOL "" FORCE)
+    set(enable-dbus OFF CACHE BOOL "" FORCE)
+    set(enable-dsound OFF CACHE BOOL "" FORCE)
+    set(enable-ipv6 OFF CACHE BOOL "" FORCE)
+    set(enable-jack OFF CACHE BOOL "" FORCE)
+    set(enable-ladspa OFF CACHE BOOL "" FORCE)
+    set(enable-libinstpatch OFF CACHE BOOL "" FORCE)
+    set(enable-libsndfile OFF CACHE BOOL "" FORCE)
+    set(enable-midishare OFF CACHE BOOL "" FORCE)
+    set(enable-network OFF CACHE BOOL "" FORCE)
+    set(enable-oboe OFF CACHE BOOL "" FORCE)
+    set(enable-opensles OFF CACHE BOOL "" FORCE)
+    set(enable-oss OFF CACHE BOOL "" FORCE)
+    set(enable-pipewire OFF CACHE BOOL "" FORCE)
+    set(enable-portaudio OFF CACHE BOOL "" FORCE)
+    set(enable-pulseaudio OFF CACHE BOOL "" FORCE)
+    set(enable-readline OFF CACHE BOOL "" FORCE)
+    set(enable-sdl3 OFF CACHE BOOL "" FORCE)
+    set(enable-wasapi OFF CACHE BOOL "" FORCE)
+    set(enable-waveout OFF CACHE BOOL "" FORCE)
+    set(enable-winmidi OFF CACHE BOOL "" FORCE)
+
+    # Build as static library
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+    # Use C++11 for thread-safe locale instead of glib
+    # This avoids the glib dependency for a leaner build
+    set(osal "cpp11" CACHE STRING "" FORCE)
+
+    add_subdirectory(fluidsynth)
+
+    # Export FluidSynth include directories for the main project
+    set(FLUIDSYNTH_INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/fluidsynth/include
+        ${CMAKE_CURRENT_BINARY_DIR}/fluidsynth/include
+        CACHE INTERNAL "FluidSynth include directories"
+    )
+else()
+    message(STATUS "FluidSynth backend disabled (use -DBUILD_FLUID_BACKEND=ON to enable)")
+endif()
+
 # Restore parent project's BUILD_TESTING
 set(BUILD_TESTING ${PSND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)

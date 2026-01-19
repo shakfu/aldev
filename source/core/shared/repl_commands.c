@@ -18,6 +18,28 @@
 #include <ctype.h>
 #include <unistd.h>
 
+/* ============================================================================
+ * Built-in Synth Abstraction (FluidSynth or TSF)
+ *
+ * These macros select the appropriate backend at compile time.
+ * ============================================================================ */
+
+#ifdef BUILD_FLUID_BACKEND
+#define builtin_synth_load_soundfont(p)   shared_fluid_load_soundfont(p)
+#define builtin_synth_has_soundfont()     shared_fluid_has_soundfont()
+#define builtin_synth_get_preset_count()  shared_fluid_get_preset_count()
+#define builtin_synth_get_preset_name(i)  shared_fluid_get_preset_name(i)
+#define builtin_synth_enable()            shared_fluid_enable()
+#define builtin_synth_disable()           shared_fluid_disable()
+#else
+#define builtin_synth_load_soundfont(p)   shared_tsf_load_soundfont(p)
+#define builtin_synth_has_soundfont()     shared_tsf_has_soundfont()
+#define builtin_synth_get_preset_count()  shared_tsf_get_preset_count()
+#define builtin_synth_get_preset_name(i)  shared_tsf_get_preset_name(i)
+#define builtin_synth_enable()            shared_tsf_enable()
+#define builtin_synth_disable()           shared_tsf_disable()
+#endif
+
 /* Strip leading whitespace */
 static const char* skip_whitespace(const char* s) {
     while (*s && isspace((unsigned char)*s)) s++;
@@ -159,10 +181,10 @@ int shared_process_command(SharedContext* ctx, const char* input,
         if (*path == '\0') {
             printf("Usage: :sf PATH\n");
         } else {
-            if (shared_tsf_load_soundfont(path) == 0) {
+            if (builtin_synth_load_soundfont(path) == 0) {
                 printf("Loaded soundfont: %s\n", path);
-                if (shared_tsf_enable() == 0) {
-                    ctx->tsf_enabled = 1;
+                if (builtin_synth_enable() == 0) {
+                    ctx->builtin_synth_enabled = 1;
                     printf("Switched to built-in synth\n");
                 }
             } else {
@@ -174,10 +196,10 @@ int shared_process_command(SharedContext* ctx, const char* input,
 
     /* Enable built-in synth */
     if (strcmp(cmd, "builtin") == 0 || strcmp(cmd, "synth") == 0) {
-        if (!shared_tsf_has_soundfont()) {
+        if (!builtin_synth_has_soundfont()) {
             printf("No soundfont loaded. Use ':sf PATH' first.\n");
-        } else if (shared_tsf_enable() == 0) {
-            ctx->tsf_enabled = 1;
+        } else if (builtin_synth_enable() == 0) {
+            ctx->builtin_synth_enabled = 1;
             printf("Switched to built-in synth\n");
         } else {
             printf("Failed to enable built-in synth\n");
@@ -187,8 +209,8 @@ int shared_process_command(SharedContext* ctx, const char* input,
 
     /* Switch to MIDI output */
     if (strcmp(cmd, "midi") == 0) {
-        shared_tsf_disable();
-        ctx->tsf_enabled = 0;
+        builtin_synth_disable();
+        ctx->builtin_synth_enabled = 0;
         if (shared_midi_is_open(ctx)) {
             printf("Switched to MIDI output\n");
         } else {
@@ -199,13 +221,13 @@ int shared_process_command(SharedContext* ctx, const char* input,
 
     /* List soundfont presets */
     if (strcmp(cmd, "sf-list") == 0 || strcmp(cmd, "presets") == 0) {
-        if (!shared_tsf_has_soundfont()) {
+        if (!builtin_synth_has_soundfont()) {
             printf("No soundfont loaded\n");
         } else {
-            int count = shared_tsf_get_preset_count();
+            int count = builtin_synth_get_preset_count();
             printf("Soundfont presets (%d):\n", count);
             for (int i = 0; i < count && i < 128; i++) {
-                const char* name = shared_tsf_get_preset_name(i);
+                const char* name = builtin_synth_get_preset_name(i);
                 if (name && name[0] != '\0') {
                     printf("  %3d: %s\n", i, name);
                 }

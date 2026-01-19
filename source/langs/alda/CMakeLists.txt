@@ -54,6 +54,15 @@ target_include_directories(alda
 
 target_link_libraries(alda PUBLIC shared libremidi)
 
+# Pass through FluidSynth backend flag
+if(BUILD_FLUID_BACKEND)
+    target_compile_definitions(alda PRIVATE BUILD_FLUID_BACKEND)
+    target_include_directories(alda PRIVATE
+        ${PSND_ROOT_DIR}/source/thirdparty/fluidsynth/include
+        ${CMAKE_BINARY_DIR}/source/thirdparty/fluidsynth/include
+    )
+endif()
+
 # Platform-specific dependencies
 if(APPLE)
     target_link_libraries(alda PUBLIC

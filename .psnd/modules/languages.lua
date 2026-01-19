@@ -11,6 +11,21 @@
 
 local M = {}
 
+-- In sandboxed Lua (REPL mode), io is not available.
+-- Return stub module since REPL doesn't need syntax highlighting.
+if not io then
+    function M.init() return 0 end
+    function M.load() return false end
+    function M.load_file() return false end
+    function M.load_for_extension() return false end
+    function M.load_all() return 0 end
+    function M.list() return {} end
+    function M.get_extensions() return {} end
+    function M.reload() return false end
+    function M.stats() return { extensions = 0, loaded = 0, unloaded = 0 } end
+    return M
+end
+
 -- Extension → language file mapping
 local extension_map = {}
 
@@ -18,10 +33,11 @@ local extension_map = {}
 local loaded_languages = {}
 
 -- Configuration
+local home = os and os.getenv and os.getenv("HOME") or ""
 local config = {
     lang_dir = ".psnd/languages",
     fallback_dirs = {
-        (os.getenv("HOME") or "") .. "/.psnd/languages",
+        home .. "/.psnd/languages",
     },
     default_syntax = nil,  -- No default fallback language
     enable_status = true,  -- Show "Loaded X" messages

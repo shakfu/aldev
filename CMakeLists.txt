@@ -21,7 +21,7 @@ option(ENABLE_LTO_IPO "Enable Link-time interprocedural optimization" OFF)
 option(BUILD_CSOUND_BACKEND "Build with Csound synthesis backend (requires libsndfile)" OFF)
 option(BUILD_TESTING "Build tests (default on)" ON)
 option(BUILD_WEB_HOST "Build web server host with mongoose" OFF)
-option(LUA_SANDBOX "Sandbox Lua: disable os, io, debug, load* (default on)" ON)
+option(LUA_SANDBOX "Sandbox Lua: disable os, io, debug, load*" OFF)
 option(PSND_ENABLE_ASAN "Enable AddressSanitizer for memory error detection" OFF)
 option(PSND_ENABLE_COVERAGE "Enable code coverage instrumentation (gcov/lcov)" OFF)
 

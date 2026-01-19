@@ -11,6 +11,7 @@ set(LIBSHARED_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/repl_commands.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/audio/tsf_backend.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/audio/csound_backend.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/audio/fluid_backend.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/midi/midi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/midi/events.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/link/link.c
@@ -45,6 +46,15 @@ if(BUILD_CSOUND_BACKEND)
     else()
         target_link_libraries(shared PRIVATE csound64-static)
     endif()
+endif()
+
+if(BUILD_FLUID_BACKEND)
+    target_compile_definitions(shared PRIVATE BUILD_FLUID_BACKEND)
+    target_include_directories(shared PRIVATE
+        ${PSND_ROOT_DIR}/source/thirdparty/fluidsynth/include
+        ${CMAKE_BINARY_DIR}/source/thirdparty/fluidsynth/include
+    )
+    target_link_libraries(shared PRIVATE libfluidsynth)
 endif()
 
 if(APPLE)
@@ -228,6 +238,11 @@ function(psnd_build_binary)
     # Web host configuration for the binary
     if(BUILD_WEB_HOST)
         target_compile_definitions(psnd_bin PRIVATE LOKI_WEB_HOST)
+    endif()
+
+    # Pass through FluidSynth backend flag for help text
+    if(BUILD_FLUID_BACKEND)
+        target_compile_definitions(psnd_bin PRIVATE BUILD_FLUID_BACKEND)
     endif()
 endfunction()
 

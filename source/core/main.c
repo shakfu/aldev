@@ -22,6 +22,13 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Built-in synth name for help text */
+#ifdef BUILD_FLUID_BACKEND
+#define BUILTIN_SYNTH_NAME "FluidSynth"
+#else
+#define BUILTIN_SYNTH_NAME "TinySoundFont"
+#endif
+
 #ifdef LOKI_WEB_HOST
 #include "loki/host_web.h"
 #endif
@@ -84,7 +91,7 @@ static void print_unified_help(const char *prog) {
     printf("\n");
 
     printf("Editor Options:\n");
-    printf("  -sf PATH               Use built-in TinySoundFont synth\n");
+    printf("  -sf PATH               Use built-in %s synth\n", BUILTIN_SYNTH_NAME);
     printf("  -cs PATH               Use Csound synthesis with .csd file\n");
     printf("\n");
 

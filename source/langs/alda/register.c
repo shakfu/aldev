@@ -24,6 +24,9 @@
 /* Shared audio backend (for shared_csound_is_available) */
 #include "shared/audio/audio.h"
 
+/* Shared context definition (for SharedContext members) */
+#include "context.h"
+
 /* Shared MIDI events buffer (for export) */
 #include "shared/midi/events.h"
 
@@ -617,10 +620,16 @@ int loki_alda_set_synth_enabled(editor_ctx_t *ctx, int enable) {
             return -1;
         }
         alda_tsf_enable();
-        state->alda_ctx.tsf_enabled = 1;
+        state->alda_ctx.builtin_synth_enabled = 1;
+        if (state->alda_ctx.shared) {
+            state->alda_ctx.shared->builtin_synth_enabled = 1;
+        }
     } else {
         alda_tsf_disable();
-        state->alda_ctx.tsf_enabled = 0;
+        state->alda_ctx.builtin_synth_enabled = 0;
+        if (state->alda_ctx.shared) {
+            state->alda_ctx.shared->builtin_synth_enabled = 0;
+        }
     }
 
     return 0;
@@ -704,9 +713,9 @@ int loki_alda_csound_set_enabled(editor_ctx_t *ctx, int enable) {
             return -1;
         }
         /* Disable TSF first if enabled */
-        if (state->alda_ctx.tsf_enabled) {
+        if (state->alda_ctx.builtin_synth_enabled) {
             alda_tsf_disable();
-            state->alda_ctx.tsf_enabled = 0;
+            state->alda_ctx.builtin_synth_enabled = 0;
         }
         if (alda_csound_enable() != 0) {
             set_state_error(state, alda_csound_get_error());

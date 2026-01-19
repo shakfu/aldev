@@ -32,17 +32,28 @@ psnd is in active development. Alda, Joy, TR7 Scheme, and Bog are the four fully
 
 ## Building
 
-```bash
-make              # Standard build with TinySoundFont
-make csound       # Build with Csound synthesis backend
-make web          # Build with web server host (mongoose + xterm.js)
-```
+Build presets select the synthesizer backend and optional features:
 
-CMake options:
+| Target | Alias | Description |
+|--------|-------|-------------|
+| `make psnd-tsf` | `make`, `make default` | TinySoundFont only (smallest) |
+| `make psnd-tsf-csound` | `make csound` | TinySoundFont + Csound |
+| `make psnd-fluid` | | FluidSynth only (higher quality) |
+| `make psnd-fluid-csound` | | FluidSynth + Csound |
+| `make psnd-tsf-web` | `make web` | TinySoundFont + Web UI |
+| `make psnd-fluid-web` | | FluidSynth + Web UI |
+| `make psnd-fluid-csound-web` | `make full` | Everything |
+
+**Synth backends** (mutually exclusive at compile time):
+- **TinySoundFont** - Lightweight SoundFont synthesizer, fast compilation
+- **FluidSynth** - Higher quality synthesis, more SoundFont features
+
+CMake options (for custom builds):
 ```bash
-cmake -B build -DBUILD_WEB_HOST=ON      # Enable web server mode
+cmake -B build -DBUILD_FLUID_BACKEND=ON  # Use FluidSynth instead of TSF
 cmake -B build -DBUILD_CSOUND_BACKEND=ON # Enable Csound synthesis
-cmake -B build -DLOKI_EMBED_XTERM=ON    # Embed xterm.js in binary (no CDN)
+cmake -B build -DBUILD_WEB_HOST=ON       # Enable web server mode
+cmake -B build -DLOKI_EMBED_XTERM=ON     # Embed xterm.js in binary (no CDN)
 ```
 
 ## Usage

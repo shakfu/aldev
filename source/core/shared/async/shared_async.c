@@ -726,7 +726,7 @@ int shared_async_play_ex(SharedAsyncSchedule* sched, SharedContext* ctx,
     if (!ctx) return -1;
 
     /* Check output availability */
-    if (!ctx->midi_out && !ctx->tsf_enabled && !ctx->csound_enabled) {
+    if (!ctx->midi_out && !ctx->builtin_synth_enabled && !ctx->csound_enabled) {
         return -1;
     }
 

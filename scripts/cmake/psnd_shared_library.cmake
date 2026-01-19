@@ -5,6 +5,7 @@ set(LIBSHARED_SOURCES
     ${PSND_ROOT_DIR}/source/core/shared/repl_commands.c
     ${PSND_ROOT_DIR}/source/core/shared/audio/tsf_backend.c
     ${PSND_ROOT_DIR}/source/core/shared/audio/csound_backend.c
+    ${PSND_ROOT_DIR}/source/core/shared/audio/fluid_backend.c
     ${PSND_ROOT_DIR}/source/core/shared/midi/midi.c
     ${PSND_ROOT_DIR}/source/core/shared/midi/events.c
     ${PSND_ROOT_DIR}/source/core/shared/link/link.c
@@ -46,6 +47,15 @@ if(BUILD_CSOUND_BACKEND)
     else()
         target_link_libraries(shared PRIVATE csound64-static)
     endif()
+endif()
+
+if(BUILD_FLUID_BACKEND)
+    target_compile_definitions(shared PRIVATE BUILD_FLUID_BACKEND)
+    target_include_directories(shared PRIVATE
+        ${PSND_ROOT_DIR}/source/thirdparty/fluidsynth/include
+        ${CMAKE_BINARY_DIR}/thirdparty/fluidsynth/include
+    )
+    target_link_libraries(shared PRIVATE libfluidsynth)
 endif()
 
 if(APPLE)

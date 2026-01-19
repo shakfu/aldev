@@ -1,47 +1,94 @@
 .DEFAULT_GOAL := all
-.PHONY: all build configure library alda editor repl clean reset test show-config \
-		csound configure-csound web configure-web rebuild remake docs
+.PHONY: all build clean reset test show-config rebuild remake docs \
+		psnd-tsf default psnd-tsf-csound csound psnd-fluid psnd-fluid-csound \
+		psnd-tsf-web web psnd-fluid-web psnd-fluid-csound-web full
 
 BUILD_DIR ?= build
 CMAKE ?= cmake
 
 all: build
 
-configure:
+# ============================================================================
+# Configure targets
+# ============================================================================
+
+configure-tsf:
 	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_TESTING=ON
 
-configure-csound:
+configure-tsf-csound:
 	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_CSOUND_BACKEND=ON -DBUILD_TESTING=ON
 
-build: configure
-	@$(CMAKE) --build $(BUILD_DIR) --config Release
+configure-fluid:
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_FLUID_BACKEND=ON -DBUILD_TESTING=ON
 
-rebuild: clean configure-csound test
-	@$(CMAKE) --build $(BUILD_DIR) --config Release
-	@$(CMAKE) -E chdir $(BUILD_DIR) ctest --output-on-failure
+configure-fluid-csound:
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_FLUID_BACKEND=ON -DBUILD_CSOUND_BACKEND=ON -DBUILD_TESTING=ON
 
-# Build with Csound synthesis backend
-csound: configure-csound
-	@$(CMAKE) --build $(BUILD_DIR) --config Release
-
-configure-web:
+configure-tsf-web:
 	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_WEB_HOST=ON -DBUILD_TESTING=ON
 
-# Build with web server host (mongoose-based HTTP/WebSocket)
-web: configure-web
+configure-fluid-web:
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_FLUID_BACKEND=ON -DBUILD_WEB_HOST=ON -DBUILD_TESTING=ON
+
+configure-fluid-csound-web:
+	@mkdir -p $(BUILD_DIR) && $(CMAKE) -S . -B $(BUILD_DIR) -DBUILD_FLUID_BACKEND=ON -DBUILD_CSOUND_BACKEND=ON -DBUILD_WEB_HOST=ON -DBUILD_TESTING=ON
+
+# ============================================================================
+# Build presets
+# ============================================================================
+
+# TinySoundFont only
+psnd-tsf: configure-tsf
 	@$(CMAKE) --build $(BUILD_DIR) --config Release
 
-library: configure
+default: psnd-tsf  # alias
+build: psnd-tsf    # alias
+
+# TinySoundFont + Csound
+psnd-tsf-csound: configure-tsf-csound
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+csound: psnd-tsf-csound  # alias
+
+# FluidSynth only
+psnd-fluid: configure-fluid
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+# FluidSynth + Csound
+psnd-fluid-csound: configure-fluid-csound
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+# TinySoundFont + Web
+psnd-tsf-web: configure-tsf-web
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+web: psnd-tsf-web  # alias
+
+# FluidSynth + Web
+psnd-fluid-web: configure-fluid-web
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+# FluidSynth + Csound + Web (everything)
+psnd-fluid-csound-web: configure-fluid-csound-web
+	@$(CMAKE) --build $(BUILD_DIR) --config Release
+
+full: psnd-fluid-csound-web  # alias
+
+# ============================================================================
+
+rebuild: clean psnd-tsf-csound test
+
+library: configure-tsf
 	@$(CMAKE) --build $(BUILD_DIR) --target libloki --config Release
 
 # Primary target: unified psnd binary
-psnd: configure
+psnd: configure-tsf
 	@$(CMAKE) --build $(BUILD_DIR) --target psnd_bin --config Release
 
-show-config: configure
+show-config: configure-tsf
 	@$(CMAKE) --build $(BUILD_DIR) --target show-config --config Release
 
-test: build
+test:
 	@$(CMAKE) -E chdir $(BUILD_DIR) ctest --output-on-failure
 
 clean:

@@ -147,7 +147,7 @@ int joy_tsf_enable(SharedContext* ctx) {
 
     int ret = shared_tsf_enable();
     if (ret == 0) {
-        ctx->tsf_enabled = 1;
+        ctx->builtin_synth_enabled = 1;
         /* Set default program (piano=0) for all channels so TSF knows which sound to use */
         for (int ch = 1; ch <= 16; ch++) {
             shared_tsf_send_program(ch, 0);
@@ -158,13 +158,13 @@ int joy_tsf_enable(SharedContext* ctx) {
 
 void joy_tsf_disable(SharedContext* ctx) {
     if (ctx) {
-        ctx->tsf_enabled = 0;
+        ctx->builtin_synth_enabled = 0;
     }
     shared_tsf_disable();
 }
 
 int joy_tsf_is_enabled(SharedContext* ctx) {
-    return ctx && ctx->tsf_enabled && shared_tsf_is_enabled();
+    return ctx && ctx->builtin_synth_enabled && shared_tsf_is_enabled();
 }
 
 /* ============================================================================
@@ -195,8 +195,8 @@ int joy_csound_enable(SharedContext* ctx) {
     if (ret == 0) {
         ctx->csound_enabled = 1;
         /* Disable TSF when Csound is enabled (Csound takes priority) */
-        if (ctx->tsf_enabled) {
-            ctx->tsf_enabled = 0;
+        if (ctx->builtin_synth_enabled) {
+            ctx->builtin_synth_enabled = 0;
         }
     }
     return ret;

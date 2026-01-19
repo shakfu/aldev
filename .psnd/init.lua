@@ -20,7 +20,8 @@ MODE = loki.get_lines and "editor" or "repl"
 package.path = package.path .. ";.psnd/modules/?.lua;.psnd/keybindings/?.lua"
 
 -- Also add global config path if available
-local home = os.getenv("HOME")
+-- Note: os library may not be available in sandboxed Lua
+local home = os and os.getenv and os.getenv("HOME")
 if home then
     package.path = package.path .. ";" .. home .. "/.psnd/modules/?.lua"
     package.path = package.path .. ";" .. home .. "/.psnd/keybindings/?.lua"

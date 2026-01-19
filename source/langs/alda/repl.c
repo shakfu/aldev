@@ -96,9 +96,9 @@ static int alda_process_command(AldaContext *ctx, const char *input) {
         return 1; /* quit */
     }
     if (result == REPL_CMD_HANDLED) {
-        /* Sync tsf_enabled flag from shared context */
+        /* Sync builtin_synth_enabled flag from shared context */
         if (ctx->shared) {
-            ctx->tsf_enabled = ctx->shared->tsf_enabled;
+            ctx->builtin_synth_enabled = ctx->shared->builtin_synth_enabled;
             ctx->csound_enabled = ctx->shared->csound_enabled;
         }
         return 0;
@@ -342,7 +342,8 @@ int alda_play_main(int argc, char **argv) {
             alda_context_cleanup(&ctx);
             return 1;
         }
-        ctx.tsf_enabled = 1;
+        ctx.builtin_synth_enabled = 1;
+        ctx.shared->builtin_synth_enabled = 1;
         if (verbose) {
             printf("Using built-in synth: %s\n", soundfont_path);
         }
@@ -537,7 +538,8 @@ int alda_repl_main(int argc, char **argv) {
             shared_context_cleanup(&shared);
             return 1;
         }
-        ctx.tsf_enabled = 1;
+        ctx.builtin_synth_enabled = 1;
+        ctx.shared->builtin_synth_enabled = 1;
         if (verbose) {
             printf("Using built-in synth: %s\n", soundfont_path);
         }

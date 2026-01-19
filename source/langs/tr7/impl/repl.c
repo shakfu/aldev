@@ -386,7 +386,7 @@ static tr7_C_return_t repl_scm_tsf_load(tr7_engine_t tsc, int nvalues, const tr7
     if (result == 0) {
         printf("TR7: Loaded SoundFont: %s\n", path);
         if (g_tr7_repl_shared) {
-            g_tr7_repl_shared->tsf_enabled = 1;
+            g_tr7_repl_shared->builtin_synth_enabled = 1;
         }
     }
 
@@ -783,7 +783,7 @@ static void *tr7_cb_init(const SharedReplArgs *args) {
             g_tr7_repl_engine = NULL;
             return NULL;
         }
-        g_tr7_repl_shared->tsf_enabled = 1;
+        g_tr7_repl_shared->builtin_synth_enabled = 1;
         if (args->verbose) {
             printf("Using built-in synth: %s\n", args->soundfont_path);
         }
@@ -837,7 +837,7 @@ static void tr7_cb_cleanup(void *lang_ctx) {
     tr7_async_cleanup();
 
     /* Wait for audio buffer to drain */
-    if (g_tr7_repl_shared && g_tr7_repl_shared->tsf_enabled) {
+    if (g_tr7_repl_shared && g_tr7_repl_shared->builtin_synth_enabled) {
         usleep(300000);  /* 300ms for audio tail */
     }
 
