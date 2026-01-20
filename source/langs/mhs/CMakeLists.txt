@@ -592,7 +592,7 @@ add_custom_command(
         --no-compress
         --runtime ${MHS_RUNTIME}
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
-        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/source/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/langs/mhs/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/source/core/libmusic_theory.a
     DEPENDS
@@ -616,7 +616,7 @@ add_custom_command(
         ${MIDI_LIB_DIR}
         --runtime ${MHS_RUNTIME}
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
-        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/source/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/langs/mhs/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/source/core/libmusic_theory.a
     DEPENDS
@@ -710,7 +710,7 @@ add_custom_command(
         --txt-dir ${BASE_DIR}
         --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
         --runtime ${MHS_DATA_DIR}/src/runtime
-        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/source/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/langs/mhs/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/source/core/libmusic_theory.a
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
@@ -739,7 +739,7 @@ add_custom_command(
         --txt-dir ${BASE_DIR}
         --music-modules music-0.1.0.pkg:Async,Midi,MidiPerform,Music,MusicPerform
         --runtime ${MHS_DATA_DIR}/src/runtime
-        --lib ${CMAKE_BINARY_DIR}/thirdparty/libremidi/liblibremidi.a
+        --lib ${CMAKE_BINARY_DIR}/source/thirdparty/libremidi/liblibremidi.a
         --lib ${CMAKE_BINARY_DIR}/langs/mhs/libmidi_ffi.a
         --lib ${CMAKE_BINARY_DIR}/source/core/libmusic_theory.a
         --header ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi.h
