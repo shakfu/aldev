@@ -310,7 +310,6 @@ TEST(parse_char_simple) {
  * Test Runner
  * ============================================================================ */
 
-test_stats_t test_stats;
 
 BEGIN_TEST_SUITE("Joy Parser Tests")
 

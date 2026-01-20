@@ -56,6 +56,11 @@ int syntax_name_to_code(const char *name) {
 /* Set every byte of row->hl (that corresponds to every character in the line)
  * to the right syntax highlight type (HL_* defines). */
 void syntax_update_row(editor_ctx_t *ctx, t_erow *row) {
+    if (row->rsize == 0) {
+        free(row->hl);
+        row->hl = NULL;
+        return;
+    }
     unsigned char *new_hl = realloc(row->hl,row->rsize);
     if (new_hl == NULL) return; /* Out of memory, keep old highlighting */
     row->hl = new_hl;

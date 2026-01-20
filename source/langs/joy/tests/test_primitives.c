@@ -413,7 +413,6 @@ TEST(string_concat) {
  * Test Runner
  * ============================================================================ */
 
-test_stats_t test_stats;
 
 BEGIN_TEST_SUITE("Joy Primitives Tests")
 

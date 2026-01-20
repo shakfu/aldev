@@ -1,0 +1,118 @@
+name: Build Variant
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Build variant'
+        required: true
+        default: 'psnd-tsf'
+        type: choice
+        options:
+          - psnd-tsf
+          - psnd-tsf-csound
+          - psnd-fluid
+          - psnd-fluid-csound
+          - psnd-tsf-web
+          - psnd-fluid-web
+          - psnd-fluid-csound-web
+
+jobs:
+  build:
+    name: Build ${{ inputs.variant }} (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            artifact_suffix: linux
+            binary_path: build/psnd
+          - name: macOS
+            os: macos-latest
+            artifact_suffix: macos
+            binary_path: build/psnd
+    env:
+      BUILD_DIR: build
+      BUILD_TYPE: Release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install FluidSynth (Linux)
+        if: matrix.os == 'ubuntu-latest' && contains(inputs.variant, 'fluid')
+        run: sudo apt-get update && sudo apt-get install -y libfluidsynth-dev
+
+      - name: Install FluidSynth (macOS)
+        if: matrix.os == 'macos-latest' && contains(inputs.variant, 'fluid')
+        run: brew install fluid-synth
+
+      - name: Configure CMake
+        run: |
+          CMAKE_OPTS="-DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}"
+
+          case "${{ inputs.variant }}" in
+            psnd-tsf)
+              # Default: TinySoundFont only (no extra flags)
+              ;;
+            psnd-tsf-csound)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_CSOUND_BACKEND=ON"
+              ;;
+            psnd-fluid)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_FLUID_BACKEND=ON"
+              ;;
+            psnd-fluid-csound)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_FLUID_BACKEND=ON -DBUILD_CSOUND_BACKEND=ON"
+              ;;
+            psnd-tsf-web)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_WEB_HOST=ON"
+              ;;
+            psnd-fluid-web)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_FLUID_BACKEND=ON -DBUILD_WEB_HOST=ON"
+              ;;
+            psnd-fluid-csound-web)
+              CMAKE_OPTS="$CMAKE_OPTS -DBUILD_FLUID_BACKEND=ON -DBUILD_CSOUND_BACKEND=ON -DBUILD_WEB_HOST=ON"
+              ;;
+          esac
+
+          cmake -S . -B ${{ env.BUILD_DIR }} $CMAKE_OPTS
+
+      - name: Build
+        run: cmake --build ${{ env.BUILD_DIR }} --config ${{ env.BUILD_TYPE }}
+
+      - name: Collect artifact
+        run: |
+          cmake -E make_directory artifacts
+          cmake -E copy "${{ matrix.binary_path }}" "artifacts/psnd-${{ inputs.variant }}-${{ matrix.artifact_suffix }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: psnd-${{ inputs.variant }}-${{ matrix.artifact_suffix }}
+          path: artifacts/*
+          if-no-files-found: error
+
+  bundle:
+    name: Bundle artifacts
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Create unified archive
+        run: |
+          tar -czf psnd-${{ inputs.variant }}-all-platforms.tar.gz -C dist .
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: psnd-${{ inputs.variant }}-cross-platform
+          path: psnd-${{ inputs.variant }}-all-platforms.tar.gz
+          if-no-files-found: error

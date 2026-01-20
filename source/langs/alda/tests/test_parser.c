@@ -1085,8 +1085,6 @@ TEST(parse_multiple_parts) {
  * Test Runner
  * ============================================================================ */
 
-test_stats_t test_stats;
-
 BEGIN_TEST_SUITE("Alda Parser Tests")
 
     /* ROOT tests */

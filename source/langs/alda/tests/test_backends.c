@@ -407,7 +407,6 @@ TEST(csound_stop_playback_when_not_playing) {
  * Test Runner
  * ============================================================================ */
 
-test_stats_t test_stats;
 
 BEGIN_TEST_SUITE("Audio Backend Smoke Tests")
 
