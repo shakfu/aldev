@@ -4,6 +4,16 @@
 set(PSND_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE INTERNAL "Core source directory")
 
 # ==============================================================================
+# Music Theory Library (standalone, used by mhs standalone builds)
+# ==============================================================================
+add_library(music_theory STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/music/music_theory.c
+)
+target_include_directories(music_theory PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/music
+)
+
+# ==============================================================================
 # Shared Library
 # ==============================================================================
 set(LIBSHARED_SOURCES

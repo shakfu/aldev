@@ -219,6 +219,12 @@ The web host is functional with xterm.js terminal emulator. Remaining work:
 
 ---
 
+## Add Languages
+
+- [ ] bytebeat (see: <https://dollchan.net/bytebeat>)
+- [ ] funcbeat
+- [ ] drumbeat (see: <https://wavepot.com>)
+
 ## Feature Opportunities
 
 ### Preset Browser & Layering
