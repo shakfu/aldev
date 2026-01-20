@@ -8,6 +8,9 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+# Enable POSIX functions (strdup, strndup, usleep, etc.)
+add_compile_definitions(_DEFAULT_SOURCE)
+
 # C++ is needed for libremidi (alda dependency)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -385,7 +385,6 @@ TEST(integration_rapid_octave_changes) {
  * Test Runner
  * ============================================================================ */
 
-test_stats_t test_stats;
 
 BEGIN_TEST_SUITE("Alda Integration Tests")
 
