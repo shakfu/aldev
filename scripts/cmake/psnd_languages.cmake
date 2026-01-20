@@ -287,8 +287,15 @@ function(psnd_apply_lang_definitions target)
         target_compile_definitions(${target} PRIVATE LANG_${LANG_UPPER}=1)
     endforeach()
 
-    # MHS-specific: if compilation support is disabled, define MHS_NO_COMPILATION
-    if(ENABLE_MHS_INTEGRATION AND NOT MHS_ENABLE_COMPILATION)
-        target_compile_definitions(${target} PRIVATE MHS_NO_COMPILATION)
+    # MHS-specific definitions
+    if(ENABLE_MHS_INTEGRATION)
+        # If compilation support is disabled, define MHS_NO_COMPILATION
+        if(NOT MHS_ENABLE_COMPILATION)
+            target_compile_definitions(${target} PRIVATE MHS_NO_COMPILATION)
+        endif()
+        # If using package mode (vs source mode), define MHS_USE_PKG
+        if(PSND_MHS_USE_PKG)
+            target_compile_definitions(${target} PRIVATE MHS_USE_PKG)
+        endif()
     endif()
 endfunction()

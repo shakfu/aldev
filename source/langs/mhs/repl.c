@@ -153,11 +153,17 @@ int mhs_repl_main(int argc, char **argv) {
 
     set_env("MHSDIR", VFS_VIRTUAL_ROOT);
 
-    /* Build argv for MHS: mhs -C -a<path> -pbase -pmusic [user args...] */
+#ifdef MHS_USE_PKG
+    /* Package mode: mhs -C -a<path> -pbase -pmusic [user args...] */
     int extra_args = 4;  /* -C, -a<path>, -pbase, -pmusic */
+#else
+    /* Source mode: mhs -C -i<path> -i<path>/lib [user args...] */
+    int extra_args = 3;  /* -C, -i<path>, -i<path>/lib */
+#endif
     int new_argc = argc + extra_args;
     char **new_argv = malloc((new_argc + 1) * sizeof(char *));
-    char archive_path[512];
+    char path_arg1[512];
+    char path_arg2[512];
 
     if (!new_argv) {
         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -167,10 +173,19 @@ int mhs_repl_main(int argc, char **argv) {
     int j = 0;
     new_argv[j++] = "mhs";
     new_argv[j++] = "-C";  /* Enable caching */
-    snprintf(archive_path, sizeof(archive_path), "-a%s", VFS_VIRTUAL_ROOT);
-    new_argv[j++] = archive_path;
+
+#ifdef MHS_USE_PKG
+    snprintf(path_arg1, sizeof(path_arg1), "-a%s", VFS_VIRTUAL_ROOT);
+    new_argv[j++] = path_arg1;
     new_argv[j++] = "-pbase";
     new_argv[j++] = "-pmusic";
+#else
+    /* Source mode: add include paths for lib directory */
+    snprintf(path_arg1, sizeof(path_arg1), "-i%s", VFS_VIRTUAL_ROOT);
+    snprintf(path_arg2, sizeof(path_arg2), "-i%s/lib", VFS_VIRTUAL_ROOT);
+    new_argv[j++] = path_arg1;
+    new_argv[j++] = path_arg2;
+#endif
 
     /* Copy user arguments (skip program name) */
     for (int i = 1; i < argc; i++) {
@@ -204,7 +219,6 @@ int mhs_repl_main(int argc, char **argv) {
     }
 
     /* Build argv for MHS */
-    /* Base args: mhs -C -a<path> -pbase -pmusic */
     /* When linking: add -optl flags for MIDI libraries and frameworks */
 #ifdef __APPLE__
     /* macOS: 3 libraries + 3 frameworks + C++ runtime = 7 -optl pairs = 14 args */
@@ -214,7 +228,13 @@ int mhs_repl_main(int argc, char **argv) {
     #define LINK_EXTRA_ARGS 14
 #endif
 
+#ifdef MHS_USE_PKG
+    /* Package mode: mhs -C -a<path> -pbase -pmusic */
     int extra_args = 4;  /* -C, -a<path>, -pbase, -pmusic */
+#else
+    /* Source mode: mhs -C -i<path> -i<path>/lib */
+    int extra_args = 3;  /* -C, -i<path>, -i<path>/lib */
+#endif
     if (linking_midi) {
         extra_args += LINK_EXTRA_ARGS;
     }
@@ -222,8 +242,9 @@ int mhs_repl_main(int argc, char **argv) {
     int new_argc = argc + extra_args;
     char **new_argv = malloc((new_argc + 1) * sizeof(char *));
 
-    /* Buffers for library path arguments */
-    char archive_path[512];
+    /* Buffers for path arguments */
+    char path_arg1[512];
+    char path_arg2[512];
     char lib_libremidi[512];
     char lib_midi_ffi[512];
     char lib_music_theory[512];
@@ -238,15 +259,28 @@ int mhs_repl_main(int argc, char **argv) {
     new_argv[j++] = "mhs";
     new_argv[j++] = "-C";  /* Enable caching */
 
-    /* Set archive path based on mode */
+#ifdef MHS_USE_PKG
+    /* Package mode: set archive path */
     if (temp_dir) {
-        snprintf(archive_path, sizeof(archive_path), "-a%s", temp_dir);
+        snprintf(path_arg1, sizeof(path_arg1), "-a%s", temp_dir);
     } else {
-        snprintf(archive_path, sizeof(archive_path), "-a%s", VFS_VIRTUAL_ROOT);
+        snprintf(path_arg1, sizeof(path_arg1), "-a%s", VFS_VIRTUAL_ROOT);
     }
-    new_argv[j++] = archive_path;
+    new_argv[j++] = path_arg1;
     new_argv[j++] = "-pbase";   /* Preload base package */
     new_argv[j++] = "-pmusic";  /* Preload music package */
+#else
+    /* Source mode: set include paths */
+    if (temp_dir) {
+        snprintf(path_arg1, sizeof(path_arg1), "-i%s", temp_dir);
+        snprintf(path_arg2, sizeof(path_arg2), "-i%s/lib", temp_dir);
+    } else {
+        snprintf(path_arg1, sizeof(path_arg1), "-i%s", VFS_VIRTUAL_ROOT);
+        snprintf(path_arg2, sizeof(path_arg2), "-i%s/lib", VFS_VIRTUAL_ROOT);
+    }
+    new_argv[j++] = path_arg1;
+    new_argv[j++] = path_arg2;
+#endif
 
     /* Add linker flags for MIDI libraries if compiling to executable */
     if (linking_midi) {
@@ -342,10 +376,17 @@ int mhs_play_main(int argc, char **argv) {
     set_env("MHSDIR", VFS_VIRTUAL_ROOT);
 
     /* Build argv for MHS run */
-    /* Args: mhs -C -a/mhs-embedded -pbase -pmusic -r <file> [other args...] */
-    int extra_args = 5;  /* -C, -a/mhs-embedded, -pbase, -pmusic, -r */
+#ifdef MHS_USE_PKG
+    /* Package mode: mhs -C -a<path> -pbase -pmusic -r <file> */
+    int extra_args = 5;  /* -C, -a<path>, -pbase, -pmusic, -r */
+#else
+    /* Source mode: mhs -C -i<path> -i<path>/lib -r <file> */
+    int extra_args = 4;  /* -C, -i<path>, -i<path>/lib, -r */
+#endif
     int new_argc = argc + extra_args;
     char **new_argv = malloc((new_argc + 1) * sizeof(char *));
+    char path_arg1[512];
+    char path_arg2[512];
 
     if (!new_argv) {
         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -355,9 +396,18 @@ int mhs_play_main(int argc, char **argv) {
     int j = 0;
     new_argv[j++] = "mhs";
     new_argv[j++] = "-C";               /* Enable caching */
-    new_argv[j++] = "-a/mhs-embedded";  /* Package archive path (VFS virtual root) */
+
+#ifdef MHS_USE_PKG
+    snprintf(path_arg1, sizeof(path_arg1), "-a%s", VFS_VIRTUAL_ROOT);
+    new_argv[j++] = path_arg1;
     new_argv[j++] = "-pbase";           /* Preload base package */
     new_argv[j++] = "-pmusic";          /* Preload music package */
+#else
+    snprintf(path_arg1, sizeof(path_arg1), "-i%s", VFS_VIRTUAL_ROOT);
+    snprintf(path_arg2, sizeof(path_arg2), "-i%s/lib", VFS_VIRTUAL_ROOT);
+    new_argv[j++] = path_arg1;
+    new_argv[j++] = path_arg2;
+#endif
     new_argv[j++] = "-r";               /* Run mode */
 
     /* Copy file path and remaining arguments */

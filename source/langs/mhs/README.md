@@ -78,8 +78,8 @@ The easiest way to build different MHS variants:
 |--------|-------------|-------------|-------------|-------------|
 | `make` | ~5.7MB | ~2s | Yes | Full MHS with PKG_ZSTD + compilation |
 | `make mhs-small` | ~4.5MB | ~2s | No | No `-o` executable support |
-| `make mhs-src` | ~4MB | ~17s | Yes | Source embedding (slower startup) |
-| `make mhs-src-small` | ~3.5MB | ~17s | No | Smallest with MHS |
+| `make mhs-src` | ~4.1MB | ~17s | Yes | Source embedding (slower startup) |
+| `make mhs-src-small` | ~2.9MB | ~17s | No | Smallest with MHS |
 | `make no-mhs` | ~2.1MB | N/A | N/A | MHS disabled entirely |
 
 ### CMake Commands
