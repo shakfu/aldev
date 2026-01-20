@@ -5,6 +5,7 @@ build/
 .*_cache
 .*_history
 .psnd/*_history
+.mhscache
 
 # Prerequisites
 *.d

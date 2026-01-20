@@ -64,7 +64,7 @@
  * Constants and state
  *-----------------------------------------------------------*/
 
-#define VFS_VIRTUAL_ROOT "/mhs-embedded"
+/* VFS_VIRTUAL_ROOT is now defined in vfs.h */
 
 static int g_initialized = 0;
 

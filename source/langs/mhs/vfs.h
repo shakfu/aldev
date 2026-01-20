@@ -7,6 +7,9 @@
 #include <stddef.h>
 #include <dirent.h>
 
+/* Virtual root path - all embedded files appear under this prefix */
+#define VFS_VIRTUAL_ROOT "/mhs-embedded"
+
 /* Initialize VFS.
  * Returns 0 on success, -1 on failure.
  */

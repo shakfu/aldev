@@ -91,6 +91,59 @@ endif()
 if(ENABLE_MHS_INTEGRATION)
 
 # ==============================================================================
+# Embedded MHS Configuration for psnd
+# ==============================================================================
+# psnd embeds MHS libraries using VFS (Virtual File System) with zstd compression
+# This makes psnd mhs self-contained with fast ~2s startup (vs ~17s from source)
+
+set(MHS_IMPL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/impl)
+set(ZSTD_DIR ${CMAKE_SOURCE_DIR}/source/thirdparty/zstd-1.5.7)
+set(MHS_SCRIPTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+set(MHS_VERSION_PSND "0.15.0.0")
+
+# Check for zstd availability
+if(EXISTS "${ZSTD_DIR}/zstd.c")
+    set(PSND_MHS_USE_ZSTD TRUE)
+    message(STATUS "MHS psnd: Using zstd compression for embedded libraries")
+else()
+    set(PSND_MHS_USE_ZSTD FALSE)
+    message(STATUS "MHS psnd: zstd not found, using uncompressed embedding")
+endif()
+
+# Platform-specific config.h location
+if(WIN32)
+    set(MHS_CONFIG_DIR ${MHS_IMPL_DIR}/windows)
+else()
+    set(MHS_CONFIG_DIR ${MHS_IMPL_DIR}/unix)
+endif()
+
+# ==============================================================================
+# Generate patched sources for VFS-based psnd integration
+# ==============================================================================
+
+# Create patched mhs.c (removes xffi_table for custom FFI)
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mhs_psnd.c
+    COMMAND ${Python3_EXECUTABLE} ${MHS_SCRIPTS_DIR}/mhs-patch-xffi.py
+            ${MHS_IMPL_DIR}/mhs.c
+            ${CMAKE_CURRENT_BINARY_DIR}/mhs_psnd.c
+    DEPENDS ${MHS_IMPL_DIR}/mhs.c ${MHS_SCRIPTS_DIR}/mhs-patch-xffi.py
+    COMMENT "Creating mhs_psnd.c with xffi_table removed"
+    VERBATIM
+)
+
+# Create patched eval.c (renames mhs_fopen etc. for VFS override)
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/eval_psnd.c
+    COMMAND ${Python3_EXECUTABLE} ${MHS_SCRIPTS_DIR}/mhs-patch-eval.py
+            ${MHS_IMPL_DIR}/eval.c
+            ${CMAKE_CURRENT_BINARY_DIR}/eval_psnd.c
+    DEPENDS ${MHS_IMPL_DIR}/eval.c ${MHS_SCRIPTS_DIR}/mhs-patch-eval.py
+    COMMENT "Creating eval_psnd.c with VFS function renames"
+    VERBATIM
+)
+
+# ==============================================================================
 # MHS Implementation Sources for psnd Integration
 # ==============================================================================
 set(MHS_IMPL_SOURCES
@@ -98,35 +151,56 @@ set(MHS_IMPL_SOURCES
 )
 
 # ==============================================================================
-# MicroHs Runtime Library for psnd
+# MicroHs Runtime Library for psnd (with VFS embedding)
 # ==============================================================================
-# The MicroHs runtime provides mhs_main and the Haskell evaluator
-# Files are in impl/ with modified symbols to avoid conflicts:
-# - mmalloc/mcalloc/mrealloc -> mhs_mmalloc/mhs_mcalloc/mhs_mrealloc
-# Note: bfile.c is included by eval.c, not compiled separately
-set(MHS_IMPL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/impl)
 set(MHS_RUNTIME_SOURCES
-    ${MHS_IMPL_DIR}/mhs.c
-    ${MHS_IMPL_DIR}/eval.c
+    ${CMAKE_CURRENT_BINARY_DIR}/mhs_psnd.c
+    ${CMAKE_CURRENT_BINARY_DIR}/eval_psnd.c
     ${CMAKE_CURRENT_SOURCE_DIR}/mhs_ffi_override.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/midi_ffi_wrappers.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/vfs.c
 )
 
-add_library(mhs_runtime STATIC ${MHS_RUNTIME_SOURCES})
-
-# Platform-specific config.h location (in our impl/ copy)
-if(WIN32)
-    set(MHS_CONFIG_DIR ${MHS_IMPL_DIR}/windows)
-else()
-    set(MHS_CONFIG_DIR ${MHS_IMPL_DIR}/unix)
+# Add zstd decompression if available
+if(PSND_MHS_USE_ZSTD)
+    list(APPEND MHS_RUNTIME_SOURCES ${ZSTD_DIR}/zstddeclib.c)
 endif()
+
+add_library(mhs_runtime STATIC ${MHS_RUNTIME_SOURCES})
 
 target_include_directories(mhs_runtime PRIVATE
     ${MHS_CONFIG_DIR}
     ${MHS_IMPL_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_SOURCE_DIR}/source/thirdparty/libremidi/include
 )
+
+# VFS compile definitions
+target_compile_definitions(mhs_runtime PRIVATE MHS_EMBEDDED_VFS VFS_USE_PKG)
+if(PSND_MHS_USE_ZSTD)
+    target_compile_definitions(mhs_runtime PRIVATE VFS_USE_ZSTD)
+    target_include_directories(mhs_runtime PRIVATE ${ZSTD_DIR})
+endif()
+
 target_link_libraries(mhs_runtime PUBLIC midi_ffi_psnd)
+
+# ==============================================================================
+# Embedded Header Generation for psnd
+# ==============================================================================
+# Generate the embedded library header that vfs.c includes
+# We reuse the same header as standalone builds (mhs_embedded_pkgs_zstd.h)
+# The header generation happens in the standalone section below
+
+# For now, set the path - the actual generation happens later
+set(PSND_EMBEDDED_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_pkgs_zstd.h)
+if(NOT PSND_MHS_USE_ZSTD)
+    set(PSND_EMBEDDED_HEADER ${CMAKE_CURRENT_BINARY_DIR}/mhs_embedded_pkgs.h)
+endif()
+
+# The mhs_runtime needs the header to exist before compilation
+# We'll add a dependency after the header generation target is created
+# (see mhs-psnd-embedded-header target below)
 
 # ==============================================================================
 # MIDI FFI Library for psnd (with SharedContext routing)
@@ -212,6 +286,16 @@ psnd_register_language(
         ${CMAKE_CURRENT_SOURCE_DIR}/register.c
     LINK_LIBRARIES mhs
 )
+
+# ==============================================================================
+# Force package-based builds for psnd embedding (Unix only)
+# ==============================================================================
+# psnd uses VFS with pkg-zstd for fast startup, which requires the embedded
+# header generated by the package-based build process
+if(NOT WIN32)
+    set(BUILD_MHS_PKG_VARIANTS ON CACHE BOOL "Required for psnd MHS embedding" FORCE)
+    message(STATUS "MHS psnd: Forcing BUILD_MHS_PKG_VARIANTS=ON for embedded VFS")
+endif()
 
 endif() # ENABLE_MHS_INTEGRATION
 
@@ -840,3 +924,21 @@ install(DIRECTORY ${MIDI_LIB_DIR}/
     COMPONENT mhs-midi
     FILES_MATCHING PATTERN "*.hs"
 )
+
+# ==============================================================================
+# psnd MHS Embedding Dependencies
+# ==============================================================================
+# When ENABLE_MHS_INTEGRATION is ON, mhs_runtime needs the embedded header
+# before it can compile. Add dependency from mhs_runtime to the header.
+if(ENABLE_MHS_INTEGRATION AND NOT WIN32)
+    # Create a custom target for the embedded header
+    if(HAVE_ZSTD)
+        add_custom_target(mhs-psnd-embedded-header DEPENDS ${EMBEDDED_PKG_ZSTD_HEADER})
+    else()
+        add_custom_target(mhs-psnd-embedded-header DEPENDS ${EMBEDDED_PKG_HEADER})
+    endif()
+
+    # mhs_runtime depends on the embedded header being generated
+    add_dependencies(mhs_runtime mhs-psnd-embedded-header)
+    message(STATUS "MHS psnd: mhs_runtime depends on embedded header generation")
+endif()
