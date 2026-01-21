@@ -146,6 +146,75 @@ void shared_midi_send_cc(struct SharedContext* ctx, int channel, int cc, int val
  */
 void shared_midi_all_notes_off(struct SharedContext* ctx);
 
+/* ============================================================================
+ * MIDI Input (for parameter CC binding)
+ * ============================================================================ */
+
+/**
+ * @brief Initialize MIDI input observer for port enumeration.
+ * @param ctx Shared context.
+ */
+void shared_midi_in_init_observer(struct SharedContext* ctx);
+
+/**
+ * @brief List available MIDI input ports to stdout.
+ * @param ctx Shared context.
+ */
+void shared_midi_in_list_ports(struct SharedContext* ctx);
+
+/**
+ * @brief Get the number of available input ports.
+ * @param ctx Shared context.
+ * @return Number of available ports.
+ */
+int shared_midi_in_get_port_count(struct SharedContext* ctx);
+
+/**
+ * @brief Get the name of a MIDI input port.
+ * @param ctx Shared context.
+ * @param port_idx Port index.
+ * @return Port name, or NULL if invalid index.
+ */
+const char* shared_midi_in_get_port_name(struct SharedContext* ctx, int port_idx);
+
+/**
+ * @brief Open a MIDI input port by index.
+ *
+ * CC messages received on this port will update bound parameters.
+ *
+ * @param ctx Shared context.
+ * @param port_idx Port index (0-based).
+ * @return 0 on success, -1 on error.
+ */
+int shared_midi_in_open_port(struct SharedContext* ctx, int port_idx);
+
+/**
+ * @brief Open a virtual MIDI input port.
+ * @param ctx Shared context.
+ * @param name Name for the virtual port.
+ * @return 0 on success, -1 on error.
+ */
+int shared_midi_in_open_virtual(struct SharedContext* ctx, const char* name);
+
+/**
+ * @brief Close the current MIDI input port.
+ * @param ctx Shared context.
+ */
+void shared_midi_in_close(struct SharedContext* ctx);
+
+/**
+ * @brief Check if a MIDI input port is open.
+ * @param ctx Shared context.
+ * @return Non-zero if open, 0 if closed.
+ */
+int shared_midi_in_is_open(struct SharedContext* ctx);
+
+/**
+ * @brief Cleanup MIDI input resources.
+ * @param ctx Shared context.
+ */
+void shared_midi_in_cleanup(struct SharedContext* ctx);
+
 #ifdef __cplusplus
 }
 #endif

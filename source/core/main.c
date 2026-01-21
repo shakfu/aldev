@@ -97,6 +97,11 @@ static void print_unified_help(const char *prog) {
     printf("Editor Options:\n");
     printf("  -sf PATH               Use built-in %s synth\n", BUILTIN_SYNTH_NAME);
     printf("  -cs PATH               Use Csound synthesis with .csd file\n");
+#ifdef PSND_OSC
+    printf("  --osc                  Enable OSC server (default port: 7770)\n");
+    printf("  --osc-port N           OSC server port\n");
+    printf("  --osc-send H:P         Broadcast events to host:port\n");
+#endif
     printf("\n");
 
     printf("Examples:\n");
@@ -243,9 +248,11 @@ int main(int argc, char **argv) {
         return loki_editor_main(argc, argv);
     }
 
-    /* Check for editor options (-sf, -cs) followed by a file */
-    if (strcmp(first_arg, "-sf") == 0 || strcmp(first_arg, "-cs") == 0) {
-        for (int i = 2; i < argc; i++) {
+    /* Check for editor options (-sf, -cs, --osc, etc.) followed by a file */
+    if (strcmp(first_arg, "-sf") == 0 || strcmp(first_arg, "-cs") == 0 ||
+        strcmp(first_arg, "--osc") == 0 || strcmp(first_arg, "--osc-port") == 0 ||
+        strcmp(first_arg, "--osc-send") == 0) {
+        for (int i = 1; i < argc; i++) {
             if (lang_dispatch_has_supported_extension(argv[i]) || has_csd_extension(argv[i])) {
                 return loki_editor_main(argc, argv);
             }

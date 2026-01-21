@@ -19,6 +19,80 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **Parameter Binding System**: Bind named parameters to OSC addresses and MIDI CC for real-time control from physical controllers (knobs, faders)
+  - Thread-safe atomic float values for lock-free access from MIDI/OSC threads
+  - Parameters have name, type (float/int/bool), min/max/default values
+  - Up to 128 named parameters with automatic scaling from controller range
+  - **MIDI CC Binding**: Incoming CC messages automatically update bound parameters
+    - Channel (1-16) and CC number (0-127) mapping
+    - Automatic scaling from 0-127 to parameter's min/max range
+  - **OSC Binding**: Parameters can be bound to arbitrary OSC paths
+    - Wildcard handler intercepts bound paths automatically
+  - **OSC Endpoints** (when OSC is enabled):
+    - `/psnd/param/set sf name value` - Set parameter by name
+    - `/psnd/param/get s name` - Query parameter (replies `/psnd/param/value`)
+    - `/psnd/param/list` - List all defined parameters
+  - **Lua API** (`loki.param` / `param` module):
+    - `param.define(name, opts)` - Define parameter with min, max, default, type
+    - `param.get(name)` - Get parameter value
+    - `param.set(name, value)` - Set parameter value
+    - `param.bind_osc(name, path)` - Bind to OSC path
+    - `param.bind_midi(name, channel, cc)` - Bind to MIDI CC
+    - `param.unbind_osc(name)`, `param.unbind_midi(name)` - Remove bindings
+    - `param.undefine(name)` - Remove parameter
+    - `param.list()` - List all parameters with their bindings
+    - `param.info(name)` - Get detailed parameter info
+  - **Joy Primitives**:
+    - `"name" param` - Get parameter value (push to stack)
+    - `value "name" param!` - Set parameter value
+    - `param-list` - Print all parameters
+  - **MIDI Input API** (new in `loki.midi`):
+    - `midi.in_list_ports()` - List MIDI input ports
+    - `midi.in_port_count()` - Get number of input ports
+    - `midi.in_port_name(idx)` - Get input port name
+    - `midi.in_open_port(idx)` - Open MIDI input port for CC reception
+    - `midi.in_open_virtual(name)` - Create virtual MIDI input
+    - `midi.in_close()` - Close MIDI input
+    - `midi.in_is_open()` - Check if input port is open
+  - **Files Added**: `source/core/shared/param/param.h`, `source/core/shared/param/param.c`, `source/core/shared/midi/midi_input.c`
+  - **Files Modified**: `source/core/shared/context.h`, `source/core/shared/context.c`, `source/core/shared/midi/midi.h`, `source/core/shared/osc/osc.c`, `source/core/loki/lua.c`, `source/langs/joy/midi/midi_primitives.c`, `source/core/CMakeLists.txt`
+
+- **OSC (Open Sound Control) Support**: Remote control and inter-application communication via liblo
+  - Enable with `--osc` flag: `psnd --osc song.alda`
+  - Custom port with `--osc-port N`: `psnd --osc-port 7770 song.alda`
+  - Broadcast events with `--osc-send H:P`: `psnd --osc-send 127.0.0.1:8000 song.alda`
+  - **Incoming Messages**:
+    - `/psnd/ping` - Connection test (replies with `/psnd/pong`)
+    - `/psnd/tempo` - Set tempo (float BPM)
+    - `/psnd/note`, `/psnd/noteon` - Play note (channel, pitch, velocity)
+    - `/psnd/noteoff` - Stop note (channel, pitch)
+    - `/psnd/cc` - Control change (channel, cc, value)
+    - `/psnd/pc` - Program change (channel, program)
+    - `/psnd/bend` - Pitch bend (channel, value -8192 to 8191)
+    - `/psnd/panic` - All notes off
+    - `/psnd/play` - Play entire file
+    - `/psnd/stop` - Stop all playback
+    - `/psnd/eval` - Evaluate code string
+  - **Outgoing Messages** (when broadcast target is set via `--osc-send`):
+    - `/psnd/status/playing` - Playback state changes (auto-sent on play/stop from any source)
+    - `/psnd/status/tempo` - Tempo changes
+    - `/psnd/midi/note` - Note events (auto-forwarded for all MIDI note on/off)
+  - **Lua API** (`loki.osc` / `osc` module):
+    - `osc.init(port)` - Initialize OSC on specified port (default 7770)
+    - `osc.start()` - Start OSC server
+    - `osc.stop()` - Stop OSC server
+    - `osc.enabled()` - Check if OSC is running
+    - `osc.port()` - Get current port number
+    - `osc.broadcast(host, port)` - Set broadcast target
+    - `osc.send(path, ...)` - Send OSC message to broadcast target
+    - `osc.send_to(host, port, path, ...)` - Send to specific address
+    - `osc.on(path, callback_name)` - Register callback for OSC path
+    - `osc.off(path)` - Remove callback for OSC path
+  - **Build Option**: Requires `-DBUILD_OSC=ON`
+  - **Files Added**: `source/core/shared/osc/osc.h`, `source/core/shared/osc/osc.c`
+  - **Files Modified**: `source/core/loki/lua.c`, `source/core/loki/cli.c`, `source/core/loki/cli.h`, `source/core/loki/session.c`, `source/core/loki/session.h`, `source/core/loki/editor.c`, `source/core/loki/lang_bridge.c`, `source/core/main.c`, `source/core/shared/context.c`, `source/core/shared/context.h`, `source/core/CMakeLists.txt`, `source/thirdparty/CMakeLists.txt`
+  - **Design Document**: `docs/PSND_OSC.md`
+
 - **Native Webview Mode**: Self-contained native window UI using the webview library
   - Run with `--native` flag: `psnd --native song.alda`
   - Same xterm.js-based UI as web mode but in a native window (no browser required)

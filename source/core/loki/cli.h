@@ -34,6 +34,10 @@ typedef struct {
     int native_mode;            /* Run with native webview (--native) */
     int rows;                   /* Screen rows for headless mode (--rows) */
     int cols;                   /* Screen cols for headless mode (--cols) */
+    int osc_enabled;            /* Enable OSC server (--osc) */
+    int osc_port;               /* OSC server port (--osc-port, default 7770) */
+    const char *osc_send_host;  /* OSC broadcast host (--osc-send host:port) */
+    const char *osc_send_port;  /* OSC broadcast port */
 } EditorCliArgs;
 
 /**

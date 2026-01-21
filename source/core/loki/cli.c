@@ -36,6 +36,12 @@ void editor_cli_print_usage(void) {
     printf("\nNative Webview Mode:\n");
     printf("  --native            Run in native webview window (no browser needed)\n");
 #endif
+#ifdef PSND_OSC
+    printf("\nOSC (Open Sound Control):\n");
+    printf("  --osc               Enable OSC server (default port: 7770)\n");
+    printf("  --osc-port N        OSC server port\n");
+    printf("  --osc-send H:P      Broadcast events to host:port\n");
+#endif
     printf("\nInteractive mode (default):\n");
     printf("  " PSND_NAME " <file.alda>           Open file in editor\n");
     printf("  " PSND_NAME " -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
@@ -179,6 +185,54 @@ int editor_cli_parse(int argc, char **argv, EditorCliArgs *args) {
         /* Native webview mode */
         if (strcmp(arg, "--native") == 0) {
             args->native_mode = 1;
+            continue;
+        }
+
+        /* OSC enable */
+        if (strcmp(arg, "--osc") == 0) {
+            args->osc_enabled = 1;
+            continue;
+        }
+
+        /* OSC port */
+        if (strcmp(arg, "--osc-port") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --osc-port requires a number argument\n");
+                return -1;
+            }
+            args->osc_port = atoi(argv[++i]);
+            if (args->osc_port <= 0 || args->osc_port > 65535) {
+                fprintf(stderr, "Error: --osc-port must be between 1 and 65535\n");
+                return -1;
+            }
+            args->osc_enabled = 1; /* --osc-port implies --osc */
+            continue;
+        }
+
+        /* OSC send target (host:port) */
+        if (strcmp(arg, "--osc-send") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "Error: --osc-send requires host:port argument\n");
+                return -1;
+            }
+            const char *target = argv[++i];
+            /* Parse host:port - find the last colon (IPv6 safe) */
+            const char *colon = strrchr(target, ':');
+            if (!colon || colon == target) {
+                fprintf(stderr, "Error: --osc-send requires host:port format\n");
+                return -1;
+            }
+            /* Store host (need to allocate since we modify) */
+            static char osc_host_buf[256];
+            size_t host_len = colon - target;
+            if (host_len >= sizeof(osc_host_buf)) {
+                host_len = sizeof(osc_host_buf) - 1;
+            }
+            strncpy(osc_host_buf, target, host_len);
+            osc_host_buf[host_len] = '\0';
+            args->osc_send_host = osc_host_buf;
+            args->osc_send_port = colon + 1;
+            args->osc_enabled = 1; /* --osc-send implies --osc */
             continue;
         }
 

@@ -15,6 +15,7 @@
 #include "loki/lua.h"
 #include "syntax.h"
 #include "shared/context.h"
+#include "shared/osc/osc.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -37,6 +38,19 @@ struct EditorSession {
 static char *safe_strdup(const char *s) {
     if (!s) return NULL;
     return strdup(s);
+}
+
+/* OSC query callback: get current filename */
+static const char *osc_query_get_filename(editor_ctx_t *ctx) {
+    if (!ctx) return NULL;
+    return ctx->model.filename;
+}
+
+/* OSC query callback: get cursor position */
+static void osc_query_get_position(editor_ctx_t *ctx, int *line, int *col) {
+    if (!ctx || !line || !col) return;
+    *line = ctx->view.cy;
+    *col = ctx->view.cx;
 }
 
 /* Build render segments for a row (same logic as in core.c) */
@@ -183,6 +197,33 @@ EditorSession *editor_session_new(const EditorConfig *config) {
                 }
             } else {
                 fprintf(stderr, "Warning: Failed to allocate shared context\n");
+            }
+        }
+
+        /* Initialize OSC if requested */
+        if (config->osc_enabled && session->ctx.model.shared) {
+            int osc_port = config->osc_port > 0 ? config->osc_port : PSND_OSC_DEFAULT_PORT;
+            if (shared_osc_init(session->ctx.model.shared, osc_port) == 0) {
+                /* Set broadcast target if specified */
+                if (config->osc_send_host && config->osc_send_port) {
+                    shared_osc_set_broadcast(session->ctx.model.shared,
+                                             config->osc_send_host,
+                                             config->osc_send_port);
+                }
+                /* Store session as user data for OSC handlers */
+                shared_osc_set_user_data(session->ctx.model.shared, session);
+                /* Set up language callbacks for OSC play/eval/stop handlers */
+                shared_osc_set_lang_callbacks(loki_lang_eval, loki_lang_eval_buffer, loki_lang_stop_all);
+                /* Set up query callbacks for OSC query/reply handlers */
+                shared_osc_set_query_callbacks(loki_lang_is_playing, osc_query_get_filename, osc_query_get_position);
+                /* Start the OSC server thread */
+                if (shared_osc_start(session->ctx.model.shared) == 0) {
+                    fprintf(stderr, "OSC server listening on port %d\n", osc_port);
+                } else {
+                    fprintf(stderr, "Warning: Failed to start OSC server\n");
+                }
+            } else {
+                fprintf(stderr, "Warning: Failed to initialize OSC on port %d\n", osc_port);
             }
         }
 

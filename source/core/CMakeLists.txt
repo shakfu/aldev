@@ -23,10 +23,13 @@ set(LIBSHARED_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/audio/csound_backend.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/audio/fluid_backend.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/midi/midi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/midi/midi_input.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/midi/events.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/link/link.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/async/shared_async.c
     ${CMAKE_CURRENT_SOURCE_DIR}/shared/music/music_theory.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/osc/osc.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/shared/param/param.c
 )
 
 add_library(shared STATIC ${LIBSHARED_SOURCES})
@@ -65,6 +68,15 @@ if(BUILD_FLUID_BACKEND)
         ${CMAKE_BINARY_DIR}/source/thirdparty/fluidsynth/include
     )
     target_link_libraries(shared PRIVATE libfluidsynth)
+endif()
+
+if(BUILD_OSC)
+    target_compile_definitions(shared PUBLIC PSND_OSC)
+    target_include_directories(shared PRIVATE
+        ${PSND_ROOT_DIR}/source/thirdparty/liblo
+        ${CMAKE_BINARY_DIR}/source/thirdparty/liblo
+    )
+    target_link_libraries(shared PRIVATE liblo_static)
 endif()
 
 if(APPLE)
@@ -206,6 +218,15 @@ function(psnd_build_loki)
                 ${WEBKIT2GTK_LIBRARIES}
             )
         endif()
+    endif()
+
+    # OSC support (propagate from shared library)
+    if(BUILD_OSC)
+        target_compile_definitions(libloki PUBLIC PSND_OSC)
+        target_include_directories(libloki PRIVATE
+            ${PSND_ROOT_DIR}/source/thirdparty/liblo
+            ${CMAKE_BINARY_DIR}/source/thirdparty/liblo
+        )
     endif()
 
     # Lua sandboxing (disables os, io, debug, load* by default)

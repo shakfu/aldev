@@ -25,6 +25,8 @@ All are practical for daily live-coding, REPL sketches, and headless playback. T
 - **TinySoundFont synthesizer** built on [miniaudio](https://github.com/mackron/miniaudio)
 - **Optional [Csound](https://csound.com/) backend** for deeper sound design workflows
 - **[Ableton Link](https://github.com/Ableton/link) support** for networked tempo sync (playback matches Link session tempo)
+- **[OSC (Open Sound Control)](http://opensoundcontrol.org/) support** for remote control and inter-application communication (optional)
+- **Parameter binding** for MIDI CC and OSC control of named parameters from physical controllers
 - **[Scala .scl](https://www.huygens-fokker.org/scala/scl_format.html) import support** for microtuning
 - **Lua APIs** for editor automation, playback control, and extensibility
 
@@ -66,6 +68,7 @@ cmake -B build -DBUILD_FLUID_BACKEND=ON  # Use FluidSynth instead of TSF
 cmake -B build -DBUILD_CSOUND_BACKEND=ON # Enable Csound synthesis
 cmake -B build -DBUILD_WEB_HOST=ON       # Enable web server mode
 cmake -B build -DBUILD_WEBVIEW_HOST=ON   # Enable native webview mode
+cmake -B build -DBUILD_OSC=ON            # Enable OSC (Open Sound Control) support
 cmake -B build -DLOKI_EMBED_XTERM=ON     # Embed xterm.js in binary (no CDN)
 ```
 
@@ -715,6 +718,262 @@ loki.link.on_start_stop("my_transport_handler")
 loki.link.cleanup()
 ```
 
+## OSC (Open Sound Control)
+
+psnd supports [OSC](http://opensoundcontrol.org/) for remote control and communication with other music software like SuperCollider, Max/MSP, Pure Data, and hardware controllers.
+
+### Building with OSC
+
+```bash
+cmake -B build -DBUILD_OSC=ON && make    # Build with OSC support
+```
+
+### Quick Start
+
+```bash
+# Start editor with OSC server on default port (7770)
+psnd --osc song.alda
+
+# Use custom port
+psnd --osc-port 8000 song.alda
+
+# Also broadcast events to another application
+psnd --osc --osc-send 127.0.0.1:9000 song.alda
+```
+
+### Incoming Messages
+
+Control psnd from external applications:
+
+| Address | Arguments | Description |
+|---------|-----------|-------------|
+| `/psnd/ping` | none | Connection test (replies `/psnd/pong`) |
+| `/psnd/tempo` | float bpm | Set tempo |
+| `/psnd/note` | int ch, int pitch, int vel | Play note (note on + scheduled off) |
+| `/psnd/noteon` | int ch, int pitch, int vel | Note on |
+| `/psnd/noteoff` | int ch, int pitch | Note off |
+| `/psnd/cc` | int ch, int cc, int val | Control change |
+| `/psnd/pc` | int ch, int prog | Program change |
+| `/psnd/bend` | int ch, int val | Pitch bend (-8192 to 8191) |
+| `/psnd/panic` | none | All notes off |
+| `/psnd/play` | none | Play entire file |
+| `/psnd/stop` | none | Stop all playback |
+| `/psnd/eval` | string code | Evaluate code string |
+
+### Outgoing Messages
+
+When a broadcast target is set (`--osc-send`), psnd automatically sends messages for state changes and MIDI events, regardless of what triggered them (keyboard, Lua API, or incoming OSC):
+
+| Address | Arguments | Description |
+|---------|-----------|-------------|
+| `/psnd/pong` | none | Reply to ping |
+| `/psnd/status/playing` | int playing | Playback state (1=playing, 0=stopped) |
+| `/psnd/status/tempo` | float bpm | Tempo changes |
+| `/psnd/midi/note` | int ch, int pitch, int vel | Note on (vel>0) or off (vel=0) |
+
+### Example: SuperCollider
+
+```supercollider
+// Send notes to psnd
+n = NetAddr("127.0.0.1", 7770);
+n.sendMsg("/psnd/note", 0, 60, 100);    // C4
+n.sendMsg("/psnd/note", 0, 64, 100);    // E4
+n.sendMsg("/psnd/note", 0, 67, 100);    // G4
+n.sendMsg("/psnd/tempo", 140.0);        // Set tempo
+n.sendMsg("/psnd/panic");               // Stop all notes
+
+// Playback control
+n.sendMsg("/psnd/play");                // Play entire file
+n.sendMsg("/psnd/stop");                // Stop playback
+n.sendMsg("/psnd/eval", "piano: c d e f g");  // Evaluate code
+```
+
+### Example: Pure Data / Max
+
+Send messages to `udp 127.0.0.1 7770`:
+- `/psnd/note 0 60 100` - Play middle C
+- `/psnd/tempo 120` - Set tempo
+- `/psnd/panic` - Stop all notes
+
+### Lua API
+
+Control OSC from Lua scripts and init.lua:
+
+```lua
+-- Initialize and start OSC server
+osc.init(7770)           -- Initialize on port 7770 (default)
+osc.start()              -- Start the server
+
+-- Check status
+osc.enabled()            -- Returns true if running
+osc.port()               -- Returns current port number
+
+-- Set broadcast target for outgoing messages
+osc.broadcast("localhost", 8000)
+
+-- Send messages
+osc.send("/my/path", 1, 2.5, "hello")              -- To broadcast target
+osc.send_to("192.168.1.100", 9000, "/custom", 42)  -- To specific address
+
+-- Register callbacks (callback is called by function name)
+osc.on("/my/handler", "my_callback_function")
+osc.off("/my/handler")   -- Remove handler
+
+-- Stop server
+osc.stop()
+```
+
+Type auto-detection for `osc.send()` and `osc.send_to()`:
+- Lua integers become OSC int32 (`i`)
+- Lua floats become OSC float (`f`)
+- Lua strings become OSC string (`s`)
+- Lua booleans become OSC true/false (`T`/`F`)
+- Lua nil becomes OSC nil (`N`)
+
+### Design Document
+
+See `docs/PSND_OSC.md` for the complete OSC address namespace specification and implementation details.
+
+## Parameter Binding System
+
+psnd supports binding named parameters to MIDI CC and OSC addresses, enabling physical controllers (knobs, faders) to modify variables that affect music generation in real-time.
+
+### Quick Start
+
+```lua
+-- In Lua console (Ctrl-L) or init.lua
+
+-- Define a parameter with range and default
+param.define("cutoff", { min = 20, max = 20000, default = 1000 })
+param.define("resonance", { min = 0, max = 1, default = 0.5 })
+
+-- Bind to MIDI CC (channel 1, CC 74)
+midi.in_open_virtual("PSND_MIDI_IN")  -- Create virtual MIDI input
+param.bind_midi("cutoff", 1, 74)      -- Moving CC 74 updates cutoff
+
+-- Bind to OSC address
+param.bind_osc("resonance", "/fader/2")  -- OSC messages update resonance
+
+-- Read values from your music code
+local val = param.get("cutoff")       -- Returns current value
+```
+
+### Joy Usage
+
+```joy
+\ Define parameter (from Lua first)
+\ Then read in Joy code:
+"cutoff" param            \ Push parameter value onto stack
+5000 "cutoff" param!      \ Set parameter value
+param-list                \ Print all parameters
+```
+
+### MIDI Input
+
+Open a MIDI input port to receive CC messages:
+
+```lua
+-- List available input ports
+midi.in_list_ports()
+
+-- Open by index (1-based)
+midi.in_open_port(1)
+
+-- Or create a virtual input port
+midi.in_open_virtual("MyController")
+
+-- Check if open
+midi.in_is_open()  -- true/false
+
+-- Close when done
+midi.in_close()
+```
+
+When MIDI CC messages arrive on a bound channel/CC, the parameter value is automatically updated with scaling from 0-127 to the parameter's min/max range.
+
+### OSC Control
+
+When OSC is enabled (`--osc`), parameters can be controlled via OSC messages:
+
+```bash
+# Set parameter value
+oscsend localhost 7770 /psnd/param/set sf "cutoff" 5000.0
+
+# Query parameter (replies with /psnd/param/value)
+oscsend localhost 7770 /psnd/param/get s "cutoff"
+
+# List all parameters
+oscsend localhost 7770 /psnd/param/list
+```
+
+Parameters bound to custom OSC paths also respond to those paths:
+
+```bash
+# If bound: param.bind_osc("resonance", "/fader/2")
+oscsend localhost 7770 /fader/2 f 0.75
+```
+
+### Lua API Reference
+
+| Function | Description |
+|----------|-------------|
+| `param.define(name, opts)` | Define parameter (opts: min, max, default, type) |
+| `param.undefine(name)` | Remove parameter definition |
+| `param.get(name)` | Get current parameter value |
+| `param.set(name, value)` | Set parameter value |
+| `param.bind_osc(name, path)` | Bind parameter to OSC path |
+| `param.unbind_osc(name)` | Remove OSC binding |
+| `param.bind_midi(name, ch, cc)` | Bind to MIDI CC (channel 1-16, CC 0-127) |
+| `param.unbind_midi(name)` | Remove MIDI binding |
+| `param.list()` | Get table of all parameters |
+| `param.info(name)` | Get detailed info (value, range, bindings) |
+| `param.count()` | Number of defined parameters |
+
+MIDI Input:
+
+| Function | Description |
+|----------|-------------|
+| `midi.in_list_ports()` | Print available input ports |
+| `midi.in_port_count()` | Get number of input ports |
+| `midi.in_port_name(idx)` | Get port name (1-based index) |
+| `midi.in_open_port(idx)` | Open input port by index |
+| `midi.in_open_virtual(name)` | Create virtual input port |
+| `midi.in_close()` | Close current input port |
+| `midi.in_is_open()` | Check if input is open |
+
+### Example: Filter Control
+
+```lua
+-- init.lua: Set up filter parameter with MIDI control
+
+-- Define parameter
+param.define("filter_cutoff", {
+    type = "float",
+    min = 100,
+    max = 10000,
+    default = 1000
+})
+
+-- Open MIDI input and bind to CC 74 (filter cutoff is often CC 74)
+midi.in_open_virtual("PSND_Controller")
+param.bind_midi("filter_cutoff", 1, 74)
+
+-- Also allow OSC control
+param.bind_osc("filter_cutoff", "/synth/filter")
+```
+
+Then in Joy:
+
+```joy
+\ Apply filter with parameter value
+"filter_cutoff" param  \ Get current cutoff value
+\ ... use value in synthesis/playback ...
+```
+
+### Thread Safety
+
+Parameter values use atomic floats, making them safe to read from any thread (main, audio, MIDI callback, OSC handler) without locks. This is essential for real-time audio applications where mutex locks could cause audio glitches.
+
 ## MIDI Export
 
 Export Alda compositions to Standard MIDI Files (.mid) for use in DAWs and other music software.
@@ -1000,6 +1259,7 @@ See the `docs` folder for full technical documentation.
 - [mongoose](https://github.com/cesanta/mongoose) - Embedded web server/networking library (optional, for web mode)
 - [xterm.js](https://xtermjs.org/) - Terminal emulator for the browser (optional, for web mode)
 - [webview](https://github.com/webview/webview) - Cross-platform webview library (optional, for native webview mode)
+- [liblo](http://liblo.sourceforge.net/) - Lightweight OSC implementation (optional, for OSC support)
 
 ## License
 

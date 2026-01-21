@@ -15,6 +15,7 @@
 #include "psnd.h"         /* PSND_MIDI_PORT_NAME */
 #include "context.h"      /* SharedContext, shared_send_* */
 #include "midi/midi.h"    /* shared_midi_* */
+#include "param/param.h"  /* shared_param_* */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1216,6 +1217,99 @@ void joy_execute_seq(JoyContext* ctx, SeqDefinition* seq) {
 }
 
 /* ============================================================================
+ * Parameter System Primitives
+ * ============================================================================ */
+
+/* param - Get parameter value: "name" param -> value
+ * Pushes the parameter value onto the stack, or 0 if not found */
+void param_get_(JoyContext* ctx) {
+    REQUIRE(1, "param");
+    JoyValue v = POP();
+
+    /* Accept string or symbol */
+    const char* name = NULL;
+    if (v.type == JOY_STRING) {
+        name = v.data.string;
+    } else if (v.type == JOY_SYMBOL) {
+        name = v.data.symbol;
+    } else {
+        joy_error_type("param", "string or symbol", v.type);
+        return;
+    }
+
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    float value = 0.0f;
+    if (mctx && mctx->shared) {
+        shared_param_get(mctx->shared, name, &value);
+    }
+
+    joy_value_free(&v);
+    PUSH(joy_float(value));
+}
+
+/* param! - Set parameter value: value "name" param! -> */
+void param_set_(JoyContext* ctx) {
+    REQUIRE(2, "param!");
+    JoyValue name_v = POP();
+    JoyValue val_v = POP();
+
+    /* Accept string or symbol for name */
+    const char* name = NULL;
+    if (name_v.type == JOY_STRING) {
+        name = name_v.data.string;
+    } else if (name_v.type == JOY_SYMBOL) {
+        name = name_v.data.symbol;
+    } else {
+        joy_value_free(&name_v);
+        joy_value_free(&val_v);
+        joy_error_type("param!", "string or symbol for name", name_v.type);
+        return;
+    }
+
+    /* Accept number for value */
+    float value;
+    if (val_v.type == JOY_INTEGER) {
+        value = (float)val_v.data.integer;
+    } else if (val_v.type == JOY_FLOAT) {
+        value = (float)val_v.data.floating;
+    } else {
+        joy_value_free(&name_v);
+        joy_value_free(&val_v);
+        joy_error_type("param!", "integer or float for value", val_v.type);
+        return;
+    }
+
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (mctx && mctx->shared) {
+        if (shared_param_set(mctx->shared, name, value) != 0) {
+            fprintf(stderr, "param!: unknown parameter '%s'\n", name);
+        }
+    }
+
+    joy_value_free(&name_v);
+    joy_value_free(&val_v);
+}
+
+/* param-list - List all parameters: param-list -> list */
+void param_list_(JoyContext* ctx) {
+    MusicContext* mctx = (MusicContext*)ctx->user_data;
+    if (!mctx || !mctx->shared) {
+        PUSH(joy_list_empty());
+        return;
+    }
+
+    JoyValue list = joy_list_empty();
+    for (int i = 0; i < PARAM_MAX_COUNT; i++) {
+        const SharedParam* p = shared_param_at(mctx->shared, i);
+        if (p) {
+            /* Push parameter name as symbol */
+            joy_list_push(list.data.list, joy_symbol(p->name));
+        }
+    }
+    PUSH(list);
+}
+
+/* ============================================================================
  * MIDI Primitives Registration
  * ============================================================================ */
 
@@ -1291,6 +1385,11 @@ void joy_midi_register_primitives(JoyContext* ctx) {
     joy_dict_define_primitive(dict, "cs-disable", cs_disable_);
     joy_dict_define_primitive(dict, "cs-status", cs_status_);
     joy_dict_define_primitive(dict, "cs-play", cs_play_);
+
+    /* Parameter system */
+    joy_dict_define_primitive(dict, "param", param_get_);
+    joy_dict_define_primitive(dict, "param!", param_set_);
+    joy_dict_define_primitive(dict, "param-list", param_list_);
 
     /* Set up post-eval hook for SEQ playback */
     ctx->post_eval_hook = accumulator_flush;

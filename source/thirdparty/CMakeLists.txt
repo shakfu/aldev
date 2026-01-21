@@ -192,5 +192,31 @@ else()
     message(STATUS "Webview host disabled (use -DBUILD_WEBVIEW_HOST=ON to enable)")
 endif()
 
+# liblo - Open Sound Control library (optional)
+# Enables OSC communication for remote control and inter-application messaging
+option(BUILD_OSC "Build with OSC support via liblo" OFF)
+if(BUILD_OSC)
+    message(STATUS "Building with OSC support (liblo)")
+
+    # Minimal liblo build - static library, no tools/tests/examples
+    set(WITH_TOOLS OFF CACHE BOOL "" FORCE)
+    set(WITH_TESTS OFF CACHE BOOL "" FORCE)
+    set(WITH_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(WITH_CPP_TESTS OFF CACHE BOOL "" FORCE)
+    set(WITH_STATIC ON CACHE BOOL "" FORCE)
+    set(THREADING ON CACHE BOOL "" FORCE)
+
+    add_subdirectory(liblo/cmake liblo)
+
+    # Export liblo include directories for the main project
+    set(LIBLO_INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/liblo
+        ${CMAKE_CURRENT_BINARY_DIR}/liblo
+        CACHE INTERNAL "liblo include directories"
+    )
+else()
+    message(STATUS "OSC support disabled (use -DBUILD_OSC=ON to enable)")
+endif()
+
 # Restore parent project's BUILD_TESTING
 set(BUILD_TESTING ${PSND_BUILD_TESTING} CACHE BOOL "Build tests" FORCE)

@@ -39,6 +39,8 @@
 #include "buffers.h"    /* Buffer management for buffer_get_current() */
 #include "shared/context.h"  /* SharedContext for launch_quantize */
 #include "shared/midi/midi.h"  /* MIDI port functions */
+#include "shared/osc/osc.h"   /* OSC functions */
+#include "shared/param/param.h"  /* Parameter system */
 
 /* ======================= Lua API bindings ================================ */
 
@@ -1501,6 +1503,735 @@ static int lua_midi_export(lua_State *L) {
     }
 }
 
+/* ======================= OSC Lua Bindings ======================= */
+
+/* Lua API: loki.osc.init(port) - Initialize OSC on specified port
+ * port is optional, defaults to 7770 */
+static int lua_osc_init(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+
+    int port = (int)luaL_optinteger(L, 1, PSND_OSC_DEFAULT_PORT);
+
+    if (shared_osc_init(ctx->model.shared, port) == 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to initialize OSC");
+        return 2;
+    }
+}
+
+/* Lua API: loki.osc.start() - Start OSC server */
+static int lua_osc_start(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+
+    if (shared_osc_start(ctx->model.shared) == 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to start OSC server");
+        return 2;
+    }
+}
+
+/* Lua API: loki.osc.stop() - Stop OSC server */
+static int lua_osc_stop(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        return 0;
+    }
+
+    shared_osc_cleanup(ctx->model.shared);
+    return 0;
+}
+
+/* Lua API: loki.osc.enabled() - Check if OSC is running */
+static int lua_osc_enabled(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    lua_pushboolean(L, shared_osc_is_running(ctx->model.shared));
+    return 1;
+}
+
+/* Lua API: loki.osc.port() - Get OSC port number */
+static int lua_osc_port(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+
+    lua_pushinteger(L, shared_osc_get_port(ctx->model.shared));
+    return 1;
+}
+
+/* Lua API: loki.osc.broadcast(host, port) - Set broadcast target */
+static int lua_osc_broadcast(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+
+    const char *host = luaL_checkstring(L, 1);
+    const char *port;
+
+    /* Port can be number or string */
+    if (lua_isnumber(L, 2)) {
+        char port_buf[16];
+        snprintf(port_buf, sizeof(port_buf), "%d", (int)lua_tointeger(L, 2));
+        port = port_buf;
+        if (shared_osc_set_broadcast(ctx->model.shared, host, port) == 0) {
+            lua_pushboolean(L, 1);
+            return 1;
+        }
+    } else {
+        port = luaL_checkstring(L, 2);
+        if (shared_osc_set_broadcast(ctx->model.shared, host, port) == 0) {
+            lua_pushboolean(L, 1);
+            return 1;
+        }
+    }
+
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "Failed to set broadcast target");
+    return 2;
+}
+
+/* Helper to build lo_message from Lua stack arguments */
+#ifdef PSND_OSC
+static lo_message lua_build_osc_message(lua_State *L, int start_idx) {
+    lo_message msg = lo_message_new();
+    if (!msg) return NULL;
+
+    int nargs = lua_gettop(L);
+    for (int i = start_idx; i <= nargs; i++) {
+        int type = lua_type(L, i);
+        switch (type) {
+            case LUA_TNUMBER:
+                if (lua_isinteger(L, i)) {
+                    lo_message_add_int32(msg, (int32_t)lua_tointeger(L, i));
+                } else {
+                    lo_message_add_float(msg, (float)lua_tonumber(L, i));
+                }
+                break;
+            case LUA_TSTRING:
+                lo_message_add_string(msg, lua_tostring(L, i));
+                break;
+            case LUA_TBOOLEAN:
+                if (lua_toboolean(L, i)) {
+                    lo_message_add_true(msg);
+                } else {
+                    lo_message_add_false(msg);
+                }
+                break;
+            case LUA_TNIL:
+                lo_message_add_nil(msg);
+                break;
+            default:
+                /* Skip unsupported types */
+                break;
+        }
+    }
+    return msg;
+}
+#endif
+
+/* Lua API: loki.osc.send(path, ...) - Send OSC message to broadcast target */
+static int lua_osc_send(lua_State *L) {
+#ifdef PSND_OSC
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+
+    if (!ctx->model.shared->osc_broadcast) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No broadcast target set");
+        return 2;
+    }
+
+    const char *path = luaL_checkstring(L, 1);
+
+    lo_message msg = lua_build_osc_message(L, 2);
+    if (!msg) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to create message");
+        return 2;
+    }
+
+    int result = lo_send_message(ctx->model.shared->osc_broadcast, path, msg);
+    lo_message_free(msg);
+
+    if (result >= 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to send message");
+        return 2;
+    }
+#else
+    (void)L;
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "OSC not available");
+    return 2;
+#endif
+}
+
+/* Lua API: loki.osc.send_to(host, port, path, ...) - Send OSC message to specific address */
+static int lua_osc_send_to(lua_State *L) {
+#ifdef PSND_OSC
+    const char *host = luaL_checkstring(L, 1);
+    char port_buf[16];
+    const char *port;
+
+    /* Port can be number or string */
+    if (lua_isnumber(L, 2)) {
+        snprintf(port_buf, sizeof(port_buf), "%d", (int)lua_tointeger(L, 2));
+        port = port_buf;
+    } else {
+        port = luaL_checkstring(L, 2);
+    }
+
+    const char *path = luaL_checkstring(L, 3);
+
+    lo_address addr = lo_address_new(host, port);
+    if (!addr) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to create address");
+        return 2;
+    }
+
+    lo_message msg = lua_build_osc_message(L, 4);
+    if (!msg) {
+        lo_address_free(addr);
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to create message");
+        return 2;
+    }
+
+    int result = lo_send_message(addr, path, msg);
+    lo_message_free(msg);
+    lo_address_free(addr);
+
+    if (result >= 0) {
+        lua_pushboolean(L, 1);
+        return 1;
+    } else {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "Failed to send message");
+        return 2;
+    }
+#else
+    (void)L;
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "OSC not available");
+    return 2;
+#endif
+}
+
+/* Registry key for storing OSC Lua callbacks */
+static const char osc_callbacks_registry_key = 0;
+
+/* Lua API: loki.osc.on(path, callback_name) - Register callback for OSC path
+ * callback_name is the name of a global Lua function to call when message arrives
+ * Note: Due to thread safety, the callback is invoked by name from the main thread */
+static int lua_osc_on(lua_State *L) {
+#ifdef PSND_OSC
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        lua_pushstring(L, "No shared context");
+        return 2;
+    }
+
+    const char *path = luaL_checkstring(L, 1);
+    const char *callback = luaL_checkstring(L, 2);
+
+    /* Store callback in registry table: callbacks[path] = callback_name */
+    lua_pushlightuserdata(L, (void *)&osc_callbacks_registry_key);
+    lua_gettable(L, LUA_REGISTRYINDEX);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        lua_newtable(L);
+        lua_pushlightuserdata(L, (void *)&osc_callbacks_registry_key);
+        lua_pushvalue(L, -2);
+        lua_settable(L, LUA_REGISTRYINDEX);
+    }
+    lua_pushstring(L, callback);
+    lua_setfield(L, -2, path);
+    lua_pop(L, 1);
+
+    lua_pushboolean(L, 1);
+    return 1;
+#else
+    (void)L;
+    lua_pushboolean(L, 0);
+    lua_pushstring(L, "OSC not available");
+    return 2;
+#endif
+}
+
+/* Lua API: loki.osc.off(path) - Remove callback for OSC path */
+static int lua_osc_off(lua_State *L) {
+#ifdef PSND_OSC
+    const char *path = luaL_checkstring(L, 1);
+
+    /* Remove from registry table */
+    lua_pushlightuserdata(L, (void *)&osc_callbacks_registry_key);
+    lua_gettable(L, LUA_REGISTRYINDEX);
+    if (!lua_isnil(L, -1)) {
+        lua_pushnil(L);
+        lua_setfield(L, -2, path);
+    }
+    lua_pop(L, 1);
+
+    return 0;
+#else
+    (void)L;
+    return 0;
+#endif
+}
+
+/* Lua API: loki.osc.rate_limit(msgs_per_sec) - Set/get note rate limit
+ * If called with argument, sets the limit. Always returns current limit.
+ * 0 = unlimited */
+static int lua_osc_rate_limit(lua_State *L) {
+    if (lua_gettop(L) >= 1) {
+        int limit = (int)luaL_checkinteger(L, 1);
+        shared_osc_set_note_rate_limit(limit);
+    }
+    lua_pushinteger(L, shared_osc_get_note_rate_limit());
+    return 1;
+}
+
+/* Register osc module as loki.osc subtable */
+static void lua_register_osc_module(lua_State *L) {
+    /* Assumes loki table is on top of stack */
+    lua_newtable(L);  /* Create osc subtable */
+
+    lua_pushcfunction(L, lua_osc_init);
+    lua_setfield(L, -2, "init");
+
+    lua_pushcfunction(L, lua_osc_start);
+    lua_setfield(L, -2, "start");
+
+    lua_pushcfunction(L, lua_osc_stop);
+    lua_setfield(L, -2, "stop");
+
+    lua_pushcfunction(L, lua_osc_enabled);
+    lua_setfield(L, -2, "enabled");
+
+    lua_pushcfunction(L, lua_osc_port);
+    lua_setfield(L, -2, "port");
+
+    lua_pushcfunction(L, lua_osc_broadcast);
+    lua_setfield(L, -2, "broadcast");
+
+    lua_pushcfunction(L, lua_osc_send);
+    lua_setfield(L, -2, "send");
+
+    lua_pushcfunction(L, lua_osc_send_to);
+    lua_setfield(L, -2, "send_to");
+
+    lua_pushcfunction(L, lua_osc_on);
+    lua_setfield(L, -2, "on");
+
+    lua_pushcfunction(L, lua_osc_off);
+    lua_setfield(L, -2, "off");
+
+    lua_pushcfunction(L, lua_osc_rate_limit);
+    lua_setfield(L, -2, "rate_limit");
+
+    lua_setfield(L, -2, "osc");  /* Set as loki.osc */
+}
+
+/* ======================= Parameter Lua Bindings ======================= */
+
+/* Lua API: loki.param.define(name, opts) - Define a new parameter
+ * opts: { type="float"|"int"|"bool", min=0, max=1, default=0.5 }
+ * Returns parameter index on success, nil + error on failure */
+static int lua_param_define(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushnil(L);
+        lua_pushstring(L, "no shared context");
+        return 2;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+
+    /* Extract type (default: float) */
+    ParamType type = PARAM_TYPE_FLOAT;
+    lua_getfield(L, 2, "type");
+    if (lua_isstring(L, -1)) {
+        const char *type_str = lua_tostring(L, -1);
+        if (strcmp(type_str, "int") == 0 || strcmp(type_str, "integer") == 0) {
+            type = PARAM_TYPE_INT;
+        } else if (strcmp(type_str, "bool") == 0 || strcmp(type_str, "boolean") == 0) {
+            type = PARAM_TYPE_BOOL;
+        }
+    }
+    lua_pop(L, 1);
+
+    /* Extract min (default: 0) */
+    float min_val = 0.0f;
+    lua_getfield(L, 2, "min");
+    if (lua_isnumber(L, -1)) {
+        min_val = (float)lua_tonumber(L, -1);
+    }
+    lua_pop(L, 1);
+
+    /* Extract max (default: 1) */
+    float max_val = 1.0f;
+    lua_getfield(L, 2, "max");
+    if (lua_isnumber(L, -1)) {
+        max_val = (float)lua_tonumber(L, -1);
+    }
+    lua_pop(L, 1);
+
+    /* Extract default (default: min) */
+    float def_val = min_val;
+    lua_getfield(L, 2, "default");
+    if (lua_isnumber(L, -1)) {
+        def_val = (float)lua_tonumber(L, -1);
+    }
+    lua_pop(L, 1);
+
+    int idx = shared_param_define(ctx->model.shared, name, type, min_val, max_val, def_val);
+    if (idx < 0) {
+        lua_pushnil(L);
+        lua_pushstring(L, "failed to define parameter (exists or store full)");
+        return 2;
+    }
+
+    lua_pushinteger(L, idx);
+    return 1;
+}
+
+/* Lua API: loki.param.get(name) - Get parameter value */
+static int lua_param_get(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    float value;
+    if (shared_param_get(ctx->model.shared, name, &value) == 0) {
+        lua_pushnumber(L, value);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+/* Lua API: loki.param.set(name, value) - Set parameter value */
+static int lua_param_set(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    float value = (float)luaL_checknumber(L, 2);
+
+    int result = shared_param_set(ctx->model.shared, name, value);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.reset(name) - Reset parameter to default */
+static int lua_param_reset(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    int result = shared_param_reset(ctx->model.shared, name);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.bind_osc(name, path) - Bind parameter to OSC path */
+static int lua_param_bind_osc(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    const char *path = luaL_checkstring(L, 2);
+
+    int result = shared_param_bind_osc(ctx->model.shared, name, path);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.unbind_osc(name) - Unbind parameter from OSC */
+static int lua_param_unbind_osc(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    int result = shared_param_unbind_osc(ctx->model.shared, name);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.bind_midi(name, channel, cc) - Bind parameter to MIDI CC */
+static int lua_param_bind_midi(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    int channel = (int)luaL_checkinteger(L, 2);
+    int cc = (int)luaL_checkinteger(L, 3);
+
+    int result = shared_param_bind_midi_cc(ctx->model.shared, name, channel, cc);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.unbind_midi(name) - Unbind parameter from MIDI CC */
+static int lua_param_unbind_midi(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    int result = shared_param_unbind_midi_cc(ctx->model.shared, name);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.undefine(name) - Remove parameter definition */
+static int lua_param_undefine(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    const char *name = luaL_checkstring(L, 1);
+    int result = shared_param_undefine(ctx->model.shared, name);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.list() - Get table of all defined parameters */
+static int lua_param_list(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_newtable(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    int list_idx = 1;
+
+    for (int i = 0; i < PARAM_MAX_COUNT; i++) {
+        const SharedParam *p = shared_param_at(ctx->model.shared, i);
+        if (p) {
+            lua_newtable(L);
+
+            lua_pushstring(L, p->name);
+            lua_setfield(L, -2, "name");
+
+            lua_pushnumber(L, shared_param_get_idx(ctx->model.shared, i));
+            lua_setfield(L, -2, "value");
+
+            lua_pushnumber(L, p->min_val);
+            lua_setfield(L, -2, "min");
+
+            lua_pushnumber(L, p->max_val);
+            lua_setfield(L, -2, "max");
+
+            lua_pushnumber(L, p->default_val);
+            lua_setfield(L, -2, "default");
+
+            if (p->osc_path[0]) {
+                lua_pushstring(L, p->osc_path);
+                lua_setfield(L, -2, "osc_path");
+            }
+
+            if (p->midi_channel > 0) {
+                lua_pushinteger(L, p->midi_channel);
+                lua_setfield(L, -2, "midi_channel");
+                lua_pushinteger(L, p->midi_cc);
+                lua_setfield(L, -2, "midi_cc");
+            }
+
+            lua_rawseti(L, -2, list_idx++);
+        }
+    }
+
+    return 1;
+}
+
+/* Lua API: loki.param.count() - Get number of defined parameters */
+static int lua_param_count(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+
+    lua_pushinteger(L, shared_param_count(ctx->model.shared));
+    return 1;
+}
+
+/* Lua API: loki.param.reset_all() - Reset all parameters to defaults */
+static int lua_param_reset_all(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        return 0;
+    }
+
+    shared_param_reset_all(ctx->model.shared);
+    return 0;
+}
+
+/* Lua API: loki.param.midi_in_open(port_idx) - Open MIDI input port for CC binding */
+static int lua_param_midi_in_open(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    int port_idx = (int)luaL_checkinteger(L, 1) - 1;  /* Convert to 0-based */
+    int result = shared_midi_in_open_port(ctx->model.shared, port_idx);
+    lua_pushboolean(L, result == 0);
+    return 1;
+}
+
+/* Lua API: loki.param.midi_in_close() - Close MIDI input port */
+static int lua_param_midi_in_close(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        return 0;
+    }
+
+    shared_midi_in_close(ctx->model.shared);
+    return 0;
+}
+
+/* Lua API: loki.param.midi_in_list() - List available MIDI input ports */
+static int lua_param_midi_in_list(lua_State *L) {
+    editor_ctx_t *ctx = loki_lua_get_editor_context(L);
+    if (!ctx || !ctx->model.shared) {
+        lua_newtable(L);
+        return 1;
+    }
+
+    shared_midi_in_init_observer(ctx->model.shared);
+
+    lua_newtable(L);
+    int count = shared_midi_in_get_port_count(ctx->model.shared);
+    for (int i = 0; i < count; i++) {
+        const char *name = shared_midi_in_get_port_name(ctx->model.shared, i);
+        if (name) {
+            lua_pushstring(L, name);
+            lua_rawseti(L, -2, i + 1);  /* 1-based index */
+        }
+    }
+
+    return 1;
+}
+
+/* Register param module as loki.param subtable */
+static void lua_register_param_module(lua_State *L) {
+    /* Assumes loki table is on top of stack */
+    lua_newtable(L);  /* Create param subtable */
+
+    /* Core operations */
+    lua_pushcfunction(L, lua_param_define);
+    lua_setfield(L, -2, "define");
+
+    lua_pushcfunction(L, lua_param_get);
+    lua_setfield(L, -2, "get");
+
+    lua_pushcfunction(L, lua_param_set);
+    lua_setfield(L, -2, "set");
+
+    lua_pushcfunction(L, lua_param_reset);
+    lua_setfield(L, -2, "reset");
+
+    lua_pushcfunction(L, lua_param_undefine);
+    lua_setfield(L, -2, "undefine");
+
+    /* OSC binding */
+    lua_pushcfunction(L, lua_param_bind_osc);
+    lua_setfield(L, -2, "bind_osc");
+
+    lua_pushcfunction(L, lua_param_unbind_osc);
+    lua_setfield(L, -2, "unbind_osc");
+
+    /* MIDI binding */
+    lua_pushcfunction(L, lua_param_bind_midi);
+    lua_setfield(L, -2, "bind_midi");
+
+    lua_pushcfunction(L, lua_param_unbind_midi);
+    lua_setfield(L, -2, "unbind_midi");
+
+    /* Listing */
+    lua_pushcfunction(L, lua_param_list);
+    lua_setfield(L, -2, "list");
+
+    lua_pushcfunction(L, lua_param_count);
+    lua_setfield(L, -2, "count");
+
+    lua_pushcfunction(L, lua_param_reset_all);
+    lua_setfield(L, -2, "reset_all");
+
+    /* MIDI input for CC */
+    lua_pushcfunction(L, lua_param_midi_in_open);
+    lua_setfield(L, -2, "midi_in_open");
+
+    lua_pushcfunction(L, lua_param_midi_in_close);
+    lua_setfield(L, -2, "midi_in_close");
+
+    lua_pushcfunction(L, lua_param_midi_in_list);
+    lua_setfield(L, -2, "midi_in_list");
+
+    lua_setfield(L, -2, "param");  /* Set as loki.param */
+}
+
 /* Register midi module as loki.midi subtable */
 static void lua_register_midi_module(lua_State *L) {
     /* Assumes loki table is on top of stack */
@@ -1659,6 +2390,12 @@ void loki_lua_bind_editor(lua_State *L) {
     /* Register midi module as loki.midi */
     lua_register_midi_module(L);
 
+    /* Register osc module as loki.osc */
+    lua_register_osc_module(L);
+
+    /* Register param module as loki.param */
+    lua_register_param_module(L);
+
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");
 
@@ -1669,6 +2406,10 @@ void loki_lua_bind_editor(lua_State *L) {
     lua_setglobal(L, "midi");
     lua_getfield(L, -1, "link");
     lua_setglobal(L, "link");
+    lua_getfield(L, -1, "osc");
+    lua_setglobal(L, "osc");
+    lua_getfield(L, -1, "param");
+    lua_setglobal(L, "param");
     lua_pop(L, 1);  /* pop loki table */
 
     /* Register language-specific Lua APIs via the bridge */

@@ -11,6 +11,7 @@
 #define SHARED_CONTEXT_H
 
 #include <libremidi/libremidi-c.h>
+#include "param/param.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,15 @@ extern "C" {
 
 /* Maximum number of MIDI output ports */
 #define SHARED_MAX_PORTS 64
+
+/* Forward declarations for OSC types (only defined when PSND_OSC is set) */
+#ifdef PSND_OSC
+typedef struct lo_server_thread_ *lo_server_thread;
+typedef struct lo_address_ *lo_address;
+#else
+typedef void *lo_server_thread;
+typedef void *lo_address;
+#endif
 
 /**
  * @brief Shared context for audio/MIDI output.
@@ -47,6 +57,21 @@ typedef struct SharedContext {
 
     /* Optional: microtuning scale (void* to avoid circular deps) */
     void* scale;
+
+    /* OSC state (Open Sound Control) */
+    int osc_enabled;            /* OSC server is running */
+    int osc_port;               /* OSC listening port */
+    lo_server_thread osc_server;    /* liblo server thread */
+    lo_address osc_broadcast;   /* Target for outgoing OSC messages */
+    void* osc_user_data;        /* User data for OSC handlers */
+
+    /* Parameter system (named params bound to OSC/MIDI CC) */
+    SharedParamStore params;
+
+    /* MIDI input (for CC -> param binding) */
+    libremidi_midi_in_handle* midi_in;
+    libremidi_midi_in_port* in_ports[SHARED_MAX_PORTS];
+    int in_port_count;
 
     /* Test mode flag */
     int no_sleep_mode;      /* Skip sleeps for testing */

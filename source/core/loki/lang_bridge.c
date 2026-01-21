@@ -6,6 +6,7 @@
 
 #include "lang_bridge.h"
 #include "internal.h"  /* For editor_ctx_t full definition */
+#include "shared/osc/osc.h"  /* OSC notifications */
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
@@ -133,7 +134,12 @@ int loki_lang_eval(editor_ctx_t *ctx, const char *code) {
     }
 
     if (ops->eval) {
-        return ops->eval(ctx, code);
+        int result = ops->eval(ctx, code);
+        if (result == 0) {
+            /* Broadcast playing state via OSC if enabled */
+            shared_osc_send_playing(ctx->model.shared, 1);
+        }
+        return result;
     }
     return -1;
 }
@@ -172,6 +178,12 @@ int loki_lang_eval_buffer(editor_ctx_t *ctx) {
 
     int ret = ops->eval(ctx, code);
     free(code);
+
+    if (ret == 0) {
+        /* Broadcast playing state via OSC if enabled */
+        shared_osc_send_playing(ctx->model.shared, 1);
+    }
+
     return ret;
 }
 
@@ -184,6 +196,9 @@ void loki_lang_stop_all(editor_ctx_t *ctx) {
             ops->stop(ctx);
         }
     }
+
+    /* Broadcast stopped state via OSC if enabled */
+    shared_osc_send_playing(ctx->model.shared, 0);
 }
 
 int loki_lang_is_playing(editor_ctx_t *ctx) {

@@ -33,6 +33,7 @@
 #include "live_loop.h"
 #include "async_queue.h"
 #include "shared/context.h"
+#include "shared/osc/osc.h"
 
 /* ======================== Main Editor Instance ============================ */
 
@@ -40,6 +41,19 @@
  * the buffer manager after initialization. No static instance needed. */
 
 /* ======================== Helper Functions =============================== */
+
+/* OSC query callback: get current filename */
+static const char *osc_query_get_filename(editor_ctx_t *ctx) {
+    if (!ctx) return NULL;
+    return ctx->model.filename;
+}
+
+/* OSC query callback: get cursor position */
+static void osc_query_get_position(editor_ctx_t *ctx, int *line, int *col) {
+    if (!ctx || !line || !col) return;
+    *line = ctx->view.cy;
+    *col = ctx->view.cx;
+}
 
 /* Lua status reporter - reports Lua errors to editor status bar */
 static void loki_lua_status_reporter(const char *message, void *userdata) {
@@ -256,6 +270,12 @@ static void print_usage(void) {
     printf("  -v, --version       Show version information\n");
     printf("  -sf PATH            Use built-in synth with soundfont (.sf2)\n");
     printf("  -cs PATH            Use Csound synthesis with .csd file\n");
+#ifdef PSND_OSC
+    printf("\nOSC (Open Sound Control):\n");
+    printf("  --osc               Enable OSC server (default port: %d)\n", PSND_OSC_DEFAULT_PORT);
+    printf("  --osc-port N        OSC server port\n");
+    printf("  --osc-send H:P      Broadcast events to host:port\n");
+#endif
     printf("\nInteractive mode (default):\n");
     printf("  " PSND_NAME " <file.alda>           Open file in editor\n");
     printf("  " PSND_NAME " -sf gm.sf2 song.alda  Open with TinySoundFont synth\n");
@@ -292,6 +312,10 @@ int loki_editor_main(int argc, char **argv) {
     const char *filename = NULL;
     const char *soundfont_path = NULL;
     const char *csound_path = NULL;
+    int osc_enabled = 0;
+    int osc_port = 0;
+    const char *osc_send_host = NULL;
+    const char *osc_send_port = NULL;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -310,6 +334,35 @@ int loki_editor_main(int argc, char **argv) {
             csound_path = argv[++i];
             continue;
         }
+        /* OSC options */
+        if (strcmp(argv[i], "--osc") == 0) {
+            osc_enabled = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--osc-port") == 0 && i + 1 < argc) {
+            osc_port = atoi(argv[++i]);
+            osc_enabled = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--osc-send") == 0 && i + 1 < argc) {
+            const char *target = argv[++i];
+            const char *colon = strrchr(target, ':');
+            if (!colon || colon == target) {
+                fprintf(stderr, "Error: --osc-send requires host:port format\n");
+                exit(1);
+            }
+            static char osc_host_buf[256];
+            size_t host_len = colon - target;
+            if (host_len >= sizeof(osc_host_buf)) {
+                host_len = sizeof(osc_host_buf) - 1;
+            }
+            strncpy(osc_host_buf, target, host_len);
+            osc_host_buf[host_len] = '\0';
+            osc_send_host = osc_host_buf;
+            osc_send_port = colon + 1;
+            osc_enabled = 1;
+            continue;
+        }
         if (argv[i][0] == '-') {
             fprintf(stderr, "Error: Unknown option: %s\n", argv[i]);
             print_usage();
@@ -324,6 +377,12 @@ int loki_editor_main(int argc, char **argv) {
             exit(1);
         }
     }
+
+    /* Suppress unused variable warnings when OSC is not compiled in */
+    (void)osc_enabled;
+    (void)osc_port;
+    (void)osc_send_host;
+    (void)osc_send_port;
 
     if (filename == NULL) {
         print_usage();
@@ -402,6 +461,30 @@ int loki_editor_main(int argc, char **argv) {
                     fprintf(stderr, "Warning: Failed to allocate shared context\n");
                 }
             }
+
+            /* Initialize OSC if requested */
+#ifdef PSND_OSC
+            if (osc_enabled && ctx->model.shared) {
+                int effective_port = osc_port > 0 ? osc_port : PSND_OSC_DEFAULT_PORT;
+                if (shared_osc_init(ctx->model.shared, effective_port) == 0) {
+                    if (osc_send_host && osc_send_port) {
+                        shared_osc_set_broadcast(ctx->model.shared, osc_send_host, osc_send_port);
+                    }
+                    /* Set up user data and lang callbacks for OSC handlers */
+                    shared_osc_set_user_data(ctx->model.shared, ctx);
+                    shared_osc_set_lang_callbacks(loki_lang_eval, loki_lang_eval_buffer, loki_lang_stop_all);
+                    /* Set up query callbacks for OSC query/reply handlers */
+                    shared_osc_set_query_callbacks(loki_lang_is_playing, osc_query_get_filename, osc_query_get_position);
+                    if (shared_osc_start(ctx->model.shared) == 0) {
+                        editor_set_status_msg(ctx, "OSC listening on port %d", effective_port);
+                    } else {
+                        fprintf(stderr, "Warning: Failed to start OSC server\n");
+                    }
+                } else {
+                    fprintf(stderr, "Warning: Failed to initialize OSC on port %d\n", effective_port);
+                }
+            }
+#endif
 
             int ret = loki_lang_init_for_file(ctx);
             if (ret == 0) {

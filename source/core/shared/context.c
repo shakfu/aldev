@@ -13,6 +13,8 @@
 #include "audio/audio.h"
 #include "midi/midi.h"
 #include "link/link.h"
+#include "osc/osc.h"
+#include "param/param.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -81,6 +83,9 @@ int shared_context_init(SharedContext* ctx) {
     /* Initialize MIDI observer for port enumeration */
     shared_midi_init_observer(ctx);
 
+    /* Initialize parameter store */
+    shared_param_init(ctx);
+
     return 0;
 }
 
@@ -106,6 +111,17 @@ void shared_context_cleanup(SharedContext* ctx) {
         ctx->link_enabled = 0;
     }
 
+    /* Cleanup OSC resources */
+    if (ctx->osc_enabled) {
+        shared_osc_cleanup(ctx);
+    }
+
+    /* Cleanup parameter store */
+    shared_param_cleanup(ctx);
+
+    /* Cleanup MIDI input */
+    shared_midi_in_cleanup(ctx);
+
     /* Cleanup MIDI resources */
     shared_midi_cleanup(ctx);
 
@@ -119,6 +135,10 @@ void shared_context_cleanup(SharedContext* ctx) {
 
 void shared_send_note_on(SharedContext* ctx, int channel, int pitch, int velocity) {
     if (!ctx) return;
+
+    /* Forward note event via OSC if broadcast target is set */
+    /* channel is 1-based internally, OSC uses 0-based */
+    shared_osc_send_note(ctx, channel - 1, pitch, velocity);
 
     /* Priority 1: Csound (if enabled and available) */
     if (ctx->csound_enabled && shared_csound_is_enabled()) {
@@ -142,6 +162,11 @@ void shared_send_note_on_freq(SharedContext* ctx, int channel, double freq,
                               int velocity, int midi_pitch) {
     if (!ctx) return;
 
+    /* Forward note event via OSC if broadcast target is set */
+    /* channel is 1-based internally, OSC uses 0-based */
+    /* Use midi_pitch for OSC since OSC uses standard MIDI values */
+    shared_osc_send_note(ctx, channel - 1, midi_pitch, velocity);
+
     /* Priority 1: Csound (supports microtuning via frequency) */
     if (ctx->csound_enabled && shared_csound_is_enabled()) {
         shared_csound_send_note_on_freq(channel, freq, velocity, midi_pitch);
@@ -162,6 +187,10 @@ void shared_send_note_on_freq(SharedContext* ctx, int channel, double freq,
 
 void shared_send_note_off(SharedContext* ctx, int channel, int pitch) {
     if (!ctx) return;
+
+    /* Forward note-off event via OSC if broadcast target is set */
+    /* channel is 1-based internally, OSC uses 0-based; velocity 0 = note off */
+    shared_osc_send_note(ctx, channel - 1, pitch, 0);
 
     /* Priority 1: Csound */
     if (ctx->csound_enabled && shared_csound_is_enabled()) {

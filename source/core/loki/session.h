@@ -61,6 +61,12 @@ typedef struct {
     int enable_lua;         /* Enable Lua scripting (default: 0) */
     int undo_limit;         /* Max undo operations (default: 1000, 0 to disable) */
     size_t undo_memory;     /* Max undo memory bytes (default: 10MB) */
+
+    /* OSC (Open Sound Control) configuration */
+    int osc_enabled;        /* Enable OSC server (default: 0) */
+    int osc_port;           /* OSC server port (default: 7770, 0 for default) */
+    const char *osc_send_host;  /* Broadcast host (NULL to disable) */
+    const char *osc_send_port;  /* Broadcast port (required if host is set) */
 } EditorConfig;
 
 /* ======================= View Model ======================================== */
