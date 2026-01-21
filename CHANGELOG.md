@@ -258,6 +258,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
   - Quotations represented as `{type="quotation", value={...terms...}}`
   - Up to 64 Lua primitives can be registered
   - Example:
+
     ```lua
     loki.joy.register_primitive("double", function(stack)
         if #stack < 1 then return nil, "stack underflow" end
@@ -266,6 +267,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
         return stack
     end)
     ```
+
   - Enables extending Joy with Lua's ecosystem (HTTP, JSON, file I/O, etc.)
   - **Files Modified**: `source/langs/joy/register.c`
 

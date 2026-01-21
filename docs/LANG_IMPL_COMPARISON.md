@@ -6,13 +6,13 @@ This document compares the feature completeness of each language implementation 
 
 | Feature | Alda | Joy | TR7 | Bog | MHS |
 |---------|:----:|:---:|:---:|:---:|:---:|
-| **Editor Integration** |
+| **Editor Integration** |  |  |  |  |  |
 | Syntax highlighting | Yes | Yes | Yes | Yes | Yes |
 | Ctrl-E (eval line) | Yes | Yes | Yes | Yes | Yes |
 | Ctrl-P (play file) | Yes | Yes | Yes | Yes | Yes |
 | Ctrl-G (stop) | Yes | Yes | Yes | Yes | Yes |
 | Lua API (`loki.<lang>.*`) | Yes | Yes | No | Yes | Yes |
-| **REPL Features** |
+| **REPL Features** |  |  |  |  |  |
 | Custom REPL loop | Yes | Yes | Yes | Yes | Yes* |
 | Syntax highlighting in input | Yes | Yes | Yes | Yes | Yes |
 | Shared commands (`:help`, `:list`, etc.) | Yes | Yes | Yes | Yes | Yes |
@@ -20,13 +20,13 @@ This document compares the feature completeness of each language implementation 
 | History persistence | Yes | Yes | Yes | Yes | Yes |
 | Piped input support | Yes | Yes | Yes | Yes | Yes** |
 | Language-specific help | Yes | Yes | Yes | Yes | Yes |
-| **CLI Flags** |
+| **CLI Flags** |  |  |  |  |  |
 | `--virtual NAME` | Yes | Yes | Yes | Yes | Yes |
 | `-sf PATH` (soundfont) | Yes | Yes | Yes | Yes | Yes |
 | `-p N` (port select) | Yes | Yes | Yes | Yes | Yes |
 | `-v` (verbose) | Yes | Yes | Yes | Yes | Yes |
 | `-l` (list ports) | Yes | Yes | Yes | Yes | Yes |
-| **Backend Integration** |
+| **Backend Integration** |  |  |  |  |  |
 | Ableton Link callbacks | Yes | Yes | Yes | Yes | Yes |
 | Async playback | Yes | Yes | Yes | Yes | Partial |
 | SharedContext usage | Yes | Yes | Yes | Yes | Yes |
@@ -43,26 +43,31 @@ This document compares the feature completeness of each language implementation 
 ## Architecture Notes
 
 ### Alda
+
 - Full-featured reference implementation
 - Custom parser, interpreter, and async scheduler
 - All REPL and editor features implemented
 
 ### Joy
+
 - Stack-based concatenative language
 - Full REPL with `repl_readline()` and shared commands
 - Complete editor integration with Lua API
 
 ### TR7
+
 - R7RS-small Scheme interpreter
 - Full REPL features but no editor Lua API
 - Music primitives added as Scheme procedures
 
 ### Bog
+
 - Prolog-based pattern language
 - Full REPL with slot management (`:def`, `:undef`, `:slots`)
 - Syntax highlighting for predicates, voices, scales, and chords
 
 ### MHS (Micro Haskell)
+
 - Wraps MicroHs interpreter with stdin pipe interposition
 - Has editor integration (Lua API)
 - Syntax highlighting for Haskell keywords, types, and MIDI primitives
@@ -77,6 +82,7 @@ This document compares the feature completeness of each language implementation 
 ### REPL Loop Comparison
 
 **Joy/TR7/Bog pattern** (full featured):
+
 ```c
 // Initialize editor context for syntax highlighting
 editor_ctx_t ed;
@@ -102,6 +108,7 @@ repl_history_save(&ed, history_path);
 ```
 
 **MHS pattern** (PTY-based stdin interposition):
+
 ```c
 // Create PTY and fork child process
 int master_fd;
@@ -151,6 +158,7 @@ All languages support these commands via `shared_process_command()`:
 ### CLI Flag Parsing
 
 Joy/TR7/Bog use `SharedReplArgs` structure via `shared_lang_repl_main()`:
+
 ```c
 typedef struct {
     const char* soundfont_path;
@@ -163,6 +171,7 @@ typedef struct {
 ```
 
 MHS uses its own `MhsReplArgs` structure with similar fields:
+
 ```c
 typedef struct {
     const char *virtual_name;
@@ -213,7 +222,7 @@ MicroHs's REPL is fundamentally different from Joy/TR7/Bog:
 
 ### How MicroHs REPL Works
 
-```
+```text
 +---------------+       +------------------+       +-------------+
 | User Terminal | <---> | SimpleReadline.hs| <---> | GETRAW (C)  |
 +---------------+       | (Haskell)        |       | unix/extra.c|
@@ -253,6 +262,7 @@ while ((line = repl_readline(...))) {
 ```
 
 **Why this doesn't work:**
+
 - MicroHs's `SimpleReadline.hs` calls `tcgetattr()` to configure terminal mode
 - Pipes aren't terminals, so `tcgetattr()` fails with errno 25 (ENOTTY)
 - Results in "tcgetattr failed: errno=25" and "getRaw failed" errors
@@ -271,6 +281,7 @@ int custom_getraw(void) {
 ```
 
 **Why this doesn't work:**
+
 - MicroHs expects immediate character returns
 - Buffering breaks the character-by-character contract
 - Would need to intercept at line level, not char level
@@ -329,6 +340,7 @@ silently fail. Moving MIDI initialization to the child process ensures working
 MIDI output.
 
 Features provided:
+
 - Shared REPL commands (`:help`, `:stop`, `:panic`, `:list`, `:sf`, etc.)
 - Syntax-highlighted input (Haskell keywords, types, MIDI primitives)
 - Tab completion (80+ Haskell keywords and MIDI functions)

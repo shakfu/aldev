@@ -76,7 +76,7 @@ All languages share:
 
 ## Directory Structure
 
-```
+```text
 docs/
   README.md           # This file
   alda/
@@ -104,6 +104,7 @@ docs/
    - Logic programming/live coding? Try **Bog**
 
 3. **Start the REPL**:
+
    ```bash
    psnd alda    # Alda REPL
    psnd joy     # Joy REPL
@@ -112,6 +113,7 @@ docs/
    ```
 
 4. **Edit files**:
+
    ```bash
    psnd song.alda   # Open in editor
    psnd song.joy
@@ -120,6 +122,7 @@ docs/
    ```
 
 5. **Play files**:
+
    ```bash
    psnd play song.alda   # Headless playback
    ```

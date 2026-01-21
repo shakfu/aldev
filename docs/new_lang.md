@@ -18,6 +18,7 @@ Use the generator script to create all boilerplate:
 ```
 
 The script generates:
+
 - `src/lang/<name>/` - Register, REPL, and dispatch files
 - `scripts/cmake/psnd_<name>_library.cmake` - CMake configuration
 - `tests/<name>/` - Test scaffolding
@@ -27,6 +28,7 @@ The script generates:
 It also updates `lang_config.h`, `lang_dispatch.c`, and CMake files automatically.
 
 After running the script:
+
 1. Implement your language in `src/lang/<name>/impl/`
 2. Update the CMake library file with your sources
 3. Run `make clean && make test` to verify
@@ -48,7 +50,7 @@ psnd uses a language bridge pattern that allows music languages to integrate wit
 
 For a language called "example", create:
 
-```
+```text
 src/lang/example/
     register.c         # Editor integration (LokiLangOps)
     register.h         # Header declaring init function

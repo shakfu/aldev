@@ -204,6 +204,7 @@ Completed:
   - Quotations represented as `{type="quotation", value={...tokens...}}`
   - Return modified stack or `nil, "error message"` on failure
   - Example:
+
     ```lua
     loki.joy.register_primitive("double", function(stack)
         if #stack < 1 then return nil, "stack underflow" end
@@ -212,6 +213,7 @@ Completed:
         return stack
     end)
     ```
+
   - Files: `source/langs/joy/register.c` (lua_joy_register_primitive, joy_lua_primitive_wrapper)
 
   **TR7** (Scheme) - NOT YET IMPLEMENTED:
@@ -258,29 +260,34 @@ Completed:
 ## Feature Opportunities
 
 ### Preset Browser & Layering
+
 - [ ] Add preset browsing UI to editor/REPL
   - TSF already exposes preset metadata via `shared_tsf_get_preset_name()`
   - No UI for browsing, tagging, or layering presets
   - Let musicians audition instruments and build splits/stacks without editing raw program numbers
 
 ### Session Capture & Arrangement
+
 - [ ] Elevate shared MIDI event buffer to first-class timeline (`src/shared/midi/events.h`)
   - Currently only feeds export
   - Capture REPL improvisations into clips, arrange them, re-trigger live
   - Similar to Ableton's Session View but text-driven
 
 ### Controller & Automation Mapping
+
 - [ ] Map physical MIDI controllers or OSC sources to language variables
   - Tempo, volume, macro parameters
   - Makes Joy/TR7 live-coding sets more expressive
   - Combine with existing Ableton Link transport hooks
 
 ### Cross-Language Patch Sharing
+
 - [ ] Create lightweight messaging bus for Alda, Joy, TR7 to exchange motifs
   - Example: Joy macro emits motif that Alda editor picks up and renders with full notation
   - Showcases polyglot nature, keeps multiple buffers in sync
 
 ### Real-Time Visualization
+
 - [ ] Expose playback state in loki status bar or via OSC/WebSocket
   - Current measure, active voices, CPU load
   - Visual confirmation when multiple asynchronous schedulers are active
@@ -290,6 +297,7 @@ Completed:
 ## Recently Completed
 
 ### MHS Language Improvements
+
 - Added syntax highlighting for Haskell/MHS (`.hs`, `.mhs`, `.lhs` files)
   - Keywords, types, MIDI primitives, Music module functions
   - Created `source/core/loki/syntax/lang_haskell.h`
@@ -303,6 +311,7 @@ Completed:
 - Created `docs/LANG_IMPL_COMPARISON.md` documenting feature parity across languages
 
 ### Parameter Binding System
+
 - Added parameter system for binding named parameters to MIDI CC and OSC
 - Thread-safe atomic floats for lock-free access from MIDI/OSC threads
 - MIDI input support with CC-to-parameter routing
@@ -312,6 +321,7 @@ Completed:
 - Files: `source/core/shared/param/param.c`, `source/core/shared/midi/midi_input.c`
 
 ### Web Editor Implementation (Phases 1-7)
+
 - Eliminated global state and singletons
 - Split model from view in `editor_ctx_t`
 - Abstracted input handling with `EditorEvent` struct
@@ -325,17 +335,20 @@ Completed:
 - Added first-line directive support (`#alda`, `#joy`)
 
 ### SharedContext Centralization
+
 - EditorModel now owns single SharedContext for all languages
 - Languages share context instead of creating separate instances
 - Prevents conflicts on singleton backends (TSF, Csound, Link)
 - REPLs still own their own SharedContext for standalone mode
 
 ### REPL Enhancements
+
 - Added `:lang NAME` command to switch between language REPLs
 - Added `:langs` command to list available languages
 - Unified MIDI port name to `PSND_MIDI` across all languages
 
 ### Other Completed Items
+
 - Standardized error return conventions
 - Unified Lua binding pattern across languages
 - Extracted shared REPL helper utilities

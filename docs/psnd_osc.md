@@ -20,7 +20,7 @@ OSC integration enables:
 
 ### Module Location
 
-```
+```text
 source/core/shared/osc/
   osc.h             # Public API
   osc.c             # Implementation using liblo
@@ -428,6 +428,7 @@ void test_osc_send(void) {
 ### 1. TouchOSC Control Surface
 
 Create a TouchOSC layout with:
+
 - Play/Stop buttons sending `/psnd/play` and `/psnd/stop`
 - Tempo fader sending `/psnd/tempo f {value}`
 - Piano keys sending `/psnd/note iii {pitch} 100 500`
@@ -447,7 +448,7 @@ OSCdef(\psndNote, { |msg|
 
 ### 3. Max/MSP Patch
 
-```
+```text
 [udpsend localhost 7770]
 |
 [pack /psnd/note i i i]
@@ -470,27 +471,32 @@ psnd --osc --osc-send visualizer.local:9000 set.alda
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
+
 - Add liblo to build system
 - Create `shared/osc/` module
 - Implement `shared_osc_init()`, `shared_osc_cleanup()`
 - Add CLI flags `--osc`, `--osc-port`
 
 ### Phase 2: Basic Handlers
+
 - Implement `/psnd/play`, `/psnd/stop`, `/psnd/eval`
 - Implement `/psnd/tempo`
 - Implement `/psnd/note`, `/psnd/noteon`, `/psnd/noteoff`
 
 ### Phase 3: Lua API
+
 - Expose `loki.osc` module
 - Implement `loki.osc.on()` for custom handlers
 - Implement `loki.osc.send()`
 
 ### Phase 4: Broadcasting
+
 - Implement `--osc-send` flag
 - Add state change notifications
 - MIDI event forwarding
 
 ### Phase 5: Advanced Features
+
 - Query/reply mechanism
 - Rate limiting
 - Network interface selection

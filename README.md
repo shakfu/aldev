@@ -59,10 +59,12 @@ Build presets select the synthesizer backend and optional features:
 | `make no-mhs` | ~2.1MB | MHS disabled entirely |
 
 **Synth backends** (mutually exclusive at compile time):
+
 - **TinySoundFont** - Lightweight SoundFont synthesizer, fast compilation
 - **FluidSynth** - Higher quality synthesis, more SoundFont features
 
 CMake options (for custom builds):
+
 ```bash
 cmake -B build -DBUILD_FLUID_BACKEND=ON  # Use FluidSynth instead of TSF
 cmake -B build -DBUILD_CSOUND_BACKEND=ON # Enable Csound synthesis
@@ -309,6 +311,7 @@ psnd --web -sf gm.sf2 song.joy       # Web editor with soundfont
 Then open `http://localhost:8080` in your browser.
 
 **Features:**
+
 - Full terminal emulation via xterm.js
 - Mouse click-to-position support
 - Language switching with `:alda`, `:joy`, `:langs` commands
@@ -329,6 +332,7 @@ psnd --native -sf gm.sf2 song.joy        # Native window with soundfont
 ```
 
 **Features:**
+
 - Same UI as web mode (xterm.js terminal emulation)
 - Play/Stop/Eval buttons in toolbar
 - All editor keybindings work as in terminal mode
@@ -338,6 +342,7 @@ psnd --native -sf gm.sf2 song.joy        # Native window with soundfont
 **Build requirement:** Native webview mode requires building with `-DBUILD_WEBVIEW_HOST=ON`.
 
 **Platform dependencies:**
+
 - **macOS**: WebKit framework (always available)
 - **Linux**: GTK3 and WebKitGTK (`libgtk-3-dev libwebkit2gtk-4.0-dev`)
 
@@ -816,6 +821,7 @@ n.sendMsg("/psnd/eval", "piano: c d e f g");  // Evaluate code
 ### Example: Pure Data / Max
 
 Send messages to `udp 127.0.0.1 7770`:
+
 - `/psnd/note 0 60 100` - Play middle C
 - `/psnd/tempo 120` - Set tempo
 - `/psnd/panic` - Stop all notes
@@ -849,6 +855,7 @@ osc.stop()
 ```
 
 Type auto-detection for `osc.send()` and `osc.send_to()`:
+
 - Lua integers become OSC int32 (`i`)
 - Lua floats become OSC float (`f`)
 - Lua strings become OSC string (`s`)
@@ -1217,11 +1224,13 @@ The `.psnd/scales/` directory includes example scales:
 ## Roadmap
 
 **Recent additions:**
+
 - Web-based editor using xterm.js terminal emulation
 - Mouse click-to-position support in web mode
 - Language switching commands in web REPL
 
 **Planned:**
+
 - Multi-client support for web mode (currently single connection)
 - Session persistence across server restarts
 - Beat-aligned playback with Ableton Link
