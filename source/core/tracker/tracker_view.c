@@ -3,6 +3,9 @@
  */
 
 #include "tracker_view.h"
+#include "tracker_plugin.h"
+#include "../shared/midi/events.h"
+#include "../include/loki/midi_export.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -18,6 +21,172 @@ static char* str_dup(const char* s) {
     char* copy = malloc(len);
     if (copy) memcpy(copy, s, len);
     return copy;
+}
+
+/*============================================================================
+ * MIDI Export
+ *============================================================================*/
+
+/**
+ * Export tracker song to MIDI file.
+ * Iterates through all patterns and cells, evaluates expressions,
+ * and writes events to the shared MIDI buffer for export.
+ *
+ * @param view     The tracker view
+ * @param filename Output filename
+ * @return         true on success, false on failure
+ */
+static bool tracker_export_midi(TrackerView* view, const char* filename) {
+    if (!view || !view->song || !filename) return false;
+
+    TrackerSong* song = view->song;
+
+    /* Calculate ticks per quarter note
+     * Standard MIDI uses 480 ticks/quarter
+     * We have: ticks_per_row * rows_per_beat = ticks per beat (quarter) */
+    int ticks_per_quarter = song->ticks_per_row * song->rows_per_beat;
+
+    /* Initialize the shared event buffer */
+    if (shared_midi_events_init(ticks_per_quarter) != 0) {
+        return false;
+    }
+    shared_midi_events_clear();
+
+    /* Add tempo event at start */
+    shared_midi_events_tempo(0, song->bpm);
+
+    /* Track absolute row offset for pattern chaining */
+    int total_rows = 0;
+
+    /* Iterate through all patterns */
+    for (int p = 0; p < song->num_patterns; p++) {
+        TrackerPattern* pattern = song->patterns[p];
+        if (!pattern) continue;
+
+        /* Check mute/solo state */
+        bool has_solo = false;
+        for (int t = 0; t < pattern->num_tracks; t++) {
+            if (pattern->tracks[t].solo) {
+                has_solo = true;
+                break;
+            }
+        }
+
+        /* Iterate through tracks */
+        for (int t = 0; t < pattern->num_tracks; t++) {
+            TrackerTrack* track = &pattern->tracks[t];
+
+            /* Skip muted tracks, or non-solo tracks when solo is active */
+            if (track->muted) continue;
+            if (has_solo && !track->solo) continue;
+
+            uint8_t channel = track->default_channel;
+
+            /* Iterate through rows */
+            for (int r = 0; r < pattern->num_rows; r++) {
+                TrackerCell* cell = &track->cells[r];
+
+                if (cell->type != TRACKER_CELL_EXPRESSION || !cell->expression) {
+                    continue;
+                }
+
+                /* Compile cell if needed */
+                if (!cell->compiled || cell->dirty) {
+                    const char* error = NULL;
+                    cell->compiled = tracker_compile_cell(cell,
+                        song->default_language_id, &error);
+                    cell->dirty = false;
+                    if (!cell->compiled) continue;
+                }
+
+                /* Set up context for evaluation */
+                TrackerContext ctx;
+                tracker_context_init(&ctx);
+                ctx.current_pattern = p;
+                ctx.current_track = t;
+                ctx.current_row = r;
+                ctx.total_tracks = pattern->num_tracks;
+                ctx.total_rows = pattern->num_rows;
+                ctx.bpm = song->bpm;
+                ctx.rows_per_beat = song->rows_per_beat;
+                ctx.ticks_per_row = song->ticks_per_row;
+                ctx.channel = channel;
+                ctx.track_name = track->name;
+                ctx.song_name = song->name;
+                ctx.random_seed = (total_rows + r) * 1000 + t;
+
+                /* Evaluate cell to get phrase */
+                TrackerPhrase* phrase = tracker_evaluate_cell(cell->compiled, &ctx);
+                if (!phrase) continue;
+
+                /* Calculate base tick for this row */
+                int64_t base_tick = (int64_t)(total_rows + r) * song->ticks_per_row;
+
+                /* Convert phrase events to MIDI events */
+                for (int e = 0; e < phrase->count; e++) {
+                    TrackerEvent* ev = &phrase->events[e];
+
+                    /* Calculate absolute tick for this event */
+                    int64_t event_tick = base_tick +
+                        (int64_t)ev->offset_rows * song->ticks_per_row +
+                        ev->offset_ticks;
+
+                    /* Use event channel if specified, otherwise track default */
+                    uint8_t ev_channel = ev->channel ? ev->channel : channel;
+
+                    switch (ev->type) {
+                        case TRACKER_EVENT_NOTE_ON:
+                            shared_midi_events_note_on((int)event_tick, ev_channel,
+                                ev->data1, ev->data2);
+
+                            /* Add note-off if gate is specified */
+                            if (ev->gate_rows > 0 || ev->gate_ticks > 0) {
+                                int64_t off_tick = event_tick +
+                                    (int64_t)ev->gate_rows * song->ticks_per_row +
+                                    ev->gate_ticks;
+                                shared_midi_events_note_off((int)off_tick, ev_channel,
+                                    ev->data1);
+                            }
+                            break;
+
+                        case TRACKER_EVENT_NOTE_OFF:
+                            shared_midi_events_note_off((int)event_tick, ev_channel,
+                                ev->data1);
+                            break;
+
+                        case TRACKER_EVENT_CC:
+                            shared_midi_events_cc((int)event_tick, ev_channel,
+                                ev->data1, ev->data2);
+                            break;
+
+                        case TRACKER_EVENT_PROGRAM_CHANGE:
+                            shared_midi_events_program((int)event_tick, ev_channel,
+                                ev->data1);
+                            break;
+
+                        default:
+                            /* Skip unsupported event types */
+                            break;
+                    }
+                }
+
+                tracker_phrase_free(phrase);
+            }
+        }
+
+        total_rows += pattern->num_rows;
+    }
+
+    /* Sort events by tick */
+    shared_midi_events_sort();
+
+    /* Export to file */
+    int result = loki_midi_export_shared(filename);
+
+    /* Cleanup */
+    shared_midi_events_cleanup();
+
+    return result == 0;
 }
 
 /*============================================================================
@@ -41,6 +210,8 @@ void tracker_view_state_init(TrackerViewState* state) {
     state->beat_highlight_interval = 4;
     state->visible_tracks = 8;
     state->visible_rows = 32;
+    state->step_size = 1;       /* advance 1 row after note entry */
+    state->default_octave = 4;  /* middle C octave */
 }
 
 void tracker_view_state_cleanup(TrackerViewState* state) {
@@ -271,6 +442,13 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
 
     bool handled = true;
     bool shift = (event->modifiers & TRACKER_MOD_SHIFT) != 0;
+
+    /* Handle help mode - any key returns to pattern view */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_HELP) {
+        tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+        tracker_view_invalidate(view);
+        return true;
+    }
 
     /* Handle edit mode input */
     if (view->state.edit_mode == TRACKER_EDIT_MODE_EDIT) {
@@ -544,6 +722,8 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             break;
         case TRACKER_INPUT_FOLLOW_TOGGLE:
             view->state.follow_playback = !view->state.follow_playback;
+            tracker_view_show_status(view, "Follow: %s",
+                view->state.follow_playback ? "ON" : "OFF");
             break;
 
         /* Undo/Redo */
@@ -607,6 +787,108 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             /* TODO: implement file picker or command mode for file path */
             tracker_view_show_status(view, "Open: use command line to load files");
             break;
+
+        case TRACKER_INPUT_STEP_INC:
+            if (view->state.step_size < 16) {
+                view->state.step_size++;
+            }
+            tracker_view_show_status(view, "Step: %d", view->state.step_size);
+            break;
+        case TRACKER_INPUT_STEP_DEC:
+            if (view->state.step_size > 0) {
+                view->state.step_size--;
+            }
+            tracker_view_show_status(view, "Step: %d", view->state.step_size);
+            break;
+        case TRACKER_INPUT_OCTAVE_INC:
+            if (view->state.default_octave < 9) {
+                view->state.default_octave++;
+            }
+            tracker_view_show_status(view, "Octave: %d", view->state.default_octave);
+            break;
+        case TRACKER_INPUT_OCTAVE_DEC:
+            if (view->state.default_octave > 0) {
+                view->state.default_octave--;
+            }
+            tracker_view_show_status(view, "Octave: %d", view->state.default_octave);
+            break;
+
+        case TRACKER_INPUT_BPM_INC:
+            if (view->song && view->engine) {
+                int new_bpm = view->song->bpm + 5;
+                if (new_bpm > 300) new_bpm = 300;
+                view->song->bpm = new_bpm;
+                tracker_engine_set_bpm(view->engine, new_bpm);
+                view->modified = true;
+                tracker_view_show_status(view, "BPM: %d", new_bpm);
+                tracker_view_invalidate_status(view);
+            }
+            break;
+        case TRACKER_INPUT_BPM_DEC:
+            if (view->song && view->engine) {
+                int new_bpm = view->song->bpm - 5;
+                if (new_bpm < 20) new_bpm = 20;
+                view->song->bpm = new_bpm;
+                tracker_engine_set_bpm(view->engine, new_bpm);
+                view->modified = true;
+                tracker_view_show_status(view, "BPM: %d", new_bpm);
+                tracker_view_invalidate_status(view);
+            }
+            break;
+        case TRACKER_INPUT_LOOP_TOGGLE:
+            if (view->engine) {
+                bool loop_enabled = !view->engine->loop_enabled;
+                tracker_engine_set_loop(view->engine, loop_enabled);
+                if (loop_enabled) {
+                    /* Set loop to current pattern boundaries */
+                    tracker_engine_set_loop_points(view->engine, -1, -1);
+                    tracker_view_show_status(view, "Loop: ON (pattern)");
+                } else {
+                    tracker_view_show_status(view, "Loop: OFF");
+                }
+                tracker_view_invalidate_status(view);
+            }
+            break;
+        case TRACKER_INPUT_LOOP_SELECTION:
+            if (view->engine && view->state.selection.type != TRACKER_SEL_NONE) {
+                tracker_engine_set_loop(view->engine, true);
+                tracker_engine_set_loop_points(view->engine,
+                    view->state.selection.start_row,
+                    view->state.selection.end_row);
+                tracker_view_show_status(view, "Loop: rows %d-%d",
+                    view->state.selection.start_row + 1,
+                    view->state.selection.end_row + 1);
+                tracker_view_invalidate_status(view);
+            }
+            break;
+
+        case TRACKER_INPUT_EXPORT_MIDI: {
+            /* Generate default filename based on song name or file path */
+            char filename[256];
+            if (view->file_path) {
+                /* Replace extension with .mid */
+                snprintf(filename, sizeof(filename), "%s", view->file_path);
+                char* dot = strrchr(filename, '.');
+                if (dot) {
+                    strcpy(dot, ".mid");
+                } else {
+                    strcat(filename, ".mid");
+                }
+            } else if (view->song && view->song->name) {
+                snprintf(filename, sizeof(filename), "%s.mid", view->song->name);
+            } else {
+                snprintf(filename, sizeof(filename), "song.mid");
+            }
+
+            if (tracker_export_midi(view, filename)) {
+                tracker_view_show_status(view, "Exported: %s", filename);
+            } else {
+                const char* err = loki_midi_export_error();
+                tracker_view_show_error(view, "Export failed: %s",
+                    err ? err : "unknown error");
+            }
+            break;
+        }
 
         default:
             handled = false;
@@ -678,8 +960,16 @@ void tracker_view_edit_confirm(TrackerView* view) {
 
     tracker_cell_clear(&old_cell);
 
+    view->modified = true;
+
     /* Exit edit mode */
     view->state.edit_mode = TRACKER_EDIT_MODE_NAVIGATE;
+
+    /* Advance by step size */
+    if (view->state.step_size > 0) {
+        tracker_view_cursor_down(view, view->state.step_size);
+    }
+
     tracker_view_invalidate(view);
 }
 

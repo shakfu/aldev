@@ -829,6 +829,11 @@ static void render_status(TrackerView* view) {
     const char* transport = view->state.is_playing ? "[PLAY]" : "[STOP]";
     output_printf(tb, " %s", transport);
 
+    /* Loop indicator */
+    if (view->engine && view->engine->loop_enabled) {
+        output_printf(tb, " [LOOP]");
+    }
+
     /* BPM */
     if (view->song) {
         output_printf(tb, " %d BPM", view->song->bpm);
@@ -865,6 +870,10 @@ static void render_status(TrackerView* view) {
     }
     output_printf(tb, " | %s", mode);
 
+    /* Step size and octave */
+    output_printf(tb, " | Oct:%d Step:%d",
+                  view->state.default_octave, view->state.step_size);
+
     /* Error/status message */
     if (view->state.error_message) {
         apply_style(tb, &theme->error_style);
@@ -877,8 +886,74 @@ static void render_status(TrackerView* view) {
     output_write(tb, LINE_CLEAR, -1);
 }
 
+static void render_help(TrackerView* view) {
+    TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
+    const TrackerTheme* theme = view->state.theme;
+
+    output_write(tb, CURSOR_HOME, -1);
+    output_write(tb, SCREEN_CLEAR, -1);
+
+    apply_style(tb, &theme->header_style);
+    output_printf(tb, "  TRACKER HELP - Press any key to return\n\n");
+    reset_style(tb);
+
+    apply_style(tb, &theme->default_style);
+
+    output_printf(tb, "  NAVIGATION\n");
+    output_printf(tb, "    h/j/k/l, Arrows  Move cursor\n");
+    output_printf(tb, "    g / G            Go to start / end of pattern\n");
+    output_printf(tb, "    [ / ]            Previous / next pattern\n");
+    output_printf(tb, "    PgUp / PgDn      Page up / down\n\n");
+
+    output_printf(tb, "  EDITING\n");
+    output_printf(tb, "    i, Enter         Enter edit mode\n");
+    output_printf(tb, "    Escape           Exit edit mode / clear selection\n");
+    output_printf(tb, "    x                Clear cell\n");
+    output_printf(tb, "    o / O            Insert row / duplicate row\n");
+    output_printf(tb, "    X                Delete row\n\n");
+
+    output_printf(tb, "  SELECTION & CLIPBOARD\n");
+    output_printf(tb, "    v                Visual selection mode\n");
+    output_printf(tb, "    y                Copy (yank)\n");
+    output_printf(tb, "    d                Cut (delete)\n");
+    output_printf(tb, "    p                Paste\n\n");
+
+    output_printf(tb, "  TRACKS\n");
+    output_printf(tb, "    m / S            Mute / Solo track\n");
+    output_printf(tb, "    a / A            Add / remove track\n\n");
+
+    output_printf(tb, "  PATTERNS\n");
+    output_printf(tb, "    n                New pattern\n");
+    output_printf(tb, "    c                Clone pattern\n");
+    output_printf(tb, "    D                Delete pattern\n\n");
+
+    output_printf(tb, "  PLAYBACK\n");
+    output_printf(tb, "    Space            Play / Stop\n");
+    output_printf(tb, "    f                Toggle follow mode\n");
+    output_printf(tb, "    L                Toggle loop mode\n");
+    output_printf(tb, "    { / }            Decrease / increase BPM\n\n");
+
+    output_printf(tb, "  SETTINGS\n");
+    output_printf(tb, "    + / -            Increase / decrease step size\n");
+    output_printf(tb, "    > / <  (. / ,)   Increase / decrease octave\n");
+    output_printf(tb, "    T                Cycle theme\n\n");
+
+    output_printf(tb, "  FILE\n");
+    output_printf(tb, "    Ctrl+S           Save\n");
+    output_printf(tb, "    E, Ctrl+E        Export MIDI\n");
+    output_printf(tb, "    q                Quit\n");
+
+    reset_style(tb);
+}
+
 static void terminal_render(TrackerView* view) {
     TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
+
+    /* Check for help mode */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_HELP) {
+        render_help(view);
+        return;
+    }
 
     /* Recalculate layout if needed */
     calculate_layout(view);
@@ -1024,6 +1099,7 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         *modifiers = TRACKER_MOD_CTRL;
         switch (key) {
             case 3:  return TRACKER_INPUT_QUIT;         /* Ctrl-C */
+            case 5:  return TRACKER_INPUT_EXPORT_MIDI;  /* Ctrl-E */
             case 7:  return TRACKER_INPUT_PANIC;        /* Ctrl-G */
             case 15: return TRACKER_INPUT_OPEN;         /* Ctrl-O */
             case 16: return TRACKER_INPUT_PLAY_TOGGLE;  /* Ctrl-P */
@@ -1090,6 +1166,26 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         /* Track operations */
         case 'a': return TRACKER_INPUT_ADD_TRACK;
         case 'A': return TRACKER_INPUT_DELETE_TRACK;
+
+        /* View/settings */
+        case '?': return TRACKER_INPUT_MODE_HELP;
+        case 'f': return TRACKER_INPUT_FOLLOW_TOGGLE;
+        case '+':
+        case '=': return TRACKER_INPUT_STEP_INC;
+        case '-':
+        case '_': return TRACKER_INPUT_STEP_DEC;
+        case '>':
+        case '.': return TRACKER_INPUT_OCTAVE_INC;
+        case '<':
+        case ',': return TRACKER_INPUT_OCTAVE_DEC;
+
+        /* Tempo and loop */
+        case '}': return TRACKER_INPUT_BPM_INC;
+        case '{': return TRACKER_INPUT_BPM_DEC;
+        case 'L': return TRACKER_INPUT_LOOP_TOGGLE;
+
+        /* Export */
+        case 'E': return TRACKER_INPUT_EXPORT_MIDI;
     }
 
     /* Printable character */

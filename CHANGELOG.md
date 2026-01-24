@@ -102,6 +102,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Cannot remove the last track (minimum 1 track per pattern)
     - Maximum 64 tracks per pattern
     - New tracks auto-assigned incrementing MIDI channels (1-16)
+  - **Help Screen**:
+    - '?' key shows comprehensive keybindings help
+    - Lists navigation, editing, selection, track, pattern, playback, and file commands
+    - Press any key to return to pattern view
+  - **Step Size**:
+    - '+' / '-' keys adjust step size (0-16 rows)
+    - Step size determines cursor advance after note entry
+    - Step 0 = no advance, Step 1 = advance one row (default)
+    - Displayed in status bar: "Step:N"
+  - **Default Octave**:
+    - '>' / '<' keys (or '.' / ',') adjust default octave (0-9)
+    - Default is octave 4 (middle C range)
+    - Displayed in status bar: "Oct:N"
+  - **Follow Mode**:
+    - 'f' key toggles cursor following playback position
+    - Status message shows "Follow: ON/OFF"
+  - **Loop Mode**:
+    - 'L' key toggles loop on/off
+    - Playback loops within current pattern boundaries
+    - Status bar shows [LOOP] indicator when active
+  - **BPM Control**:
+    - '{' / '}' keys decrease / increase BPM by 5
+    - BPM range: 20-300
+    - Changes apply immediately to playback and update song
+    - BPM always displayed in status bar
+  - **MIDI Export**:
+    - 'E' or Ctrl+E exports song to Standard MIDI File
+    - Exports all patterns, respects track mute/solo state
+    - Converts cell expressions to MIDI events via plugin evaluation
+    - Proper note timing with gate lengths for note-off events
+    - Tempo embedded in MIDI file header
+    - Type 0 (single track) or Type 1 (multi-track) based on channel usage
+    - Output filename derived from song name or file path (replaces .trk with .mid)
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

@@ -611,6 +611,19 @@ typedef enum {
     TRACKER_INPUT_PANIC,
     TRACKER_INPUT_CYCLE_THEME,
 
+    /* Edit options */
+    TRACKER_INPUT_STEP_INC,
+    TRACKER_INPUT_STEP_DEC,
+    TRACKER_INPUT_OCTAVE_INC,
+    TRACKER_INPUT_OCTAVE_DEC,
+
+    /* Tempo and loop */
+    TRACKER_INPUT_BPM_INC,
+    TRACKER_INPUT_BPM_DEC,
+    TRACKER_INPUT_LOOP_TOGGLE,
+    TRACKER_INPUT_LOOP_PATTERN,
+    TRACKER_INPUT_LOOP_SELECTION,
+
     /* Text input */
     TRACKER_INPUT_CHAR,
 
@@ -713,6 +726,10 @@ struct TrackerViewState {
     bool highlight_current_row;
     bool highlight_beat_rows;
     int beat_highlight_interval;
+
+    /* Edit options */
+    int step_size;              /* rows to advance after note entry (0 = no advance) */
+    int default_octave;         /* default octave for note entry (0-9) */
 
     /* Theme */
     TrackerTheme* theme;
