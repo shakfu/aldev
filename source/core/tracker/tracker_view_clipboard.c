@@ -353,7 +353,9 @@ void tracker_view_clear_cell(TrackerView* view) {
     /* Clean up temporary cell */
     tracker_cell_clear(&old_cell);
 
+    view->modified = true;
     tracker_view_invalidate_cell(view, view->state.cursor_track, view->state.cursor_row);
+    tracker_view_show_status(view, "Cleared cell");
 }
 
 void tracker_view_clear_selection(TrackerView* view) {

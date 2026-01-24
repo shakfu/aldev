@@ -135,6 +135,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Tempo embedded in MIDI file header
     - Type 0 (single track) or Type 1 (multi-track) based on channel usage
     - Output filename derived from song name or file path (replaces .trk with .mid)
+  - **Pattern Sequence/Arrangement**:
+    - 'r' key enters Arrange mode to edit the song sequence
+    - Navigate sequence with j/k or arrow keys
+    - 'a' adds current pattern to sequence
+    - 'x' removes entry from sequence
+    - 'K' / 'J' (shift+k/j) moves entry up/down in sequence
+    - Enter jumps to the pattern at cursor position
+    - Escape returns to pattern view
+    - Sequence displayed with pattern numbers, names, and row counts
+    - Scroll indicator shows position in long sequences
+  - **Undo/Redo System**:
+    - 'u' or Ctrl+Z to undo, 'R' or Ctrl+Y to redo
+    - Status messages show what action was undone/redone
+    - Cell edits, row operations, clipboard operations all recorded
+    - Grouped operations (paste, cut, clear selection) undo as single action
+    - Cursor position restored when undoing
+    - "Nothing to undo/redo" feedback when stack is empty
+  - **Song Mode Playback**:
+    - 'P' key toggles between Pattern mode and Song mode
+    - Pattern mode (default): loops current pattern
+    - Song mode: plays through the sequence in order
+    - Status bar shows [PAT] or [SONG] indicator
+    - Automatically stops at end of sequence in song mode
+    - Requires sequence entries (use 'r' to enter arrange mode, 'a' to add patterns)
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

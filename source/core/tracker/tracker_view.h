@@ -624,6 +624,14 @@ typedef enum {
     TRACKER_INPUT_LOOP_PATTERN,
     TRACKER_INPUT_LOOP_SELECTION,
 
+    /* Sequence/Arrange */
+    TRACKER_INPUT_SEQ_ADD,        /* add current pattern to sequence */
+    TRACKER_INPUT_SEQ_REMOVE,     /* remove entry from sequence */
+    TRACKER_INPUT_SEQ_MOVE_UP,    /* move sequence entry up */
+    TRACKER_INPUT_SEQ_MOVE_DOWN,  /* move sequence entry down */
+    TRACKER_INPUT_SEQ_GOTO,       /* jump to pattern at sequence cursor */
+    TRACKER_INPUT_PLAY_MODE_TOGGLE, /* toggle pattern/song play mode */
+
     /* Text input */
     TRACKER_INPUT_CHAR,
 
@@ -730,6 +738,10 @@ struct TrackerViewState {
     /* Edit options */
     int step_size;              /* rows to advance after note entry (0 = no advance) */
     int default_octave;         /* default octave for note entry (0-9) */
+
+    /* Sequence/Arrange view */
+    int sequence_cursor;        /* cursor position in sequence (0-based) */
+    int sequence_scroll;        /* scroll offset in sequence view */
 
     /* Theme */
     TrackerTheme* theme;

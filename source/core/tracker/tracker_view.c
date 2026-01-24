@@ -450,6 +450,118 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
         return true;
     }
 
+    /* Handle arrange mode input */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_ARRANGE) {
+        switch (event->type) {
+            case TRACKER_INPUT_CURSOR_UP:
+            case TRACKER_INPUT_CURSOR_LEFT:
+                if (view->song && view->state.sequence_cursor > 0) {
+                    view->state.sequence_cursor--;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_DOWN:
+            case TRACKER_INPUT_CURSOR_RIGHT:
+                if (view->song &&
+                    view->state.sequence_cursor < view->song->sequence_length - 1) {
+                    view->state.sequence_cursor++;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_HOME:
+            case TRACKER_INPUT_PATTERN_START:
+                view->state.sequence_cursor = 0;
+                tracker_view_invalidate(view);
+                return true;
+            case TRACKER_INPUT_END:
+            case TRACKER_INPUT_PATTERN_END:
+                if (view->song && view->song->sequence_length > 0) {
+                    view->state.sequence_cursor = view->song->sequence_length - 1;
+                }
+                tracker_view_invalidate(view);
+                return true;
+            case TRACKER_INPUT_ENTER_EDIT:
+            case TRACKER_INPUT_SEQ_GOTO:
+                /* Jump to pattern and switch to pattern view */
+                if (view->song && view->song->sequence_length > 0) {
+                    int idx = view->state.sequence_cursor;
+                    if (idx >= 0 && idx < view->song->sequence_length) {
+                        int pattern_idx = view->song->sequence[idx].pattern_index;
+                        if (pattern_idx >= 0 && pattern_idx < view->song->num_patterns) {
+                            view->state.cursor_pattern = pattern_idx;
+                            tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+                            tracker_view_show_status(view, "Pattern %d", pattern_idx + 1);
+                            tracker_view_invalidate(view);
+                        }
+                    }
+                }
+                return true;
+            case TRACKER_INPUT_CANCEL:
+            case TRACKER_INPUT_MODE_PATTERN:
+                tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+                tracker_view_invalidate(view);
+                return true;
+
+            /* In arrange mode, 'a' (ADD_TRACK) adds to sequence */
+            case TRACKER_INPUT_ADD_TRACK:
+                if (view->song) {
+                    /* Add the pattern currently selected in the sequence, or current pattern */
+                    int pattern_idx;
+                    if (view->song->sequence_length > 0 &&
+                        view->state.sequence_cursor < view->song->sequence_length) {
+                        pattern_idx = view->song->sequence[view->state.sequence_cursor].pattern_index;
+                    } else {
+                        pattern_idx = view->state.cursor_pattern;
+                    }
+                    if (tracker_song_append_to_sequence(view->song, pattern_idx, 1)) {
+                        view->state.sequence_cursor = view->song->sequence_length - 1;
+                        view->modified = true;
+                        tracker_view_show_status(view, "Added pattern %d", pattern_idx + 1);
+                        tracker_view_invalidate(view);
+                    }
+                }
+                return true;
+
+            /* In arrange mode, 'x' (CLEAR_CELL) removes from sequence */
+            case TRACKER_INPUT_CLEAR_CELL:
+                if (view->song && view->song->sequence_length > 0) {
+                    int idx = view->state.sequence_cursor;
+                    if (idx >= 0 && idx < view->song->sequence_length) {
+                        /* Shift entries down */
+                        for (int i = idx; i < view->song->sequence_length - 1; i++) {
+                            view->song->sequence[i] = view->song->sequence[i + 1];
+                        }
+                        view->song->sequence_length--;
+                        /* Adjust cursor */
+                        if (view->state.sequence_cursor >= view->song->sequence_length &&
+                            view->song->sequence_length > 0) {
+                            view->state.sequence_cursor = view->song->sequence_length - 1;
+                        }
+                        view->modified = true;
+                        tracker_view_show_status(view, "Removed entry %d", idx + 1);
+                        tracker_view_invalidate(view);
+                    }
+                }
+                return true;
+
+            case TRACKER_INPUT_SEQ_ADD:
+            case TRACKER_INPUT_SEQ_REMOVE:
+            case TRACKER_INPUT_SEQ_MOVE_UP:
+            case TRACKER_INPUT_SEQ_MOVE_DOWN:
+            case TRACKER_INPUT_QUIT:
+            case TRACKER_INPUT_MODE_ARRANGE:
+            case TRACKER_INPUT_MODE_MIXER:
+            case TRACKER_INPUT_MODE_HELP:
+            case TRACKER_INPUT_SAVE:
+            case TRACKER_INPUT_PLAY_TOGGLE:
+                /* Fall through to normal handler */
+                break;
+            default:
+                /* Ignore other inputs in arrange mode */
+                return true;
+        }
+    }
+
     /* Handle edit mode input */
     if (view->state.edit_mode == TRACKER_EDIT_MODE_EDIT) {
         switch (event->type) {
@@ -728,10 +840,24 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
 
         /* Undo/Redo */
         case TRACKER_INPUT_UNDO:
-            tracker_view_undo(view);
+            if (tracker_undo_can_undo(&view->undo)) {
+                const char* desc = tracker_undo_get_undo_description(&view->undo);
+                tracker_view_undo(view);
+                tracker_view_show_status(view, "Undo: %s", desc ? desc : "action");
+                view->modified = true;
+            } else {
+                tracker_view_show_status(view, "Nothing to undo");
+            }
             break;
         case TRACKER_INPUT_REDO:
-            tracker_view_redo(view);
+            if (tracker_undo_can_redo(&view->undo)) {
+                const char* desc = tracker_undo_get_redo_description(&view->undo);
+                tracker_view_redo(view);
+                tracker_view_show_status(view, "Redo: %s", desc ? desc : "action");
+                view->modified = true;
+            } else {
+                tracker_view_show_status(view, "Nothing to redo");
+            }
             break;
 
         /* Misc */
@@ -862,6 +988,31 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             }
             break;
 
+        case TRACKER_INPUT_PLAY_MODE_TOGGLE:
+            if (view->engine) {
+                TrackerPlayMode mode = view->engine->play_mode;
+                if (mode == TRACKER_PLAY_MODE_PATTERN) {
+                    /* Switch to song mode */
+                    if (view->song && view->song->sequence_length > 0) {
+                        tracker_engine_set_play_mode(view->engine, TRACKER_PLAY_MODE_SONG);
+                        /* If not playing, reset to start of sequence */
+                        if (view->engine->state != TRACKER_ENGINE_PLAYING) {
+                            view->engine->current_pattern = 0;
+                        }
+                        tracker_view_show_status(view, "Play mode: SONG (%d patterns)",
+                            view->song->sequence_length);
+                    } else {
+                        tracker_view_show_status(view, "No sequence - add patterns with 'r' then 'a'");
+                    }
+                } else {
+                    /* Switch to pattern mode */
+                    tracker_engine_set_play_mode(view->engine, TRACKER_PLAY_MODE_PATTERN);
+                    tracker_view_show_status(view, "Play mode: PATTERN");
+                }
+                tracker_view_invalidate_status(view);
+            }
+            break;
+
         case TRACKER_INPUT_EXPORT_MIDI: {
             /* Generate default filename based on song name or file path */
             char filename[256];
@@ -889,6 +1040,82 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             }
             break;
         }
+
+        /* Sequence/Arrange operations */
+        case TRACKER_INPUT_SEQ_ADD:
+            if (view->song) {
+                int pattern_idx = view->state.cursor_pattern;
+                if (tracker_song_append_to_sequence(view->song, pattern_idx, 1)) {
+                    view->modified = true;
+                    tracker_view_show_status(view, "Added pattern %d to sequence",
+                        pattern_idx + 1);
+                    tracker_view_invalidate(view);
+                }
+            }
+            break;
+
+        case TRACKER_INPUT_SEQ_REMOVE:
+            if (view->song && view->song->sequence_length > 0) {
+                int idx = view->state.sequence_cursor;
+                if (idx >= 0 && idx < view->song->sequence_length) {
+                    /* Shift entries down */
+                    for (int i = idx; i < view->song->sequence_length - 1; i++) {
+                        view->song->sequence[i] = view->song->sequence[i + 1];
+                    }
+                    view->song->sequence_length--;
+                    /* Adjust cursor */
+                    if (view->state.sequence_cursor >= view->song->sequence_length &&
+                        view->song->sequence_length > 0) {
+                        view->state.sequence_cursor = view->song->sequence_length - 1;
+                    }
+                    view->modified = true;
+                    tracker_view_show_status(view, "Removed sequence entry %d", idx + 1);
+                    tracker_view_invalidate(view);
+                }
+            }
+            break;
+
+        case TRACKER_INPUT_SEQ_MOVE_UP:
+            if (view->song && view->state.sequence_cursor > 0) {
+                int idx = view->state.sequence_cursor;
+                TrackerSequenceEntry tmp = view->song->sequence[idx];
+                view->song->sequence[idx] = view->song->sequence[idx - 1];
+                view->song->sequence[idx - 1] = tmp;
+                view->state.sequence_cursor--;
+                view->modified = true;
+                tracker_view_show_status(view, "Moved entry up");
+                tracker_view_invalidate(view);
+            }
+            break;
+
+        case TRACKER_INPUT_SEQ_MOVE_DOWN:
+            if (view->song &&
+                view->state.sequence_cursor < view->song->sequence_length - 1) {
+                int idx = view->state.sequence_cursor;
+                TrackerSequenceEntry tmp = view->song->sequence[idx];
+                view->song->sequence[idx] = view->song->sequence[idx + 1];
+                view->song->sequence[idx + 1] = tmp;
+                view->state.sequence_cursor++;
+                view->modified = true;
+                tracker_view_show_status(view, "Moved entry down");
+                tracker_view_invalidate(view);
+            }
+            break;
+
+        case TRACKER_INPUT_SEQ_GOTO:
+            if (view->song && view->song->sequence_length > 0) {
+                int idx = view->state.sequence_cursor;
+                if (idx >= 0 && idx < view->song->sequence_length) {
+                    int pattern_idx = view->song->sequence[idx].pattern_index;
+                    if (pattern_idx >= 0 && pattern_idx < view->song->num_patterns) {
+                        view->state.cursor_pattern = pattern_idx;
+                        tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+                        tracker_view_show_status(view, "Pattern %d", pattern_idx + 1);
+                        tracker_view_invalidate(view);
+                    }
+                }
+            }
+            break;
 
         default:
             handled = false;

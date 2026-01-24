@@ -834,6 +834,15 @@ static void render_status(TrackerView* view) {
         output_printf(tb, " [LOOP]");
     }
 
+    /* Play mode indicator */
+    if (view->engine) {
+        if (view->engine->play_mode == TRACKER_PLAY_MODE_SONG) {
+            output_printf(tb, " [SONG]");
+        } else {
+            output_printf(tb, " [PAT]");
+        }
+    }
+
     /* BPM */
     if (view->song) {
         output_printf(tb, " %d BPM", view->song->bpm);
@@ -929,6 +938,7 @@ static void render_help(TrackerView* view) {
 
     output_printf(tb, "  PLAYBACK\n");
     output_printf(tb, "    Space            Play / Stop\n");
+    output_printf(tb, "    P                Toggle play mode (PAT/SONG)\n");
     output_printf(tb, "    f                Toggle follow mode\n");
     output_printf(tb, "    L                Toggle loop mode\n");
     output_printf(tb, "    { / }            Decrease / increase BPM\n\n");
@@ -938,6 +948,13 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    > / <  (. / ,)   Increase / decrease octave\n");
     output_printf(tb, "    T                Cycle theme\n\n");
 
+    output_printf(tb, "  ARRANGE (press 'r' to enter)\n");
+    output_printf(tb, "    j/k, Arrows      Move in sequence\n");
+    output_printf(tb, "    a                Add pattern to sequence\n");
+    output_printf(tb, "    x                Remove from sequence\n");
+    output_printf(tb, "    K / J            Move entry up / down\n");
+    output_printf(tb, "    Enter            Jump to pattern\n\n");
+
     output_printf(tb, "  FILE\n");
     output_printf(tb, "    Ctrl+S           Save\n");
     output_printf(tb, "    E, Ctrl+E        Export MIDI\n");
@@ -946,12 +963,114 @@ static void render_help(TrackerView* view) {
     reset_style(tb);
 }
 
+static void render_arrange(TrackerView* view) {
+    TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
+    const TrackerTheme* theme = view->state.theme;
+
+    output_write(tb, CURSOR_HOME, -1);
+    output_write(tb, SCREEN_CLEAR, -1);
+
+    /* Header */
+    apply_style(tb, &theme->header_style);
+    output_printf(tb, "  ARRANGE - Pattern Sequence");
+    if (view->song) {
+        output_printf(tb, "  (%d entries)", view->song->sequence_length);
+    }
+    output_printf(tb, "\n");
+    reset_style(tb);
+
+    output_printf(tb, "  a=add  x=remove  K/J=move  Enter=goto  Esc=back  ?=help\n\n");
+
+    if (!view->song || view->song->sequence_length == 0) {
+        apply_style(tb, &theme->default_style);
+        output_printf(tb, "  (empty sequence)\n\n");
+        output_printf(tb, "  Press 'a' to add current pattern to sequence\n");
+        reset_style(tb);
+        return;
+    }
+
+    /* Calculate visible range */
+    int visible_rows = tb->screen_rows - 8;
+    if (visible_rows < 5) visible_rows = 5;
+
+    int cursor = view->state.sequence_cursor;
+    int scroll = view->state.sequence_scroll;
+
+    /* Adjust scroll to keep cursor visible */
+    if (cursor < scroll) {
+        scroll = cursor;
+    } else if (cursor >= scroll + visible_rows) {
+        scroll = cursor - visible_rows + 1;
+    }
+    view->state.sequence_scroll = scroll;
+
+    /* Render sequence entries */
+    apply_style(tb, &theme->default_style);
+
+    for (int i = 0; i < visible_rows && scroll + i < view->song->sequence_length; i++) {
+        int idx = scroll + i;
+        TrackerSequenceEntry* entry = &view->song->sequence[idx];
+
+        bool is_cursor = (idx == cursor);
+
+        /* Cursor indicator */
+        if (is_cursor) {
+            apply_style(tb, &theme->cursor);
+            output_printf(tb, " >");
+        } else {
+            apply_style(tb, &theme->default_style);
+            output_printf(tb, "  ");
+        }
+
+        /* Entry number */
+        output_printf(tb, " %3d: ", idx + 1);
+
+        /* Pattern info */
+        TrackerPattern* pattern = tracker_song_get_pattern(view->song, entry->pattern_index);
+        if (pattern) {
+            output_printf(tb, "Pattern %2d", entry->pattern_index + 1);
+            if (pattern->name && pattern->name[0]) {
+                output_printf(tb, " \"%s\"", pattern->name);
+            }
+            output_printf(tb, " (%d rows)", pattern->num_rows);
+        } else {
+            output_printf(tb, "(invalid pattern %d)", entry->pattern_index);
+        }
+
+        /* Repeat count */
+        if (entry->repeat_count > 1) {
+            output_printf(tb, " x%d", entry->repeat_count);
+        }
+
+        if (is_cursor) {
+            reset_style(tb);
+        }
+        output_printf(tb, "\n");
+    }
+
+    /* Scroll indicator */
+    reset_style(tb);
+    if (view->song->sequence_length > visible_rows) {
+        output_printf(tb, "\n  [%d-%d of %d]\n",
+            scroll + 1,
+            (scroll + visible_rows < view->song->sequence_length) ?
+                scroll + visible_rows : view->song->sequence_length,
+            view->song->sequence_length);
+    }
+}
+
 static void terminal_render(TrackerView* view) {
     TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
 
     /* Check for help mode */
     if (view->state.view_mode == TRACKER_VIEW_MODE_HELP) {
         render_help(view);
+        return;
+    }
+
+    /* Check for arrange mode */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_ARRANGE) {
+        render_arrange(view);
         return;
     }
 
@@ -1183,9 +1302,17 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         case '}': return TRACKER_INPUT_BPM_INC;
         case '{': return TRACKER_INPUT_BPM_DEC;
         case 'L': return TRACKER_INPUT_LOOP_TOGGLE;
+        case 'P': return TRACKER_INPUT_PLAY_MODE_TOGGLE;
 
         /* Export */
         case 'E': return TRACKER_INPUT_EXPORT_MIDI;
+
+        /* Arrange mode */
+        case 'r': return TRACKER_INPUT_MODE_ARRANGE;
+
+        /* Sequence operations (work in arrange mode) */
+        case 'K': return TRACKER_INPUT_SEQ_MOVE_UP;
+        case 'J': return TRACKER_INPUT_SEQ_MOVE_DOWN;
     }
 
     /* Printable character */
