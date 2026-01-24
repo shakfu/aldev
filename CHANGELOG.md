@@ -226,6 +226,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
       - `chance`/`prob` - Probability-based triggering (0-100%)
       - `reverse`/`rev` - Reverse note order
       - `stutter`/`stut` - Repeat phrase with velocity decay
+  - **Mixer View**:
+    - 'M' key enters mixer mode
+    - Per-track volume control (0-127, default 100)
+    - Per-track pan control (-64 to +63, 0 = center)
+    - Mute/solo toggles with visual indicators
+    - Arrow keys navigate tracks and fields
+    - +/- adjust volume and pan values
+    - 'm' and 'S' toggle mute/solo directly
+    - 'x' resets selected field to default
+    - Volume meter visualization per track
+    - Horizontal scrolling for many tracks
+    - Volume scales note velocity during playback
+    - Pan sends MIDI CC 10 at playback start
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

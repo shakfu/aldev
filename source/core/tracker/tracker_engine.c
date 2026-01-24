@@ -266,7 +266,20 @@ static void fire_event(TrackerEngine* engine, TrackerPendingEvent* ev) {
                 unregister_active_note(engine, event->channel, event->data1);
             }
 
-            dispatch_note_on(engine, event->channel, event->data1, event->data2);
+            /* Apply track volume scaling */
+            uint8_t velocity = event->data2;
+            if (engine->song && ev->source.track_index >= 0) {
+                TrackerPattern* pattern = tracker_song_get_pattern(engine->song,
+                    ev->source.pattern_index);
+                if (pattern && ev->source.track_index < pattern->num_tracks) {
+                    TrackerTrack* track = &pattern->tracks[ev->source.track_index];
+                    /* Scale velocity by track volume (0-127, default 100) */
+                    velocity = (uint8_t)((velocity * track->volume) / 100);
+                    if (velocity > 127) velocity = 127;
+                }
+            }
+
+            dispatch_note_on(engine, event->channel, event->data1, velocity);
 
             /* Calculate note-off tick if gate is specified */
             int64_t off_tick = -1;
@@ -758,6 +771,11 @@ bool tracker_engine_play(TrackerEngine* engine) {
                 /* Use program 0 (piano) as default, or bank 128 for drums on ch 10 */
                 uint8_t program = (channel == 9 || channel == 10) ? 0 : 0;
                 dispatch_program_change(engine, channel, program);
+
+                /* Send pan CC (CC 10) - convert from -64..+63 to 0..127 */
+                uint8_t pan_cc = (uint8_t)(track->pan + 64);
+                if (pan_cc > 127) pan_cc = 127;
+                dispatch_cc(engine, channel, 10, pan_cc);
             }
         }
     }

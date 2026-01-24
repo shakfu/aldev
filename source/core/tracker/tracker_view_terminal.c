@@ -983,6 +983,14 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    K / J            Move effect up / down\n");
     output_printf(tb, "    Space            Toggle effect on/off\n\n");
 
+    output_printf(tb, "  MIXER (press 'M' to enter)\n");
+    output_printf(tb, "    Left/Right       Select track\n");
+    output_printf(tb, "    Up/Down          Select field (vol/pan/mute/solo)\n");
+    output_printf(tb, "    + / -            Adjust value\n");
+    output_printf(tb, "    m                Toggle mute\n");
+    output_printf(tb, "    S                Toggle solo\n");
+    output_printf(tb, "    x                Reset to default\n\n");
+
     output_printf(tb, "  COMMANDS (press ':' to enter)\n");
     output_printf(tb, "    :w               Save\n");
     output_printf(tb, "    :q               Quit\n");
@@ -1191,6 +1199,176 @@ static void render_fx(TrackerView* view) {
     }
 }
 
+static void render_mixer(TrackerView* view) {
+    TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
+    const TrackerTheme* theme = view->state.theme;
+
+    output_write(tb, CURSOR_HOME, -1);
+    output_write(tb, SCREEN_CLEAR, -1);
+
+    /* Header */
+    apply_style(tb, &theme->header_style);
+    output_printf(tb, "  MIXER");
+    TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+    if (pattern) {
+        output_printf(tb, " - %d tracks", pattern->num_tracks);
+    }
+    output_printf(tb, "\n");
+    reset_style(tb);
+
+    output_printf(tb, "  Left/Right=track | Up/Down=field | +/-=adjust | m=mute S=solo | x=reset | Esc=back\n\n");
+
+    if (!pattern || pattern->num_tracks == 0) {
+        apply_style(tb, &theme->default_style);
+        output_printf(tb, "  (no tracks)\n");
+        reset_style(tb);
+        return;
+    }
+
+    /* Calculate visible tracks */
+    int track_width = 12;
+    int visible_tracks = (tb->screen_cols - 4) / track_width;
+    if (visible_tracks < 1) visible_tracks = 1;
+    if (visible_tracks > pattern->num_tracks) visible_tracks = pattern->num_tracks;
+
+    int cursor = view->state.mixer_cursor;
+    int scroll = view->state.mixer_scroll;
+
+    /* Adjust scroll to keep cursor visible */
+    if (cursor < scroll) {
+        scroll = cursor;
+    } else if (cursor >= scroll + visible_tracks) {
+        scroll = cursor - visible_tracks + 1;
+    }
+    view->state.mixer_scroll = scroll;
+
+    /* Track headers */
+    apply_style(tb, &theme->header_style);
+    output_printf(tb, "  ");
+    for (int i = 0; i < visible_tracks && scroll + i < pattern->num_tracks; i++) {
+        int t = scroll + i;
+        TrackerTrack* track = &pattern->tracks[t];
+        bool is_cursor = (t == cursor);
+
+        if (is_cursor) {
+            apply_style(tb, &theme->cursor);
+        } else {
+            apply_style(tb, &theme->header_style);
+        }
+
+        char name_buf[10];
+        if (track->name && track->name[0]) {
+            snprintf(name_buf, sizeof(name_buf), "%.8s", track->name);
+        } else {
+            snprintf(name_buf, sizeof(name_buf), "Track %d", t + 1);
+        }
+        output_printf(tb, "%-10s  ", name_buf);
+
+        if (is_cursor) {
+            reset_style(tb);
+        }
+    }
+    output_printf(tb, "\n");
+    reset_style(tb);
+
+    /* Channel row */
+    apply_style(tb, &theme->default_style);
+    output_printf(tb, "  ");
+    for (int i = 0; i < visible_tracks && scroll + i < pattern->num_tracks; i++) {
+        int t = scroll + i;
+        TrackerTrack* track = &pattern->tracks[t];
+        output_printf(tb, "Ch %-7d  ", track->default_channel + 1);
+    }
+    output_printf(tb, "\n\n");
+
+    /* Volume row */
+    const char* field_names[] = { "Volume", "Pan", "Mute", "Solo" };
+    int field = view->state.mixer_field;
+
+    for (int f = 0; f < 4; f++) {
+        bool is_field_selected = (f == field);
+
+        if (is_field_selected) {
+            apply_style(tb, &theme->cursor);
+        } else {
+            apply_style(tb, &theme->default_style);
+        }
+        output_printf(tb, "%-6s", field_names[f]);
+        reset_style(tb);
+
+        for (int i = 0; i < visible_tracks && scroll + i < pattern->num_tracks; i++) {
+            int t = scroll + i;
+            TrackerTrack* track = &pattern->tracks[t];
+            bool is_cursor = (t == cursor && is_field_selected);
+
+            if (is_cursor) {
+                apply_style(tb, &theme->cursor);
+            } else {
+                apply_style(tb, &theme->default_style);
+            }
+
+            switch (f) {
+                case 0:  /* Volume */
+                    output_printf(tb, "%-10d  ", track->volume);
+                    break;
+                case 1:  /* Pan */
+                    if (track->pan == 0) {
+                        output_printf(tb, "C         ");
+                    } else if (track->pan < 0) {
+                        output_printf(tb, "L%-8d  ", -track->pan);
+                    } else {
+                        output_printf(tb, "R%-8d  ", track->pan);
+                    }
+                    break;
+                case 2:  /* Mute */
+                    output_printf(tb, "%-10s  ", track->muted ? "[MUTE]" : "-");
+                    break;
+                case 3:  /* Solo */
+                    output_printf(tb, "%-10s  ", track->solo ? "[SOLO]" : "-");
+                    break;
+            }
+
+            if (is_cursor) {
+                reset_style(tb);
+            }
+        }
+        output_printf(tb, "\n");
+    }
+
+    /* Volume meter visualization */
+    reset_style(tb);
+    output_printf(tb, "\n");
+    output_printf(tb, "      ");
+    for (int i = 0; i < visible_tracks && scroll + i < pattern->num_tracks; i++) {
+        int t = scroll + i;
+        TrackerTrack* track = &pattern->tracks[t];
+        int bar_len = (track->volume * 8) / 127;
+        if (track->muted) bar_len = 0;
+
+        output_printf(tb, "[");
+        for (int b = 0; b < 8; b++) {
+            if (b < bar_len) {
+                if (b < 5) output_printf(tb, "=");
+                else if (b < 7) output_printf(tb, "+");
+                else output_printf(tb, "!");
+            } else {
+                output_printf(tb, " ");
+            }
+        }
+        output_printf(tb, "] ");
+    }
+    output_printf(tb, "\n");
+
+    /* Scroll indicator */
+    if (pattern->num_tracks > visible_tracks) {
+        output_printf(tb, "\n  [%d-%d of %d tracks]\n",
+            scroll + 1,
+            (scroll + visible_tracks < pattern->num_tracks) ?
+                scroll + visible_tracks : pattern->num_tracks,
+            pattern->num_tracks);
+    }
+}
+
 static void render_arrange(TrackerView* view) {
     TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
     const TrackerTheme* theme = view->state.theme;
@@ -1305,6 +1483,12 @@ static void terminal_render(TrackerView* view) {
     /* Check for FX mode */
     if (view->state.view_mode == TRACKER_VIEW_MODE_FX) {
         render_fx(view);
+        return;
+    }
+
+    /* Check for mixer mode */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_MIXER) {
+        render_mixer(view);
         return;
     }
 
@@ -1550,6 +1734,9 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         case 'F': return TRACKER_INPUT_MODE_FX;
         case 't': return TRACKER_INPUT_FX_TRACK;  /* FX track target */
         case 'e': return TRACKER_INPUT_FX_EDIT;   /* Edit FX params */
+
+        /* Mixer mode */
+        case 'M': return TRACKER_INPUT_MODE_MIXER;
 
         /* Sequence operations (work in arrange mode) */
         case 'K': return TRACKER_INPUT_SEQ_MOVE_UP;

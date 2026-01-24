@@ -925,6 +925,160 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
         }
     }
 
+    /* Handle mixer mode input */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_MIXER) {
+        TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+        TrackerTrack* track = NULL;
+        if (pattern && view->state.mixer_cursor < pattern->num_tracks) {
+            track = &pattern->tracks[view->state.mixer_cursor];
+        }
+
+        switch (event->type) {
+            case TRACKER_INPUT_CURSOR_LEFT:
+                if (view->state.mixer_cursor > 0) {
+                    view->state.mixer_cursor--;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_RIGHT:
+                if (pattern && view->state.mixer_cursor < pattern->num_tracks - 1) {
+                    view->state.mixer_cursor++;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_UP:
+                if (view->state.mixer_field > 0) {
+                    view->state.mixer_field--;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_DOWN:
+                if (view->state.mixer_field < 3) {
+                    view->state.mixer_field++;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            /* Volume control */
+            case TRACKER_INPUT_VOLUME_UP:
+            case TRACKER_INPUT_STEP_INC:  /* + key */
+                if (track && view->state.mixer_field == 0) {
+                    int new_vol = track->volume + 5;
+                    if (new_vol > 127) new_vol = 127;
+                    track->volume = (uint8_t)new_vol;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Volume: %d", track->volume);
+                    tracker_view_invalidate(view);
+                } else if (track && view->state.mixer_field == 1) {
+                    /* Pan right */
+                    int new_pan = track->pan + 8;
+                    if (new_pan > 63) new_pan = 63;
+                    track->pan = (int8_t)new_pan;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Pan: %d", track->pan);
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_VOLUME_DOWN:
+            case TRACKER_INPUT_STEP_DEC:  /* - key */
+                if (track && view->state.mixer_field == 0) {
+                    int new_vol = track->volume - 5;
+                    if (new_vol < 0) new_vol = 0;
+                    track->volume = (uint8_t)new_vol;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Volume: %d", track->volume);
+                    tracker_view_invalidate(view);
+                } else if (track && view->state.mixer_field == 1) {
+                    /* Pan left */
+                    int new_pan = track->pan - 8;
+                    if (new_pan < -64) new_pan = -64;
+                    track->pan = (int8_t)new_pan;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Pan: %d", track->pan);
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            /* Mute/Solo toggle */
+            case TRACKER_INPUT_MUTE_TRACK:
+                if (track) {
+                    track->muted = !track->muted;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Track %s",
+                        track->muted ? "muted" : "unmuted");
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_SOLO_TRACK:
+                if (track) {
+                    track->solo = !track->solo;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Track %s",
+                        track->solo ? "soloed" : "unsoloed");
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            /* Reset controls */
+            case TRACKER_INPUT_VOLUME_RESET:
+            case TRACKER_INPUT_CLEAR_CELL:  /* x key - reset selected param */
+                if (track) {
+                    if (view->state.mixer_field == 0) {
+                        track->volume = 100;
+                        tracker_view_show_status(view, "Volume reset");
+                    } else if (view->state.mixer_field == 1) {
+                        track->pan = 0;
+                        tracker_view_show_status(view, "Pan reset");
+                    } else if (view->state.mixer_field == 2) {
+                        track->muted = false;
+                        tracker_view_show_status(view, "Unmuted");
+                    } else if (view->state.mixer_field == 3) {
+                        track->solo = false;
+                        tracker_view_show_status(view, "Unsolo");
+                    }
+                    view->modified = true;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            /* Enter/space toggles mute/solo when on those fields */
+            case TRACKER_INPUT_ENTER_EDIT:
+            case TRACKER_INPUT_PLAY_TOGGLE:
+                if (track) {
+                    if (view->state.mixer_field == 2) {
+                        track->muted = !track->muted;
+                        view->modified = true;
+                        tracker_view_show_status(view, "Track %s",
+                            track->muted ? "muted" : "unmuted");
+                    } else if (view->state.mixer_field == 3) {
+                        track->solo = !track->solo;
+                        view->modified = true;
+                        tracker_view_show_status(view, "Track %s",
+                            track->solo ? "soloed" : "unsoloed");
+                    }
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_CANCEL:
+            case TRACKER_INPUT_MODE_PATTERN:
+                tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+                tracker_view_invalidate(view);
+                return true;
+
+            case TRACKER_INPUT_QUIT:
+            case TRACKER_INPUT_MODE_HELP:
+            case TRACKER_INPUT_SAVE:
+                /* Fall through to normal handler */
+                break;
+
+            default:
+                return true;
+        }
+    }
+
     /* Handle edit mode input */
     if (view->state.edit_mode == TRACKER_EDIT_MODE_EDIT) {
         switch (event->type) {

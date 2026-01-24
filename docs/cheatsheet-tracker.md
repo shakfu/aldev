@@ -144,6 +144,21 @@ Quick reference for psnd tracker keybindings and commands.
 | `?` | Help screen |
 | `r` | Arrange mode |
 | `F` | FX mode |
+| `M` | Mixer mode |
+
+## Mixer Mode
+
+| Key | Action |
+|-----|--------|
+| `M` | Enter mixer mode |
+| `Esc` | Return to pattern view |
+| Left/Right | Select track |
+| Up/Down | Select field (volume/pan/mute/solo) |
+| `+` `-` | Adjust volume or pan |
+| `m` | Toggle mute |
+| `S` | Toggle solo |
+| `x` | Reset selected field to default |
+| `Space` `Enter` | Toggle mute/solo (when on those fields) |
 
 ## Undo/Redo
 

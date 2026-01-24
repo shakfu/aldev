@@ -167,6 +167,8 @@ typedef struct {
 typedef struct {
     char* name;                   /* track name (owned), can be NULL */
     uint8_t default_channel;      /* MIDI channel for this track (0-15) */
+    uint8_t volume;               /* track volume 0-127 (default 100) */
+    int8_t pan;                   /* track pan -64 to +63 (0 = center) */
     bool muted;
     bool solo;
     TrackerFxChain fx_chain;      /* per-track FX chain (post-processes all cells) */

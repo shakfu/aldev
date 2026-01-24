@@ -372,6 +372,8 @@ TrackerTrack* tracker_track_new(int num_rows, const char* name, uint8_t channel)
 
     track->name = str_dup(name);
     track->default_channel = channel;
+    track->volume = 100;          /* default volume */
+    track->pan = 0;               /* center pan */
     track->muted = false;
     track->solo = false;
     tracker_fx_chain_init(&track->fx_chain);

@@ -653,6 +653,14 @@ typedef enum {
     TRACKER_INPUT_FX_TRACK,       /* switch to track FX */
     TRACKER_INPUT_FX_MASTER,      /* switch to master FX */
 
+    /* Mixer */
+    TRACKER_INPUT_VOLUME_UP,      /* increase track volume */
+    TRACKER_INPUT_VOLUME_DOWN,    /* decrease track volume */
+    TRACKER_INPUT_PAN_LEFT,       /* pan track left */
+    TRACKER_INPUT_PAN_RIGHT,      /* pan track right */
+    TRACKER_INPUT_VOLUME_RESET,   /* reset volume to default */
+    TRACKER_INPUT_PAN_RESET,      /* reset pan to center */
+
     /* Text input */
     TRACKER_INPUT_CHAR,
 
@@ -771,6 +779,11 @@ struct TrackerViewState {
     int fx_edit_field;          /* 0=name, 1=params */
     char fx_edit_buffer[64];    /* buffer for editing FX name/params */
     int fx_edit_cursor;         /* cursor in edit buffer */
+
+    /* Mixer state */
+    int mixer_cursor;           /* selected track in mixer view */
+    int mixer_scroll;           /* scroll offset for many tracks */
+    int mixer_field;            /* 0=volume, 1=pan, 2=mute, 3=solo */
 
     /* Theme */
     TrackerTheme* theme;
