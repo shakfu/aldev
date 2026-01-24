@@ -145,6 +145,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Polyphony support (multiple notes at same position as chord)
     - Configurable options: rows_per_beat, pattern_rows, quantize_strength
     - Creates sequence from imported patterns automatically
+  - **Phrase System**:
+    - Named reusable phrases that can be referenced in cells
+    - `:phrase name expr` command defines a phrase (e.g., `:phrase intro C4 E4 G4`)
+    - `:phrase name` shows phrase content
+    - `:phrases` lists all defined phrases
+    - `:delphrase name` deletes a phrase
+    - Use `@name` in any cell to reference a phrase (e.g., `@intro`)
+    - Phrases can reference other phrases (with recursion detection)
+    - Phrases saved/loaded with song JSON
+    - Maximum recursion depth of 16 prevents infinite loops
   - **Pattern Sequence/Arrangement**:
     - 'r' key enters Arrange mode to edit the song sequence
     - Navigate sequence with j/k or arrow keys

@@ -213,6 +213,15 @@ Press `:` to enter command mode. Press `Enter` to execute, `Esc` to cancel.
 | `:set loop on/off` | Toggle loop mode |
 | `:set swing N` | Set swing amount (0-100) |
 
+### Phrase Commands
+
+| Command | Action |
+|---------|--------|
+| `:phrase name expr` | Define phrase (e.g., `:phrase intro C4 E4 G4`) |
+| `:phrase name` | Show phrase content |
+| `:phrases` | List all defined phrases |
+| `:delphrase name` | Delete a phrase |
+
 ### Other Commands
 
 | Command | Action |
@@ -268,6 +277,15 @@ C4!!    - Very loud
 C4_     - Soft
 C4__    - Very soft
 ```
+
+### Phrase References
+
+```
+@intro  - Play phrase named "intro"
+@riff1  - Play phrase named "riff1"
+```
+
+Define phrases with `:phrase name expr`, then use `@name` in any cell.
 
 ---
 

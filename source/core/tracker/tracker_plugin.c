@@ -632,6 +632,26 @@ TrackerPhrase* tracker_apply_fx_chain(CompiledFxChain* chain,
  * Context Helpers
  *============================================================================*/
 
+/**
+ * Phrase lookup callback implementation.
+ * Looks up a named phrase in the song's phrase library.
+ */
+static bool context_lookup_phrase(TrackerContext* ctx, const char* name,
+                                   const char** out_expr, const char** out_lang_id) {
+    if (!ctx || !ctx->song || !name) return false;
+
+    /* Cast away const for lookup (we're not modifying) */
+    TrackerPhraseLibrary* lib = (TrackerPhraseLibrary*)&ctx->song->phrase_library;
+    TrackerPhraseEntry* entry = tracker_phrase_library_get(lib, name);
+
+    if (!entry) return false;
+
+    if (out_expr) *out_expr = entry->expression;
+    if (out_lang_id) *out_lang_id = entry->language_id;
+
+    return true;
+}
+
 void tracker_context_init(TrackerContext* ctx) {
     if (!ctx) return;
     memset(ctx, 0, sizeof(TrackerContext));
@@ -653,11 +673,13 @@ void tracker_context_from_song(TrackerContext* ctx,
 
     if (!song) return;
 
+    ctx->song = song;
     ctx->song_name = song->name;
     ctx->bpm = song->bpm;
     ctx->rows_per_beat = song->rows_per_beat;
     ctx->ticks_per_row = song->ticks_per_row;
     ctx->spillover_mode = song->spillover_mode;
+    ctx->lookup_phrase = context_lookup_phrase;
 
     ctx->current_pattern = pattern_index;
     ctx->current_row = row;

@@ -664,6 +664,29 @@ void tracker_json_write_song(TrackerJsonWriter* w, const TrackerSong* song) {
     }
 
     json_end_array(w);
+
+    /* Phrase library */
+    json_write_key(w, "phrase_library", false);
+    json_begin_array(w);
+
+    for (int i = 0; i < song->phrase_library.count; i++) {
+        const TrackerPhraseEntry* entry = &song->phrase_library.entries[i];
+        json_array_sep(w, i == 0);
+        json_begin_object(w);
+
+        json_write_key(w, "name", true);
+        json_write_string(w, entry->name);
+
+        json_write_key(w, "expression", false);
+        json_write_string(w, entry->expression);
+
+        json_write_key(w, "language_id", false);
+        json_write_string(w, entry->language_id);
+
+        json_end_object(w);
+    }
+
+    json_end_array(w);
     json_end_object(w);
 }
 
@@ -1292,6 +1315,23 @@ TrackerSong* tracker_json_parse_song(const char* json, int len, const char** err
             }
         }
         song->sequence_length = seq_count;
+    }
+
+    /* Parse phrase library */
+    const JsonValue* phrases_array = json_get_array(&root, "phrase_library");
+    if (phrases_array) {
+        for (size_t i = 0; i < phrases_array->data.array_val.count; i++) {
+            const JsonValue* entry = &phrases_array->data.array_val.items[i];
+            if (entry->type == JSON_OBJECT) {
+                const char* pname = json_get_string(entry, "name");
+                const char* pexpr = json_get_string(entry, "expression");
+                const char* plang = json_get_string(entry, "language_id");
+
+                if (pname && pexpr) {
+                    tracker_phrase_library_add(&song->phrase_library, pname, pexpr, plang);
+                }
+            }
+        }
     }
 
     json_value_free(&root);

@@ -111,6 +111,22 @@ typedef bool (*TrackerTrackInfoQueryFn)(
     bool* out_muted
 );
 
+/**
+ * Phrase lookup callback: look up a named phrase from the song's library.
+ *
+ * @param ctx           The context
+ * @param name          Phrase name (without @ prefix)
+ * @param out_expr      Output: phrase expression string (do not free)
+ * @param out_lang_id   Output: language ID for evaluation (do not free), may be NULL
+ * @return              true if phrase found, false otherwise
+ */
+typedef bool (*TrackerPhraseLookupFn)(
+    TrackerContext* ctx,
+    const char* name,
+    const char** out_expr,
+    const char** out_lang_id
+);
+
 /*============================================================================
  * Tracker Context
  *============================================================================*/
@@ -152,6 +168,13 @@ struct TrackerContext {
      *------------------------------------------------------------------------*/
     const char* song_name;
     TrackerSpilloverMode spillover_mode;
+    const TrackerSong* song;              /* for phrase library access (do not modify) */
+
+    /*------------------------------------------------------------------------
+     * Phrase Library
+     *------------------------------------------------------------------------*/
+    TrackerPhraseLookupFn lookup_phrase;  /* look up named phrase */
+    int phrase_recursion_depth;           /* for detecting infinite recursion */
 
     /*------------------------------------------------------------------------
      * Randomness

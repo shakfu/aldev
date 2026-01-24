@@ -590,6 +590,7 @@ TrackerSong* tracker_song_new(const char* name) {
     song->ticks_per_row = TRACKER_DEFAULT_TPR;
     song->spillover_mode = TRACKER_SPILLOVER_LAYER;
     tracker_fx_chain_init(&song->master_fx);
+    tracker_phrase_library_init(&song->phrase_library);
 
     return song;
 }
@@ -612,6 +613,9 @@ void tracker_song_free(TrackerSong* song) {
 
     /* Free master FX */
     tracker_fx_chain_clear(&song->master_fx);
+
+    /* Free phrase library */
+    tracker_phrase_library_clear(&song->phrase_library);
 
     /* Note: compiled_master_fx is owned by engine */
 
@@ -698,6 +702,105 @@ bool tracker_song_append_to_sequence(TrackerSong* song, int pattern_index, int r
     entry->pattern_index = pattern_index;
     entry->repeat_count = repeat_count;
     song->sequence_length++;
+
+    return true;
+}
+
+/*============================================================================
+ * Phrase Library
+ *============================================================================*/
+
+void tracker_phrase_library_init(TrackerPhraseLibrary* lib) {
+    if (!lib) return;
+    lib->entries = NULL;
+    lib->count = 0;
+    lib->capacity = 0;
+}
+
+void tracker_phrase_library_clear(TrackerPhraseLibrary* lib) {
+    if (!lib) return;
+
+    for (int i = 0; i < lib->count; i++) {
+        free(lib->entries[i].name);
+        free(lib->entries[i].expression);
+        free(lib->entries[i].language_id);
+    }
+    free(lib->entries);
+
+    lib->entries = NULL;
+    lib->count = 0;
+    lib->capacity = 0;
+}
+
+int tracker_phrase_library_find(TrackerPhraseLibrary* lib, const char* name) {
+    if (!lib || !name) return -1;
+
+    for (int i = 0; i < lib->count; i++) {
+        if (lib->entries[i].name && strcmp(lib->entries[i].name, name) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+TrackerPhraseEntry* tracker_phrase_library_get(TrackerPhraseLibrary* lib, const char* name) {
+    int idx = tracker_phrase_library_find(lib, name);
+    if (idx < 0) return NULL;
+    return &lib->entries[idx];
+}
+
+bool tracker_phrase_library_add(TrackerPhraseLibrary* lib, const char* name,
+                                 const char* expression, const char* language_id) {
+    if (!lib || !name || !expression) return false;
+
+    /* Check if phrase already exists - update it */
+    int existing = tracker_phrase_library_find(lib, name);
+    if (existing >= 0) {
+        TrackerPhraseEntry* entry = &lib->entries[existing];
+        free(entry->expression);
+        free(entry->language_id);
+        entry->expression = str_dup(expression);
+        entry->language_id = language_id ? str_dup(language_id) : NULL;
+        return true;
+    }
+
+    /* Grow if needed */
+    if (lib->count >= lib->capacity) {
+        int new_cap = lib->capacity ? lib->capacity * 2 : 8;
+        TrackerPhraseEntry* new_entries = realloc(lib->entries,
+                                                   new_cap * sizeof(TrackerPhraseEntry));
+        if (!new_entries) return false;
+        lib->entries = new_entries;
+        lib->capacity = new_cap;
+    }
+
+    /* Add new entry */
+    TrackerPhraseEntry* entry = &lib->entries[lib->count];
+    entry->name = str_dup(name);
+    entry->expression = str_dup(expression);
+    entry->language_id = language_id ? str_dup(language_id) : NULL;
+    lib->count++;
+
+    return true;
+}
+
+bool tracker_phrase_library_remove(TrackerPhraseLibrary* lib, const char* name) {
+    if (!lib || !name) return false;
+
+    int idx = tracker_phrase_library_find(lib, name);
+    if (idx < 0) return false;
+
+    /* Free entry data */
+    free(lib->entries[idx].name);
+    free(lib->entries[idx].expression);
+    free(lib->entries[idx].language_id);
+
+    /* Shift remaining entries */
+    if (idx < lib->count - 1) {
+        memmove(&lib->entries[idx], &lib->entries[idx + 1],
+                (lib->count - idx - 1) * sizeof(TrackerPhraseEntry));
+    }
+    lib->count--;
 
     return true;
 }

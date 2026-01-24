@@ -186,6 +186,9 @@ void tracker_notes_to_string(uint8_t note, char* buffer, bool use_sharps) {
  * Expression Evaluation
  *============================================================================*/
 
+/* Maximum phrase recursion depth to prevent infinite loops */
+#define MAX_PHRASE_RECURSION 16
+
 /**
  * Parse a complete note expression and return a phrase.
  */
@@ -197,6 +200,63 @@ static TrackerPhrase* parse_expression(const char* expr, TrackerContext* ctx) {
 
     const char* p = expr;
     skip_whitespace(&p);
+
+    /* Check for phrase reference (@name) */
+    if (*p == '@') {
+        p++;  /* skip @ */
+
+        /* Extract phrase name */
+        char name[64];
+        int i = 0;
+        while (*p && (isalnum((unsigned char)*p) || *p == '_') && i < 63) {
+            name[i++] = *p++;
+        }
+        name[i] = '\0';
+
+        if (i == 0) {
+            /* Empty name, return empty phrase */
+            return phrase;
+        }
+
+        /* Look up phrase in library */
+        if (ctx && ctx->lookup_phrase) {
+            /* Check recursion depth */
+            if (ctx->phrase_recursion_depth >= MAX_PHRASE_RECURSION) {
+                /* Too deep - return empty to avoid infinite loop */
+                return phrase;
+            }
+
+            const char* phrase_expr = NULL;
+            const char* phrase_lang = NULL;
+
+            if (ctx->lookup_phrase((TrackerContext*)ctx, name, &phrase_expr, &phrase_lang)) {
+                /* Found phrase - recursively evaluate it */
+                TrackerContext sub_ctx = *ctx;
+                sub_ctx.phrase_recursion_depth = ctx->phrase_recursion_depth + 1;
+
+                tracker_phrase_free(phrase);
+                phrase = parse_expression(phrase_expr, &sub_ctx);
+
+                /* Handle remaining expression after phrase reference */
+                skip_whitespace(&p);
+                if (*p && phrase) {
+                    /* There's more content - parse it and merge */
+                    TrackerPhrase* extra = parse_expression(p, &sub_ctx);
+                    if (extra) {
+                        for (int j = 0; j < extra->count; j++) {
+                            tracker_phrase_add_event(phrase, &extra->events[j]);
+                        }
+                        tracker_phrase_free(extra);
+                    }
+                }
+
+                return phrase;
+            }
+        }
+
+        /* Phrase not found - return empty phrase */
+        return phrase;
+    }
 
     /* Check for rest */
     if (*p == 'r' || *p == '-') {

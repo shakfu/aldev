@@ -195,6 +195,25 @@ typedef struct {
 } TrackerSequenceEntry;
 
 /**
+ * A named phrase entry in the phrase library.
+ * Allows reusable note patterns referenced by @name in cells.
+ */
+typedef struct {
+    char* name;                   /* phrase name without @ prefix (owned) */
+    char* expression;             /* source expression e.g. "C4 E4 G4" (owned) */
+    char* language_id;            /* plugin that evaluates this (owned), NULL = default */
+} TrackerPhraseEntry;
+
+/**
+ * Phrase library - collection of named reusable phrases.
+ */
+typedef struct {
+    TrackerPhraseEntry* entries;  /* array of phrase entries (owned) */
+    int count;
+    int capacity;
+} TrackerPhraseLibrary;
+
+/**
  * Top-level song structure.
  */
 typedef struct {
@@ -221,6 +240,9 @@ typedef struct {
     char* default_language_id;    /* default plugin for cells without explicit language */
     TrackerFxChain master_fx;     /* master FX chain (post-processes all tracks) */
     CompiledFxChain* compiled_master_fx;
+
+    /* Phrase library */
+    TrackerPhraseLibrary phrase_library;  /* named reusable phrases */
 } TrackerSong;
 
 /*============================================================================
@@ -279,6 +301,15 @@ int tracker_song_add_pattern(TrackerSong* song, TrackerPattern* pattern);
 bool tracker_song_remove_pattern(TrackerSong* song, int pattern_index);
 TrackerPattern* tracker_song_get_pattern(TrackerSong* song, int index);
 bool tracker_song_append_to_sequence(TrackerSong* song, int pattern_index, int repeat_count);
+
+/* Phrase Library */
+void tracker_phrase_library_init(TrackerPhraseLibrary* lib);
+void tracker_phrase_library_clear(TrackerPhraseLibrary* lib);
+bool tracker_phrase_library_add(TrackerPhraseLibrary* lib, const char* name,
+                                 const char* expression, const char* language_id);
+bool tracker_phrase_library_remove(TrackerPhraseLibrary* lib, const char* name);
+TrackerPhraseEntry* tracker_phrase_library_get(TrackerPhraseLibrary* lib, const char* name);
+int tracker_phrase_library_find(TrackerPhraseLibrary* lib, const char* name);
 
 /*============================================================================
  * Utility Functions

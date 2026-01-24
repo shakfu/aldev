@@ -999,6 +999,8 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    :rows N          Set pattern length\n");
     output_printf(tb, "    :export [file]   Export to MIDI\n");
     output_printf(tb, "    :import file     Import MIDI file\n");
+    output_printf(tb, "    :phrase N expr   Define phrase @N\n");
+    output_printf(tb, "    :phrases         List all phrases\n");
     output_printf(tb, "    :set step N      Set step size\n");
     output_printf(tb, "    :set octave N    Set default octave\n");
     output_printf(tb, "    :set swing N     Set swing (0-100)\n");

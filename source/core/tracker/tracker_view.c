@@ -2494,6 +2494,92 @@ static void execute_command(TrackerView* view, const char* cmd) {
         /* :help - show help */
         tracker_view_set_mode(view, TRACKER_VIEW_MODE_HELP);
     }
+    else if (strcmp(name, "phrase") == 0 || strcmp(name, "ph") == 0) {
+        /* :phrase name [expression] - define or show phrase */
+        if (!view->song) {
+            tracker_view_show_error(view, "No song loaded");
+        } else if (!arg[0]) {
+            tracker_view_show_error(view, "Usage: :phrase name [expression]");
+        } else {
+            /* Parse name and optional expression */
+            char pname[64] = {0};
+            char pexpr[256] = {0};
+            char* space = strchr(arg, ' ');
+
+            if (space) {
+                /* Has expression - define phrase */
+                size_t nlen = (size_t)(space - arg);
+                if (nlen > 63) nlen = 63;
+                strncpy(pname, arg, nlen);
+                strncpy(pexpr, space + 1, sizeof(pexpr) - 1);
+
+                if (tracker_phrase_library_add(&view->song->phrase_library,
+                                                pname, pexpr, NULL)) {
+                    view->modified = true;
+                    tracker_view_show_status(view, "Phrase @%s defined", pname);
+                } else {
+                    tracker_view_show_error(view, "Failed to add phrase");
+                }
+            } else {
+                /* Just name - show phrase content */
+                strncpy(pname, arg, sizeof(pname) - 1);
+                TrackerPhraseEntry* entry = tracker_phrase_library_get(
+                    &view->song->phrase_library, pname);
+                if (entry) {
+                    tracker_view_show_status(view, "@%s = %s", pname, entry->expression);
+                } else {
+                    tracker_view_show_error(view, "Phrase @%s not found", pname);
+                }
+            }
+        }
+    }
+    else if (strcmp(name, "phrases") == 0) {
+        /* :phrases - list all phrases */
+        if (!view->song) {
+            tracker_view_show_error(view, "No song loaded");
+        } else if (view->song->phrase_library.count == 0) {
+            tracker_view_show_status(view, "No phrases defined");
+        } else {
+            /* Show first few phrases in status */
+            char buf[256] = "Phrases: ";
+            int len = (int)strlen(buf);
+            int max_show = 5;
+            int count = view->song->phrase_library.count;
+
+            for (int i = 0; i < count && i < max_show; i++) {
+                const char* n = view->song->phrase_library.entries[i].name;
+                int nlen = (int)strlen(n);
+                if (len + nlen + 3 < (int)sizeof(buf)) {
+                    if (i > 0) {
+                        buf[len++] = ',';
+                        buf[len++] = ' ';
+                    }
+                    buf[len++] = '@';
+                    strcpy(buf + len, n);
+                    len += nlen;
+                }
+            }
+            if (count > max_show) {
+                snprintf(buf + len, sizeof(buf) - len, " ... (%d more)", count - max_show);
+            }
+            tracker_view_show_status(view, "%s", buf);
+        }
+    }
+    else if (strcmp(name, "delphrase") == 0 || strcmp(name, "dph") == 0) {
+        /* :delphrase name - delete a phrase */
+        if (!view->song) {
+            tracker_view_show_error(view, "No song loaded");
+        } else if (!arg[0]) {
+            tracker_view_show_error(view, "Usage: :delphrase name");
+        } else {
+            if (tracker_phrase_library_remove(&view->song->phrase_library, arg)) {
+                view->modified = true;
+                tracker_view_show_status(view, "Phrase @%s deleted", arg);
+            } else {
+                tracker_view_show_error(view, "Phrase @%s not found", arg);
+            }
+        }
+    }
     else {
         tracker_view_show_error(view, "Unknown command: %s", name);
     }
