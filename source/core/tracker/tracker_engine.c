@@ -744,6 +744,24 @@ bool tracker_engine_play(TrackerEngine* engine) {
 
     if (engine->state == TRACKER_ENGINE_PLAYING) return true;
 
+    /* When starting from stopped state, initialize MIDI channels */
+    if (engine->state == TRACKER_ENGINE_STOPPED) {
+        /* Send program changes for each track's channel to initialize instruments.
+         * This is required for synthesizers like TSF that need a preset selected
+         * before notes will sound. */
+        TrackerPattern* pattern = tracker_song_get_pattern(engine->song,
+                                                            engine->current_pattern);
+        if (pattern) {
+            for (int t = 0; t < pattern->num_tracks; t++) {
+                TrackerTrack* track = &pattern->tracks[t];
+                uint8_t channel = track->default_channel;
+                /* Use program 0 (piano) as default, or bank 128 for drums on ch 10 */
+                uint8_t program = (channel == 9 || channel == 10) ? 0 : 0;
+                dispatch_program_change(engine, channel, program);
+            }
+        }
+    }
+
     /* Send MIDI start if configured */
     if (engine->config.output.start && engine->state == TRACKER_ENGINE_STOPPED) {
         engine->config.output.start(engine->config.output.user_data);
@@ -948,8 +966,16 @@ int tracker_engine_process_until(TrackerEngine* engine, double target_ms) {
                     engine->current_row = loop_start;
                     engine->loop_count++;
 
-                    /* Recalculate tick for loop */
-                    next_tick = (int64_t)engine->current_row * engine->ticks_per_row;
+                    /* Reset tick and time for loop start */
+                    engine->current_tick = (int64_t)engine->current_row * engine->ticks_per_row;
+                    engine->current_time_ms = engine->current_tick * engine->tick_duration_ms;
+
+                    /* Trigger the first row of the loop, then return.
+                     * We must return here because target_tick is based on
+                     * cumulative time, but current_tick just reset to 0.
+                     * The next call to process() will continue normally. */
+                    trigger_row(engine, engine->current_row);
+                    return events_fired;
                 } else if (engine->play_mode == TRACKER_PLAY_MODE_SONG) {
                     /* Advance to next pattern in sequence */
                     engine->current_pattern++;
@@ -959,7 +985,9 @@ int tracker_engine_process_until(TrackerEngine* engine, double target_ms) {
                         return events_fired;
                     }
                     engine->current_row = 0;
+                    engine->current_tick = 0;
                     next_tick = 0;
+                    engine->current_time_ms = 0.0;
 
                     /* Update pattern reference */
                     int pat_idx = engine->song->sequence[engine->current_pattern].pattern_index;

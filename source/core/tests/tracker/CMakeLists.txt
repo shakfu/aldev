@@ -12,6 +12,7 @@ set(TRACKER_SOURCES
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_undo.c
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_clipboard.c
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_json.c
+    ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_terminal.c
 )
 
 # Create tracker static library
@@ -51,3 +52,14 @@ endmacro()
 # Add tracker tests
 add_tracker_test(plugin_notes)
 add_tracker_test(audio)
+
+# Tracker demo (interactive, not a test)
+add_executable(tracker_demo tracker_demo.c)
+target_include_directories(tracker_demo PRIVATE
+    ${PSND_ROOT_DIR}/source/core/tracker
+    ${PSND_ROOT_DIR}/source/core/include
+)
+target_link_libraries(tracker_demo PRIVATE tracker)
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(tracker_demo PRIVATE -Wno-unused-function)
+endif()

@@ -287,6 +287,7 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                             &view->state.edit_buffer[pos], len - pos + 1);
                     view->state.edit_buffer_len--;
                     view->state.edit_cursor_pos--;
+                    tracker_view_invalidate_cursor(view);
                 }
                 break;
             case TRACKER_INPUT_DELETE:
@@ -298,6 +299,7 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                     memmove(&view->state.edit_buffer[pos],
                             &view->state.edit_buffer[pos + 1], len - pos);
                     view->state.edit_buffer_len--;
+                    tracker_view_invalidate_cursor(view);
                 }
                 break;
             case TRACKER_INPUT_EXIT_EDIT:
@@ -309,11 +311,13 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             case TRACKER_INPUT_CURSOR_LEFT:
                 if (view->state.edit_cursor_pos > 0) {
                     view->state.edit_cursor_pos--;
+                    tracker_view_invalidate_cursor(view);
                 }
                 break;
             case TRACKER_INPUT_CURSOR_RIGHT:
                 if (view->state.edit_cursor_pos < view->state.edit_buffer_len) {
                     view->state.edit_cursor_pos++;
+                    tracker_view_invalidate_cursor(view);
                 }
                 break;
             default:
@@ -529,6 +533,7 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             tracker_view_enter_command(view);
             break;
         case TRACKER_INPUT_QUIT:
+        case TRACKER_INPUT_CANCEL:  /* Escape in navigate mode also quits */
             tracker_view_request_quit(view);
             break;
         case TRACKER_INPUT_PANIC:
@@ -761,7 +766,7 @@ void tracker_view_enter_edit(TrackerView* view) {
     view->state.edit_buffer_len = view->state.edit_buffer ?
         (int)strlen(view->state.edit_buffer) : 0;
     view->state.edit_buffer_capacity = view->state.edit_buffer_len + 256;
-    view->state.edit_cursor_pos = view->state.edit_buffer_len;
+    view->state.edit_cursor_pos = 0;  /* Start cursor at beginning of cell */
 
     view->state.edit_mode = TRACKER_EDIT_MODE_EDIT;
     tracker_view_invalidate_cursor(view);
@@ -1026,8 +1031,11 @@ void tracker_view_run(TrackerView* view, int frame_rate) {
         /* Poll input with timeout */
         tracker_view_poll_input(view, (int)frame_ms);
 
-        /* Update playback position if engine is running */
+        /* Process engine playback (advance timing, trigger events) */
         if (view->engine && tracker_engine_is_playing(view->engine)) {
+            tracker_engine_process(view->engine, frame_ms);
+
+            /* Update playback position display */
             int pattern, row, tick;
             tracker_engine_get_position(view->engine, &pattern, &row, &tick);
             tracker_view_update_playback(view, pattern, row);
