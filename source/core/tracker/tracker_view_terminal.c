@@ -975,6 +975,14 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    K / J            Move entry up / down\n");
     output_printf(tb, "    Enter            Jump to pattern\n\n");
 
+    output_printf(tb, "  FX CHAINS (press 'F' to enter)\n");
+    output_printf(tb, "    j/k, Arrows      Move in chain\n");
+    output_printf(tb, "    c / t / m        Cell / Track / Master target\n");
+    output_printf(tb, "    a                Add effect\n");
+    output_printf(tb, "    x                Remove effect\n");
+    output_printf(tb, "    K / J            Move effect up / down\n");
+    output_printf(tb, "    Space            Toggle effect on/off\n\n");
+
     output_printf(tb, "  COMMANDS (press ':' to enter)\n");
     output_printf(tb, "    :w               Save\n");
     output_printf(tb, "    :q               Quit\n");
@@ -991,6 +999,126 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    Ctrl+S           Save\n");
     output_printf(tb, "    E, Ctrl+E        Export MIDI\n");
     output_printf(tb, "    q                Quit\n");
+
+    reset_style(tb);
+}
+
+static void render_fx(TrackerView* view) {
+    TerminalBackend* tb = (TerminalBackend*)view->callbacks.backend_data;
+    const TrackerTheme* theme = view->state.theme;
+
+    output_write(tb, CURSOR_HOME, -1);
+    output_write(tb, SCREEN_CLEAR, -1);
+
+    /* Get the current FX chain based on target */
+    TrackerFxChain* chain = NULL;
+    const char* target_name = "Cell";
+
+    if (view->song) {
+        TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+        switch (view->state.fx_target) {
+            case TRACKER_FX_TARGET_CELL:
+                if (pattern && view->state.cursor_track < pattern->num_tracks &&
+                    view->state.cursor_row < pattern->num_rows) {
+                    chain = &pattern->tracks[view->state.cursor_track]
+                            .cells[view->state.cursor_row].fx_chain;
+                    target_name = "Cell";
+                }
+                break;
+            case TRACKER_FX_TARGET_TRACK:
+                if (pattern && view->state.cursor_track < pattern->num_tracks) {
+                    chain = &pattern->tracks[view->state.cursor_track].fx_chain;
+                    target_name = "Track";
+                }
+                break;
+            case TRACKER_FX_TARGET_MASTER:
+                /* Master FX would go on song - not implemented yet */
+                target_name = "Master";
+                break;
+        }
+    }
+
+    /* Header */
+    apply_style(tb, &theme->header_style);
+    output_printf(tb, "  FX CHAIN - %s", target_name);
+    if (chain) {
+        output_printf(tb, " (%d effects)", chain->count);
+    }
+    output_printf(tb, "\n");
+    reset_style(tb);
+
+    /* Show current target location */
+    apply_style(tb, &theme->default_style);
+    if (view->state.fx_target == TRACKER_FX_TARGET_CELL) {
+        output_printf(tb, "  Row %d, Track %d\n",
+            view->state.cursor_row + 1, view->state.cursor_track + 1);
+    } else if (view->state.fx_target == TRACKER_FX_TARGET_TRACK) {
+        output_printf(tb, "  Track %d\n", view->state.cursor_track + 1);
+    }
+    reset_style(tb);
+
+    output_printf(tb, "  c=cell t=track m=master | a=add x=remove K/J=move space=toggle | Esc=back\n\n");
+
+    if (!chain || chain->count == 0) {
+        apply_style(tb, &theme->default_style);
+        output_printf(tb, "  (no effects)\n\n");
+        output_printf(tb, "  Press 'a' to add an effect\n\n");
+        output_printf(tb, "  Available FX:\n");
+        output_printf(tb, "    transpose  - Transpose note by semitones\n");
+        output_printf(tb, "    velocity   - Adjust note velocity\n");
+        output_printf(tb, "    arpeggio   - Arpeggiate notes\n");
+        output_printf(tb, "    delay      - Echo/delay effect\n");
+        output_printf(tb, "    ratchet    - Repeat note rapidly\n");
+        reset_style(tb);
+        return;
+    }
+
+    /* Render FX entries */
+    int cursor = view->state.fx_cursor;
+    if (cursor >= chain->count) {
+        cursor = chain->count - 1;
+        view->state.fx_cursor = cursor;
+    }
+    if (cursor < 0) cursor = 0;
+
+    for (int i = 0; i < chain->count; i++) {
+        TrackerFxEntry* entry = tracker_fx_chain_get(chain, i);
+        if (!entry) continue;
+
+        bool is_cursor = (i == cursor);
+
+        /* Cursor indicator */
+        if (is_cursor) {
+            apply_style(tb, &theme->cursor);
+            output_printf(tb, " >");
+        } else {
+            apply_style(tb, &theme->default_style);
+            output_printf(tb, "  ");
+        }
+
+        /* Entry number */
+        output_printf(tb, " %2d: ", i + 1);
+
+        /* Enabled indicator */
+        if (entry->enabled) {
+            output_printf(tb, "[*] ");
+        } else {
+            output_printf(tb, "[ ] ");
+        }
+
+        /* FX name */
+        output_printf(tb, "%-12s", entry->name ? entry->name : "(unnamed)");
+
+        /* Parameters */
+        if (entry->params && entry->params[0]) {
+            output_printf(tb, " (%s)", entry->params);
+        }
+
+        if (is_cursor) {
+            reset_style(tb);
+        }
+        output_printf(tb, "\n");
+    }
 
     reset_style(tb);
 }
@@ -1103,6 +1231,12 @@ static void terminal_render(TrackerView* view) {
     /* Check for arrange mode */
     if (view->state.view_mode == TRACKER_VIEW_MODE_ARRANGE) {
         render_arrange(view);
+        return;
+    }
+
+    /* Check for FX mode */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_FX) {
+        render_fx(view);
         return;
     }
 
@@ -1342,6 +1476,10 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
 
         /* Arrange mode */
         case 'r': return TRACKER_INPUT_MODE_ARRANGE;
+
+        /* FX mode */
+        case 'F': return TRACKER_INPUT_MODE_FX;
+        case 't': return TRACKER_INPUT_FX_TRACK;  /* FX track target */
 
         /* Sequence operations (work in arrange mode) */
         case 'K': return TRACKER_INPUT_SEQ_MOVE_UP;

@@ -507,10 +507,18 @@ typedef enum {
     TRACKER_VIEW_MODE_PATTERN,    /* pattern editor (main grid) */
     TRACKER_VIEW_MODE_ARRANGE,    /* arrangement/sequence view */
     TRACKER_VIEW_MODE_MIXER,      /* track mixer (levels, FX) */
+    TRACKER_VIEW_MODE_FX,         /* FX chain editor */
     TRACKER_VIEW_MODE_INSTRUMENT, /* instrument/plugin editor */
     TRACKER_VIEW_MODE_SONG,       /* song settings */
     TRACKER_VIEW_MODE_HELP,       /* help/documentation */
 } TrackerViewMode;
+
+/* FX chain target type */
+typedef enum {
+    TRACKER_FX_TARGET_CELL,       /* editing cell FX chain */
+    TRACKER_FX_TARGET_TRACK,      /* editing track FX chain */
+    TRACKER_FX_TARGET_MASTER,     /* editing master FX chain */
+} TrackerFxTarget;
 
 typedef enum {
     TRACKER_EDIT_MODE_NAVIGATE,   /* cursor movement only */
@@ -632,6 +640,18 @@ typedef enum {
     TRACKER_INPUT_SEQ_GOTO,       /* jump to pattern at sequence cursor */
     TRACKER_INPUT_PLAY_MODE_TOGGLE, /* toggle pattern/song play mode */
 
+    /* FX Chain editing */
+    TRACKER_INPUT_MODE_FX,        /* enter FX edit mode */
+    TRACKER_INPUT_FX_ADD,         /* add new FX to chain */
+    TRACKER_INPUT_FX_REMOVE,      /* remove FX from chain */
+    TRACKER_INPUT_FX_MOVE_UP,     /* move FX up in chain */
+    TRACKER_INPUT_FX_MOVE_DOWN,   /* move FX down in chain */
+    TRACKER_INPUT_FX_TOGGLE,      /* toggle FX enabled/disabled */
+    TRACKER_INPUT_FX_EDIT,        /* edit FX params */
+    TRACKER_INPUT_FX_CELL,        /* switch to cell FX */
+    TRACKER_INPUT_FX_TRACK,       /* switch to track FX */
+    TRACKER_INPUT_FX_MASTER,      /* switch to master FX */
+
     /* Text input */
     TRACKER_INPUT_CHAR,
 
@@ -742,6 +762,14 @@ struct TrackerViewState {
     /* Sequence/Arrange view */
     int sequence_cursor;        /* cursor position in sequence (0-based) */
     int sequence_scroll;        /* scroll offset in sequence view */
+
+    /* FX editor state */
+    TrackerFxTarget fx_target;  /* what FX chain are we editing */
+    int fx_cursor;              /* cursor position in FX chain */
+    int fx_edit_field;          /* 0=name, 1=params, 2=enabled */
+    char* fx_edit_buffer;       /* buffer for editing FX name/params */
+    int fx_edit_buffer_len;
+    int fx_edit_cursor;         /* cursor in edit buffer */
 
     /* Theme */
     TrackerTheme* theme;

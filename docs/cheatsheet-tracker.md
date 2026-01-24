@@ -88,6 +88,31 @@ Quick reference for psnd tracker keybindings and commands.
 | `+` `-` | Increase / decrease repeat count |
 | `Enter` | Jump to pattern |
 
+## FX Mode
+
+| Key | Action |
+|-----|--------|
+| `F` | Enter FX mode |
+| `Esc` | Return to pattern view |
+| `j` `k` / Arrows | Move in FX chain |
+| `c` | Edit cell FX |
+| `t` | Edit track FX |
+| `m` | Edit master FX |
+| `a` | Add effect |
+| `x` | Remove effect |
+| `K` `J` | Move effect up / down |
+| `Space` | Toggle effect on/off |
+
+### Available FX
+
+| Name | Description |
+|------|-------------|
+| `transpose` | Transpose note by semitones |
+| `velocity` | Adjust note velocity |
+| `arpeggio` | Arpeggiate notes |
+| `delay` | Echo/delay effect |
+| `ratchet` | Repeat note rapidly |
+
 ## File
 
 | Key | Action |
@@ -102,6 +127,7 @@ Quick reference for psnd tracker keybindings and commands.
 |-----|--------|
 | `?` | Help screen |
 | `r` | Arrange mode |
+| `F` | FX mode |
 
 ## Undo/Redo
 

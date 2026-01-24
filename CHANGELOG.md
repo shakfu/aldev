@@ -196,6 +196,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Engine supports swing_amount setting (0-100%)
     - :set swing N command to configure
     - 50% = straight timing, higher = more swing
+  - **FX Chains UI**:
+    - 'F' key enters FX edit mode
+    - Edit FX chains at three levels: Cell, Track, or Master
+    - 'c' / 't' / 'm' keys switch between FX targets
+    - 'a' key adds new effect to chain
+    - 'x' key removes current effect
+    - 'K' / 'J' keys move effect up/down in chain
+    - Space toggles effect enabled/disabled
+    - Available FX: transpose, velocity, arpeggio, delay, ratchet
+    - Esc returns to pattern view
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

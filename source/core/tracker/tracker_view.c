@@ -592,6 +592,156 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
         }
     }
 
+    /* Handle FX edit mode input */
+    if (view->state.view_mode == TRACKER_VIEW_MODE_FX) {
+        TrackerFxChain* chain = NULL;
+        if (view->song) {
+            switch (view->state.fx_target) {
+                case TRACKER_FX_TARGET_CELL: {
+                    TrackerCell* cell = tracker_view_get_cursor_cell(view);
+                    if (cell) chain = &cell->fx_chain;
+                    break;
+                }
+                case TRACKER_FX_TARGET_TRACK: {
+                    TrackerPattern* p = tracker_view_get_current_pattern(view);
+                    if (p && view->state.cursor_track < p->num_tracks) {
+                        chain = &p->tracks[view->state.cursor_track].fx_chain;
+                    }
+                    break;
+                }
+                case TRACKER_FX_TARGET_MASTER:
+                    chain = &view->song->master_fx;
+                    break;
+            }
+        }
+
+        switch (event->type) {
+            case TRACKER_INPUT_CURSOR_UP:
+                if (view->state.fx_cursor > 0) {
+                    view->state.fx_cursor--;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_DOWN:
+                if (chain && view->state.fx_cursor < chain->count - 1) {
+                    view->state.fx_cursor++;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_LEFT:
+                if (view->state.fx_edit_field > 0) {
+                    view->state.fx_edit_field--;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+            case TRACKER_INPUT_CURSOR_RIGHT:
+                if (view->state.fx_edit_field < 2) {
+                    view->state.fx_edit_field++;
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            /* FX target selection - accept both FX-specific and generic inputs */
+            case TRACKER_INPUT_FX_CELL:
+            case TRACKER_INPUT_CLONE_PATTERN:  /* 'c' key */
+                view->state.fx_target = TRACKER_FX_TARGET_CELL;
+                view->state.fx_cursor = 0;
+                tracker_view_show_status(view, "Cell FX");
+                tracker_view_invalidate(view);
+                return true;
+            case TRACKER_INPUT_FX_TRACK:
+                view->state.fx_target = TRACKER_FX_TARGET_TRACK;
+                view->state.fx_cursor = 0;
+                tracker_view_show_status(view, "Track FX");
+                tracker_view_invalidate(view);
+                return true;
+            case TRACKER_INPUT_FX_MASTER:
+            case TRACKER_INPUT_MUTE_TRACK:  /* 'm' key */
+                view->state.fx_target = TRACKER_FX_TARGET_MASTER;
+                view->state.fx_cursor = 0;
+                tracker_view_show_status(view, "Master FX");
+                tracker_view_invalidate(view);
+                return true;
+
+            /* FX operations - accept both FX-specific and generic inputs */
+            case TRACKER_INPUT_FX_ADD:
+            case TRACKER_INPUT_ADD_TRACK:  /* 'a' key */
+                if (chain) {
+                    if (tracker_fx_chain_append(chain, "transpose", "0", NULL)) {
+                        view->state.fx_cursor = chain->count - 1;
+                        view->modified = true;
+                        tracker_view_show_status(view, "Added FX");
+                        tracker_view_invalidate(view);
+                    }
+                }
+                return true;
+
+            case TRACKER_INPUT_FX_REMOVE:
+            case TRACKER_INPUT_CLEAR_CELL:  /* 'x' key */
+                if (chain && chain->count > 0 && view->state.fx_cursor < chain->count) {
+                    tracker_fx_chain_remove(chain, view->state.fx_cursor);
+                    if (view->state.fx_cursor >= chain->count && chain->count > 0) {
+                        view->state.fx_cursor = chain->count - 1;
+                    }
+                    view->modified = true;
+                    tracker_view_show_status(view, "Removed FX");
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_FX_MOVE_UP:
+            case TRACKER_INPUT_SEQ_MOVE_UP:  /* 'K' key */
+                if (chain && view->state.fx_cursor > 0) {
+                    tracker_fx_chain_move(chain, view->state.fx_cursor, view->state.fx_cursor - 1);
+                    view->state.fx_cursor--;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Moved FX up");
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_FX_MOVE_DOWN:
+            case TRACKER_INPUT_SEQ_MOVE_DOWN:  /* 'J' key */
+                if (chain && view->state.fx_cursor < chain->count - 1) {
+                    tracker_fx_chain_move(chain, view->state.fx_cursor, view->state.fx_cursor + 1);
+                    view->state.fx_cursor++;
+                    view->modified = true;
+                    tracker_view_show_status(view, "Moved FX down");
+                    tracker_view_invalidate(view);
+                }
+                return true;
+
+            case TRACKER_INPUT_FX_TOGGLE:
+            case TRACKER_INPUT_PLAY_TOGGLE:  /* space key */
+                if (chain && view->state.fx_cursor < chain->count) {
+                    TrackerFxEntry* entry = tracker_fx_chain_get(chain, view->state.fx_cursor);
+                    if (entry) {
+                        entry->enabled = !entry->enabled;
+                        view->modified = true;
+                        tracker_view_show_status(view, "FX %s",
+                            entry->enabled ? "enabled" : "disabled");
+                        tracker_view_invalidate(view);
+                    }
+                }
+                return true;
+
+            case TRACKER_INPUT_CANCEL:
+            case TRACKER_INPUT_MODE_PATTERN:
+                tracker_view_set_mode(view, TRACKER_VIEW_MODE_PATTERN);
+                tracker_view_invalidate(view);
+                return true;
+
+            case TRACKER_INPUT_QUIT:
+            case TRACKER_INPUT_MODE_HELP:
+            case TRACKER_INPUT_SAVE:
+                /* Fall through to normal handler */
+                break;
+
+            default:
+                return true;
+        }
+    }
+
     /* Handle edit mode input */
     if (view->state.edit_mode == TRACKER_EDIT_MODE_EDIT) {
         switch (event->type) {
@@ -925,6 +1075,10 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             break;
         case TRACKER_INPUT_MODE_HELP:
             tracker_view_set_mode(view, TRACKER_VIEW_MODE_HELP);
+            break;
+        case TRACKER_INPUT_MODE_FX:
+            view->state.fx_cursor = 0;
+            tracker_view_set_mode(view, TRACKER_VIEW_MODE_FX);
             break;
         case TRACKER_INPUT_FOLLOW_TOGGLE:
             view->state.follow_playback = !view->state.follow_playback;
