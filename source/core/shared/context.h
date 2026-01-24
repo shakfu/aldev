@@ -74,6 +74,10 @@ typedef struct SharedContext {
     libremidi_midi_in_port* in_ports[SHARED_MAX_PORTS];
     int in_port_count;
 
+    /* MIDI note callback (for record mode) */
+    void (*midi_note_callback)(void* user_data, int channel, int note, int velocity, int is_note_on);
+    void* midi_note_user_data;
+
     /* Test mode flag */
     int no_sleep_mode;      /* Skip sleeps for testing */
 } SharedContext;

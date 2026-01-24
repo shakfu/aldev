@@ -254,6 +254,9 @@ struct TrackerEngine {
     int loop_start_row;           /* -1 = pattern start */
     int loop_end_row;             /* -1 = pattern end */
 
+    /* Swing/groove */
+    int swing_amount;             /* 0-100: swing percentage (50 = straight) */
+
     /* Event queue (priority queue as linked list, sorted by due_tick) */
     TrackerPendingEvent* pending_head;
     TrackerPendingEvent* free_list;

@@ -28,10 +28,30 @@ static void on_midi_in_message(void* user_data, libremidi_timestamp timestamp,
     if (!ctx || !data || len < 1) return;
 
     uint8_t status = data[0];
+    int channel = (status & 0x0F) + 1;  /* 1-based */
 
-    /* Only handle CC messages (0xBn where n is channel) */
-    if ((status & 0xF0) == 0xB0 && len >= 3) {
-        int channel = (status & 0x0F) + 1;  /* 1-based */
+    /* Handle Note On (0x9n) */
+    if ((status & 0xF0) == 0x90 && len >= 3) {
+        int note = data[1] & 0x7F;
+        int velocity = data[2] & 0x7F;
+        /* Note On with velocity 0 is treated as Note Off */
+        int is_note_on = (velocity > 0) ? 1 : 0;
+
+        if (ctx->midi_note_callback) {
+            ctx->midi_note_callback(ctx->midi_note_user_data, channel, note, velocity, is_note_on);
+        }
+    }
+    /* Handle Note Off (0x8n) */
+    else if ((status & 0xF0) == 0x80 && len >= 3) {
+        int note = data[1] & 0x7F;
+        int velocity = data[2] & 0x7F;
+
+        if (ctx->midi_note_callback) {
+            ctx->midi_note_callback(ctx->midi_note_user_data, channel, note, velocity, 0);
+        }
+    }
+    /* Handle CC messages (0xBn) */
+    else if ((status & 0xF0) == 0xB0 && len >= 3) {
         int cc = data[1] & 0x7F;
         int value = data[2] & 0x7F;
 
@@ -265,4 +285,10 @@ void shared_midi_in_cleanup(SharedContext* ctx) {
         }
     }
     ctx->in_port_count = 0;
+}
+
+void shared_midi_set_note_callback(SharedContext* ctx, SharedMidiNoteCallback callback, void* user_data) {
+    if (!ctx) return;
+    ctx->midi_note_callback = callback;
+    ctx->midi_note_user_data = user_data;
 }

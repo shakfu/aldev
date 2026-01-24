@@ -215,6 +215,25 @@ int shared_midi_in_is_open(struct SharedContext* ctx);
  */
 void shared_midi_in_cleanup(struct SharedContext* ctx);
 
+/**
+ * @brief MIDI note callback type.
+ * Called when note-on or note-off is received.
+ * @param user_data User data passed to callback.
+ * @param channel MIDI channel (1-16).
+ * @param note MIDI note number (0-127).
+ * @param velocity Note velocity (0-127).
+ * @param is_note_on Non-zero for note-on, 0 for note-off.
+ */
+typedef void (*SharedMidiNoteCallback)(void* user_data, int channel, int note, int velocity, int is_note_on);
+
+/**
+ * @brief Register a callback for MIDI note messages.
+ * @param ctx Shared context.
+ * @param callback Callback function, or NULL to unregister.
+ * @param user_data User data passed to callback.
+ */
+void shared_midi_set_note_callback(struct SharedContext* ctx, SharedMidiNoteCallback callback, void* user_data);
+
 #ifdef __cplusplus
 }
 #endif

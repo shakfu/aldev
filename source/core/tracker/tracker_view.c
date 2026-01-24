@@ -544,6 +544,36 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                 }
                 return true;
 
+            /* In arrange mode, +/- adjusts repeat count */
+            case TRACKER_INPUT_STEP_INC:
+                if (view->song && view->song->sequence_length > 0) {
+                    int idx = view->state.sequence_cursor;
+                    if (idx >= 0 && idx < view->song->sequence_length) {
+                        int count = view->song->sequence[idx].repeat_count;
+                        if (count < 99) {
+                            view->song->sequence[idx].repeat_count = count + 1;
+                            view->modified = true;
+                            tracker_view_show_status(view, "Repeat: x%d", count + 1);
+                            tracker_view_invalidate(view);
+                        }
+                    }
+                }
+                return true;
+            case TRACKER_INPUT_STEP_DEC:
+                if (view->song && view->song->sequence_length > 0) {
+                    int idx = view->state.sequence_cursor;
+                    if (idx >= 0 && idx < view->song->sequence_length) {
+                        int count = view->song->sequence[idx].repeat_count;
+                        if (count > 1) {
+                            view->song->sequence[idx].repeat_count = count - 1;
+                            view->modified = true;
+                            tracker_view_show_status(view, "Repeat: x%d", count - 1);
+                            tracker_view_invalidate(view);
+                        }
+                    }
+                }
+                return true;
+
             case TRACKER_INPUT_SEQ_ADD:
             case TRACKER_INPUT_SEQ_REMOVE:
             case TRACKER_INPUT_SEQ_MOVE_UP:
@@ -620,10 +650,68 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
     /* Handle command mode input */
     if (view->state.edit_mode == TRACKER_EDIT_MODE_COMMAND) {
         switch (event->type) {
-            case TRACKER_INPUT_CHAR:
+            case TRACKER_INPUT_CHAR: {
                 /* Add char to command buffer */
-                /* TODO: implement command buffer editing */
+                if (!view->state.command_buffer) {
+                    view->state.command_buffer = calloc(256, 1);
+                    view->state.command_buffer_capacity = 256;
+                }
+                if (view->state.command_buffer_len + 1 < view->state.command_buffer_capacity) {
+                    int pos = view->state.command_cursor_pos;
+                    int len = view->state.command_buffer_len;
+                    /* Shift characters to make room */
+                    memmove(&view->state.command_buffer[pos + 1],
+                            &view->state.command_buffer[pos], len - pos + 1);
+                    view->state.command_buffer[pos] = (char)event->character;
+                    view->state.command_buffer_len++;
+                    view->state.command_cursor_pos++;
+                    tracker_view_invalidate_status(view);
+                }
                 break;
+            }
+            case TRACKER_INPUT_BACKSPACE:
+                if (view->state.command_buffer && view->state.command_cursor_pos > 0) {
+                    int pos = view->state.command_cursor_pos;
+                    int len = view->state.command_buffer_len;
+                    memmove(&view->state.command_buffer[pos - 1],
+                            &view->state.command_buffer[pos], len - pos + 1);
+                    view->state.command_buffer_len--;
+                    view->state.command_cursor_pos--;
+                    tracker_view_invalidate_status(view);
+                }
+                break;
+            case TRACKER_INPUT_DELETE:
+                if (view->state.command_buffer &&
+                    view->state.command_cursor_pos < view->state.command_buffer_len) {
+                    int pos = view->state.command_cursor_pos;
+                    int len = view->state.command_buffer_len;
+                    memmove(&view->state.command_buffer[pos],
+                            &view->state.command_buffer[pos + 1], len - pos);
+                    view->state.command_buffer_len--;
+                    tracker_view_invalidate_status(view);
+                }
+                break;
+            case TRACKER_INPUT_CURSOR_LEFT:
+                if (view->state.command_cursor_pos > 0) {
+                    view->state.command_cursor_pos--;
+                    tracker_view_invalidate_status(view);
+                }
+                break;
+            case TRACKER_INPUT_CURSOR_RIGHT:
+                if (view->state.command_cursor_pos < view->state.command_buffer_len) {
+                    view->state.command_cursor_pos++;
+                    tracker_view_invalidate_status(view);
+                }
+                break;
+            case TRACKER_INPUT_HOME:
+                view->state.command_cursor_pos = 0;
+                tracker_view_invalidate_status(view);
+                break;
+            case TRACKER_INPUT_END:
+                view->state.command_cursor_pos = view->state.command_buffer_len;
+                tracker_view_invalidate_status(view);
+                break;
+            case TRACKER_INPUT_ENTER_EDIT:
             case TRACKER_INPUT_EXIT_EDIT:
                 tracker_view_exit_command(view, true);
                 break;
@@ -791,6 +879,12 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                 tracker_engine_trigger_cell(view->engine, view->state.cursor_pattern,
                     view->state.cursor_track, view->state.cursor_row);
             }
+            break;
+        case TRACKER_INPUT_RECORD_TOGGLE:
+            view->state.is_recording = !view->state.is_recording;
+            tracker_view_show_status(view, "Record: %s",
+                view->state.is_recording ? "ON" : "OFF");
+            tracker_view_invalidate_status(view);
             break;
 
         /* Track control */
@@ -1657,11 +1751,219 @@ void tracker_view_enter_command(TrackerView* view) {
     tracker_view_invalidate_status(view);
 }
 
+/* Parse command and execute */
+static void execute_command(TrackerView* view, const char* cmd) {
+    if (!view || !cmd || !cmd[0]) return;
+
+    /* Skip leading whitespace */
+    while (*cmd == ' ' || *cmd == '\t') cmd++;
+    if (!*cmd) return;
+
+    /* Parse command name and arguments */
+    char name[64] = {0};
+    char arg[256] = {0};
+    int i = 0;
+
+    /* Extract command name */
+    while (*cmd && *cmd != ' ' && *cmd != '\t' && i < 63) {
+        name[i++] = *cmd++;
+    }
+    name[i] = '\0';
+
+    /* Skip whitespace between name and arg */
+    while (*cmd == ' ' || *cmd == '\t') cmd++;
+
+    /* Rest is argument */
+    strncpy(arg, cmd, sizeof(arg) - 1);
+
+    /* Execute command */
+    if (strcmp(name, "w") == 0 || strcmp(name, "write") == 0) {
+        /* :w [filename] - save */
+        const char* path = arg[0] ? arg : NULL;
+        if (tracker_view_save(view, path)) {
+            tracker_view_show_status(view, "Saved: %s",
+                view->file_path ? view->file_path : "song.trk");
+        } else {
+            tracker_view_show_error(view, "Save failed");
+        }
+    }
+    else if (strcmp(name, "q") == 0 || strcmp(name, "quit") == 0) {
+        /* :q - quit */
+        tracker_view_request_quit(view);
+    }
+    else if (strcmp(name, "wq") == 0) {
+        /* :wq - save and quit */
+        if (tracker_view_save(view, NULL)) {
+            tracker_view_request_quit(view);
+        } else {
+            tracker_view_show_error(view, "Save failed");
+        }
+    }
+    else if (strcmp(name, "q!") == 0) {
+        /* :q! - force quit */
+        view->modified = false;
+        tracker_view_request_quit(view);
+    }
+    else if (strcmp(name, "bpm") == 0) {
+        /* :bpm N - set tempo */
+        if (arg[0]) {
+            int bpm = atoi(arg);
+            if (bpm >= 20 && bpm <= 300 && view->song && view->engine) {
+                view->song->bpm = bpm;
+                tracker_engine_set_bpm(view->engine, bpm);
+                view->modified = true;
+                tracker_view_show_status(view, "BPM: %d", bpm);
+            } else {
+                tracker_view_show_error(view, "BPM must be 20-300");
+            }
+        } else {
+            tracker_view_show_status(view, "BPM: %d", view->song ? view->song->bpm : 120);
+        }
+    }
+    else if (strcmp(name, "rows") == 0) {
+        /* :rows N - set pattern length */
+        if (arg[0]) {
+            int rows = atoi(arg);
+            if (rows >= 1 && rows <= 256) {
+                TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+                if (pattern) {
+                    tracker_pattern_set_rows(pattern, rows);
+                    /* Adjust cursor if needed */
+                    if (view->state.cursor_row >= rows) {
+                        view->state.cursor_row = rows - 1;
+                    }
+                    view->modified = true;
+                    tracker_view_show_status(view, "Pattern rows: %d", rows);
+                    tracker_view_invalidate(view);
+                }
+            } else {
+                tracker_view_show_error(view, "Rows must be 1-256");
+            }
+        } else {
+            TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+            tracker_view_show_status(view, "Pattern rows: %d",
+                pattern ? pattern->num_rows : 0);
+        }
+    }
+    else if (strcmp(name, "export") == 0) {
+        /* :export [filename.mid] - export MIDI */
+        char filename[256];
+        if (arg[0]) {
+            strncpy(filename, arg, sizeof(filename) - 1);
+        } else if (view->file_path) {
+            snprintf(filename, sizeof(filename), "%s", view->file_path);
+            char* dot = strrchr(filename, '.');
+            if (dot) strcpy(dot, ".mid");
+            else strcat(filename, ".mid");
+        } else {
+            snprintf(filename, sizeof(filename), "song.mid");
+        }
+        if (tracker_export_midi(view, filename)) {
+            tracker_view_show_status(view, "Exported: %s", filename);
+        } else {
+            tracker_view_show_error(view, "Export failed");
+        }
+    }
+    else if (strcmp(name, "set") == 0) {
+        /* :set option [value] */
+        char option[64] = {0};
+        char value[64] = {0};
+        sscanf(arg, "%63s %63s", option, value);
+
+        if (strcmp(option, "step") == 0) {
+            int step = atoi(value);
+            if (step >= 0 && step <= 16) {
+                view->state.step_size = step;
+                tracker_view_show_status(view, "Step: %d", step);
+            } else {
+                tracker_view_show_error(view, "Step must be 0-16");
+            }
+        }
+        else if (strcmp(option, "octave") == 0 || strcmp(option, "oct") == 0) {
+            int oct = atoi(value);
+            if (oct >= 0 && oct <= 9) {
+                view->state.default_octave = oct;
+                tracker_view_show_status(view, "Octave: %d", oct);
+            } else {
+                tracker_view_show_error(view, "Octave must be 0-9");
+            }
+        }
+        else if (strcmp(option, "follow") == 0) {
+            if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+                view->state.follow_playback = true;
+                tracker_view_show_status(view, "Follow: ON");
+            } else if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+                view->state.follow_playback = false;
+                tracker_view_show_status(view, "Follow: OFF");
+            } else {
+                view->state.follow_playback = !view->state.follow_playback;
+                tracker_view_show_status(view, "Follow: %s",
+                    view->state.follow_playback ? "ON" : "OFF");
+            }
+        }
+        else if (strcmp(option, "loop") == 0) {
+            if (view->engine) {
+                if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+                    tracker_engine_set_loop(view->engine, true);
+                    tracker_view_show_status(view, "Loop: ON");
+                } else if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+                    tracker_engine_set_loop(view->engine, false);
+                    tracker_view_show_status(view, "Loop: OFF");
+                } else {
+                    bool loop = !view->engine->loop_enabled;
+                    tracker_engine_set_loop(view->engine, loop);
+                    tracker_view_show_status(view, "Loop: %s", loop ? "ON" : "OFF");
+                }
+            }
+        }
+        else if (strcmp(option, "swing") == 0) {
+            int swing = atoi(value);
+            if (swing >= 0 && swing <= 100 && view->engine) {
+                view->engine->swing_amount = swing;
+                tracker_view_show_status(view, "Swing: %d%%", swing);
+            } else {
+                tracker_view_show_error(view, "Swing must be 0-100");
+            }
+        }
+        else if (option[0]) {
+            tracker_view_show_error(view, "Unknown option: %s", option);
+        } else {
+            tracker_view_show_status(view, "step=%d octave=%d follow=%s loop=%s",
+                view->state.step_size, view->state.default_octave,
+                view->state.follow_playback ? "on" : "off",
+                view->engine && view->engine->loop_enabled ? "on" : "off");
+        }
+    }
+    else if (strcmp(name, "name") == 0) {
+        /* :name [text] - set pattern or song name */
+        if (arg[0]) {
+            TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+            if (pattern) {
+                free(pattern->name);
+                pattern->name = strdup(arg);
+                view->modified = true;
+                tracker_view_show_status(view, "Pattern name: %s", arg);
+            }
+        } else {
+            TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+            tracker_view_show_status(view, "Pattern name: %s",
+                pattern && pattern->name ? pattern->name : "(unnamed)");
+        }
+    }
+    else if (strcmp(name, "help") == 0 || strcmp(name, "h") == 0) {
+        /* :help - show help */
+        tracker_view_set_mode(view, TRACKER_VIEW_MODE_HELP);
+    }
+    else {
+        tracker_view_show_error(view, "Unknown command: %s", name);
+    }
+}
+
 void tracker_view_exit_command(TrackerView* view, bool execute) {
     if (!view) return;
 
-    if (execute && view->state.command_buffer) {
-        /* TODO: implement command execution */
+    if (execute && view->state.command_buffer && view->state.command_buffer_len > 0) {
+        execute_command(view, view->state.command_buffer);
     }
 
     view->state.edit_mode = TRACKER_EDIT_MODE_NAVIGATE;
@@ -2065,4 +2367,67 @@ bool tracker_view_load(TrackerView* view, const char* path) {
     tracker_view_invalidate(view);
 
     return true;
+}
+
+/*============================================================================
+ * MIDI Input Handling
+ *============================================================================*/
+
+/* Convert MIDI note number to note name string for the notes plugin */
+static const char* note_names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
+void tracker_view_handle_midi_note(TrackerView* view, int channel, int note, int velocity, int is_note_on) {
+    if (!view || !view->song) return;
+    (void)channel;  /* Could be used to select track */
+
+    /* Only handle note-on in record mode */
+    if (!view->state.is_recording || !is_note_on || velocity == 0) return;
+
+    TrackerPattern* pattern = tracker_view_get_current_pattern(view);
+    if (!pattern) return;
+
+    TrackerCell* cell = tracker_pattern_get_cell(pattern,
+        view->state.cursor_row, view->state.cursor_track);
+    if (!cell) return;
+
+    /* Convert MIDI note to expression (e.g., "C4", "D#5") */
+    int octave = (note / 12) - 1;  /* MIDI note 60 = C4 */
+    int note_idx = note % 12;
+    const char* note_name = note_names[note_idx];
+
+    char expression[32];
+    if (strlen(note_name) == 2) {  /* Sharp note */
+        snprintf(expression, sizeof(expression), "%c%c%d",
+            note_name[0], note_name[1], octave);
+    } else {
+        snprintf(expression, sizeof(expression), "%c%d", note_name[0], octave);
+    }
+
+    /* Record undo */
+    TrackerCell old_cell;
+    tracker_cell_clone(&old_cell, cell);
+
+    /* Set cell expression */
+    tracker_cell_clear(cell);
+    cell->type = TRACKER_CELL_EXPRESSION;
+    cell->expression = strdup(expression);
+    cell->dirty = true;
+
+    /* Record to undo stack */
+    tracker_undo_record_cell_edit(&view->undo, view,
+        view->state.cursor_pattern, view->state.cursor_track, view->state.cursor_row,
+        &old_cell, cell);
+    tracker_cell_clear(&old_cell);
+
+    view->modified = true;
+
+    /* Advance cursor by step size */
+    if (view->state.step_size > 0) {
+        view->state.cursor_row += view->state.step_size;
+        if (view->state.cursor_row >= pattern->num_rows) {
+            view->state.cursor_row = pattern->num_rows - 1;
+        }
+    }
+
+    tracker_view_invalidate(view);
 }

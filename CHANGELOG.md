@@ -159,6 +159,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Status bar shows [PAT] or [SONG] indicator
     - Automatically stops at end of sequence in song mode
     - Requires sequence entries (use 'r' to enter arrange mode, 'a' to add patterns)
+  - **Command Mode**:
+    - Press ':' to enter command mode (vim-style)
+    - Full command line editing (cursor, backspace, delete)
+    - Commands: :w (save), :q (quit), :wq (save+quit), :q! (force quit)
+    - :bpm N - set tempo (20-300)
+    - :rows N - resize current pattern (1-256 rows)
+    - :export [filename] - export to MIDI file
+    - :set step N - set step size (0-16)
+    - :set octave N - set default octave (0-9)
+    - :set follow on/off - toggle follow mode
+    - :set loop on/off - toggle loop mode
+    - :set swing N - set swing amount (0-100%)
+    - :name [text] - set pattern name
+    - :help - show help screen
+  - **Pattern Length**:
+    - :rows command resizes current pattern dynamically
+    - Cells are preserved when shrinking/growing
+    - Cursor automatically adjusted if beyond new length
+  - **Repeat Count**:
+    - In arrange mode, +/- adjusts repeat count for sequence entries
+    - Repeat count shown as "xN" in sequence list
+    - Range: 1-99 repeats per entry
+  - **MIDI Input**:
+    - MIDI note callback system for external controller input
+    - Note-on messages routed to tracker when in record mode
+    - Callback registration via shared_midi_set_note_callback()
+  - **Record Mode**:
+    - Ctrl+R toggles record mode
+    - Status bar shows [REC] indicator (red) when active
+    - MIDI note-on messages are recorded to current cell
+    - Cursor advances by step size after each note
+    - Notes converted to expression format (e.g., "C4", "D#5")
+    - Full undo support for recorded notes
+  - **Swing/Groove**:
+    - Engine supports swing_amount setting (0-100%)
+    - :set swing N command to configure
+    - 50% = straight timing, higher = more swing
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

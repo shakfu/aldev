@@ -829,6 +829,13 @@ static void render_status(TrackerView* view) {
     const char* transport = view->state.is_playing ? "[PLAY]" : "[STOP]";
     output_printf(tb, " %s", transport);
 
+    /* Record indicator */
+    if (view->state.is_recording) {
+        apply_style(tb, &theme->error_style);  /* Red for record */
+        output_printf(tb, " [REC]");
+        apply_style(tb, &theme->status_style);
+    }
+
     /* Loop indicator */
     if (view->engine && view->engine->loop_enabled) {
         output_printf(tb, " [LOOP]");
@@ -883,16 +890,28 @@ static void render_status(TrackerView* view) {
     output_printf(tb, " | Oct:%d Step:%d",
                   view->state.default_octave, view->state.step_size);
 
-    /* Error/status message */
-    if (view->state.error_message) {
-        apply_style(tb, &theme->error_style);
-        output_printf(tb, " | %s", view->state.error_message);
-    } else if (view->state.status_message) {
-        output_printf(tb, " | %s", view->state.status_message);
+    /* Command line or error/status message */
+    if (view->state.edit_mode == TRACKER_EDIT_MODE_COMMAND) {
+        /* Show command line */
+        reset_style(tb);
+        output_write(tb, LINE_CLEAR, -1);
+        output_printf(tb, CSI "%d;%dH", tb->screen_rows, 1);
+        apply_style(tb, &theme->command_style);
+        output_printf(tb, ":%s", view->state.command_buffer ? view->state.command_buffer : "");
+        output_write(tb, LINE_CLEAR, -1);
+        /* Position cursor after the command text */
+        output_printf(tb, CSI "%d;%dH", tb->screen_rows, 2 + view->state.command_cursor_pos);
+    } else {
+        /* Show error or status message */
+        if (view->state.error_message) {
+            apply_style(tb, &theme->error_style);
+            output_printf(tb, " | %s", view->state.error_message);
+        } else if (view->state.status_message) {
+            output_printf(tb, " | %s", view->state.status_message);
+        }
+        reset_style(tb);
+        output_write(tb, LINE_CLEAR, -1);
     }
-
-    reset_style(tb);
-    output_write(tb, LINE_CLEAR, -1);
 }
 
 static void render_help(TrackerView* view) {
@@ -939,6 +958,7 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "  PLAYBACK\n");
     output_printf(tb, "    Space            Play / Stop\n");
     output_printf(tb, "    P                Toggle play mode (PAT/SONG)\n");
+    output_printf(tb, "    Ctrl+R           Toggle record mode\n");
     output_printf(tb, "    f                Toggle follow mode\n");
     output_printf(tb, "    L                Toggle loop mode\n");
     output_printf(tb, "    { / }            Decrease / increase BPM\n\n");
@@ -954,6 +974,18 @@ static void render_help(TrackerView* view) {
     output_printf(tb, "    x                Remove from sequence\n");
     output_printf(tb, "    K / J            Move entry up / down\n");
     output_printf(tb, "    Enter            Jump to pattern\n\n");
+
+    output_printf(tb, "  COMMANDS (press ':' to enter)\n");
+    output_printf(tb, "    :w               Save\n");
+    output_printf(tb, "    :q               Quit\n");
+    output_printf(tb, "    :wq              Save and quit\n");
+    output_printf(tb, "    :bpm N           Set tempo\n");
+    output_printf(tb, "    :rows N          Set pattern length\n");
+    output_printf(tb, "    :export [file]   Export to MIDI\n");
+    output_printf(tb, "    :set step N      Set step size\n");
+    output_printf(tb, "    :set octave N    Set default octave\n");
+    output_printf(tb, "    :set swing N     Set swing (0-100)\n");
+    output_printf(tb, "    :name [text]     Set pattern name\n\n");
 
     output_printf(tb, "  FILE\n");
     output_printf(tb, "    Ctrl+S           Save\n");
@@ -1222,6 +1254,7 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
             case 7:  return TRACKER_INPUT_PANIC;        /* Ctrl-G */
             case 15: return TRACKER_INPUT_OPEN;         /* Ctrl-O */
             case 16: return TRACKER_INPUT_PLAY_TOGGLE;  /* Ctrl-P */
+            case 18: return TRACKER_INPUT_RECORD_TOGGLE; /* Ctrl-R */
             case 19: return TRACKER_INPUT_SAVE;         /* Ctrl-S */
             case 25: return TRACKER_INPUT_REDO;         /* Ctrl-Y */
             case 26: return TRACKER_INPUT_UNDO;         /* Ctrl-Z */

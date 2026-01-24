@@ -755,6 +755,7 @@ struct TrackerViewState {
     int playback_pattern;
     int playback_row;
     bool is_playing;
+    bool is_recording;        /* record mode active */
 
     /* Error display */
     char* error_message;
@@ -1044,6 +1045,17 @@ void tracker_view_clear_messages(TrackerView* view);
 TrackerCell* tracker_view_get_cursor_cell(TrackerView* view);
 TrackerPattern* tracker_view_get_current_pattern(TrackerView* view);
 bool tracker_view_cursor_valid(TrackerView* view);
+
+/**
+ * Handle incoming MIDI note for record mode.
+ * Called from MIDI input callback when a note is received.
+ * @param view Tracker view.
+ * @param channel MIDI channel (1-16).
+ * @param note MIDI note number (0-127).
+ * @param velocity Note velocity (0-127).
+ * @param is_note_on Non-zero for note-on, 0 for note-off.
+ */
+void tracker_view_handle_midi_note(TrackerView* view, int channel, int note, int velocity, int is_note_on);
 void tracker_view_clamp_cursor(TrackerView* view);
 void tracker_view_get_visible_range(TrackerView* view,
                                     int* out_start_track, int* out_end_track,
