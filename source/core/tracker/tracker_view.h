@@ -609,6 +609,7 @@ typedef enum {
     TRACKER_INPUT_COMMAND_MODE,
     TRACKER_INPUT_QUIT,
     TRACKER_INPUT_PANIC,
+    TRACKER_INPUT_CYCLE_THEME,
 
     /* Text input */
     TRACKER_INPUT_CHAR,
@@ -795,6 +796,10 @@ struct TrackerView {
     void* keybindings;
     void* user_data;
     bool quit_requested;
+
+    /* File I/O */
+    char* file_path;           /* Current file path (NULL if unsaved) */
+    bool modified;             /* True if song has unsaved changes */
 };
 
 /*============================================================================
@@ -1166,5 +1171,45 @@ char* tracker_json_view_state_to_string(const TrackerViewState* state, bool pret
  * Serialize theme to JSON string.
  */
 char* tracker_json_theme_to_string(const TrackerTheme* theme, bool pretty);
+
+/*============================================================================
+ * File I/O
+ *============================================================================*/
+
+/**
+ * Save the song to a file.
+ * @param view       The tracker view
+ * @param path       File path (NULL to use current file_path)
+ * @return           true on success, false on failure
+ */
+bool tracker_view_save(TrackerView* view, const char* path);
+
+/**
+ * Load a song from a file.
+ * @param view       The tracker view
+ * @param path       File path to load
+ * @return           true on success, false on failure
+ */
+bool tracker_view_load(TrackerView* view, const char* path);
+
+/**
+ * Set the current file path.
+ */
+void tracker_view_set_file_path(TrackerView* view, const char* path);
+
+/**
+ * Get the current file path.
+ */
+const char* tracker_view_get_file_path(TrackerView* view);
+
+/**
+ * Check if the song has unsaved changes.
+ */
+bool tracker_view_is_modified(TrackerView* view);
+
+/**
+ * Mark the song as modified/unmodified.
+ */
+void tracker_view_set_modified(TrackerView* view, bool modified);
 
 #endif /* TRACKER_VIEW_H */

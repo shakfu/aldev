@@ -3,6 +3,7 @@
  */
 
 #include "tracker_view.h"
+#include "../loki/json.h"  /* For JSON parsing */
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -1057,26 +1058,267 @@ char* tracker_json_theme_to_string(const TrackerTheme* theme, bool pretty) {
 }
 
 /*============================================================================
- * Deserialization Stubs
- * (Full implementation would require a JSON parser - using stubs for now)
+ * JSON Parsing Helpers
  *============================================================================*/
 
-TrackerSong* tracker_json_parse_song(const char* json, int len, const char** error_msg) {
-    (void)json;
-    (void)len;
-    if (error_msg) {
-        *error_msg = "JSON parsing not yet implemented";
+/* Get object value by key from a parsed JsonValue */
+static const JsonValue* json_get_object_value(const JsonValue* obj, const char* key) {
+    if (!obj || obj->type != JSON_OBJECT || !key) return NULL;
+
+    for (size_t i = 0; i < obj->data.object_val.count; i++) {
+        if (strcmp(obj->data.object_val.keys[i], key) == 0) {
+            return &obj->data.object_val.values[i];
+        }
     }
     return NULL;
 }
 
-TrackerPattern* tracker_json_parse_pattern(const char* json, int len, const char** error_msg) {
-    (void)json;
-    (void)len;
-    if (error_msg) {
-        *error_msg = "JSON parsing not yet implemented";
+/* Get string from object */
+static const char* json_get_string(const JsonValue* obj, const char* key) {
+    const JsonValue* val = json_get_object_value(obj, key);
+    if (val && val->type == JSON_STRING) {
+        return val->data.string_val.str;
     }
     return NULL;
+}
+
+/* Get int from object */
+static int json_get_int(const JsonValue* obj, const char* key, int def) {
+    const JsonValue* val = json_get_object_value(obj, key);
+    if (val && val->type == JSON_INT) {
+        return val->data.int_val;
+    }
+    return def;
+}
+
+/* Get bool from object */
+static bool json_get_bool(const JsonValue* obj, const char* key, bool def) {
+    const JsonValue* val = json_get_object_value(obj, key);
+    if (val && val->type == JSON_BOOL) {
+        return val->data.bool_val != 0;
+    }
+    return def;
+}
+
+/* Get array from object */
+static const JsonValue* json_get_array(const JsonValue* obj, const char* key) {
+    const JsonValue* val = json_get_object_value(obj, key);
+    if (val && val->type == JSON_ARRAY) {
+        return val;
+    }
+    return NULL;
+}
+
+/*============================================================================
+ * Cell Parsing
+ *============================================================================*/
+
+static bool parse_cell(const JsonValue* cell_json, TrackerCell* cell) {
+    if (!cell_json || cell_json->type != JSON_OBJECT || !cell) return false;
+
+    const char* type_str = json_get_string(cell_json, "type");
+    if (type_str) {
+        if (strcmp(type_str, "empty") == 0) {
+            cell->type = TRACKER_CELL_EMPTY;
+        } else if (strcmp(type_str, "expression") == 0) {
+            cell->type = TRACKER_CELL_EXPRESSION;
+        } else if (strcmp(type_str, "note_off") == 0) {
+            cell->type = TRACKER_CELL_NOTE_OFF;
+        } else if (strcmp(type_str, "continuation") == 0) {
+            cell->type = TRACKER_CELL_CONTINUATION;
+        }
+    }
+
+    const char* expr = json_get_string(cell_json, "expression");
+    if (expr) {
+        free(cell->expression);
+        cell->expression = strdup(expr);
+    }
+
+    const char* lang = json_get_string(cell_json, "language_id");
+    if (lang) {
+        free(cell->language_id);
+        cell->language_id = strdup(lang);
+    }
+
+    cell->dirty = json_get_bool(cell_json, "dirty", false);
+
+    return true;
+}
+
+/*============================================================================
+ * Track Parsing
+ *============================================================================*/
+
+static bool parse_track(const JsonValue* track_json, TrackerTrack* track, int num_rows) {
+    if (!track_json || track_json->type != JSON_OBJECT || !track) return false;
+
+    const char* name = json_get_string(track_json, "name");
+    if (name) {
+        free(track->name);
+        track->name = strdup(name);
+    }
+
+    track->default_channel = (uint8_t)json_get_int(track_json, "default_channel", 1);
+    track->muted = json_get_bool(track_json, "muted", false);
+    track->solo = json_get_bool(track_json, "solo", false);
+
+    /* Parse cells */
+    const JsonValue* cells_array = json_get_array(track_json, "cells");
+    if (cells_array && cells_array->data.array_val.count > 0) {
+        int cell_count = (int)cells_array->data.array_val.count;
+        if (cell_count > num_rows) cell_count = num_rows;
+
+        for (int r = 0; r < cell_count; r++) {
+            parse_cell(&cells_array->data.array_val.items[r], &track->cells[r]);
+        }
+    }
+
+    return true;
+}
+
+/*============================================================================
+ * Pattern Parsing
+ *============================================================================*/
+
+static TrackerPattern* parse_pattern(const JsonValue* pattern_json) {
+    if (!pattern_json || pattern_json->type != JSON_OBJECT) return NULL;
+
+    int num_rows = json_get_int(pattern_json, "num_rows", 16);
+    int num_tracks = json_get_int(pattern_json, "num_tracks", 4);
+    const char* name = json_get_string(pattern_json, "name");
+
+    TrackerPattern* pattern = tracker_pattern_new(num_rows, num_tracks, name);
+    if (!pattern) return NULL;
+
+    /* Parse tracks */
+    const JsonValue* tracks_array = json_get_array(pattern_json, "tracks");
+    if (tracks_array) {
+        int track_count = (int)tracks_array->data.array_val.count;
+        if (track_count > num_tracks) track_count = num_tracks;
+
+        for (int t = 0; t < track_count; t++) {
+            parse_track(&tracks_array->data.array_val.items[t],
+                       &pattern->tracks[t], num_rows);
+        }
+    }
+
+    return pattern;
+}
+
+/*============================================================================
+ * Song Parsing
+ *============================================================================*/
+
+TrackerSong* tracker_json_parse_song(const char* json, int len, const char** error_msg) {
+    (void)len;
+
+    if (!json) {
+        if (error_msg) *error_msg = "NULL JSON input";
+        return NULL;
+    }
+
+    JsonValue root = json_parse(json);
+    if (root.type == JSON_ERROR) {
+        if (error_msg) *error_msg = "JSON parse error";
+        return NULL;
+    }
+
+    if (root.type != JSON_OBJECT) {
+        json_value_free(&root);
+        if (error_msg) *error_msg = "Expected JSON object at root";
+        return NULL;
+    }
+
+    /* Get song name */
+    const char* name = json_get_string(&root, "name");
+    TrackerSong* song = tracker_song_new(name ? name : "Untitled");
+    if (!song) {
+        json_value_free(&root);
+        if (error_msg) *error_msg = "Failed to create song";
+        return NULL;
+    }
+
+    /* Parse basic properties */
+    const char* author = json_get_string(&root, "author");
+    if (author) {
+        free(song->author);
+        song->author = strdup(author);
+    }
+
+    song->bpm = json_get_int(&root, "bpm", 120);
+    song->rows_per_beat = json_get_int(&root, "rows_per_beat", 4);
+    song->ticks_per_row = json_get_int(&root, "ticks_per_row", 6);
+
+    const char* spillover = json_get_string(&root, "spillover_mode");
+    if (spillover) {
+        if (strcmp(spillover, "truncate") == 0) {
+            song->spillover_mode = TRACKER_SPILLOVER_TRUNCATE;
+        } else if (strcmp(spillover, "loop") == 0) {
+            song->spillover_mode = TRACKER_SPILLOVER_LOOP;
+        } else {
+            song->spillover_mode = TRACKER_SPILLOVER_LAYER;
+        }
+    }
+
+    const char* default_lang = json_get_string(&root, "default_language_id");
+    if (default_lang) {
+        free(song->default_language_id);
+        song->default_language_id = strdup(default_lang);
+    }
+
+    /* Parse patterns */
+    const JsonValue* patterns_array = json_get_array(&root, "patterns");
+    if (patterns_array) {
+        for (size_t p = 0; p < patterns_array->data.array_val.count; p++) {
+            TrackerPattern* pattern = parse_pattern(&patterns_array->data.array_val.items[p]);
+            if (pattern) {
+                tracker_song_add_pattern(song, pattern);
+            }
+        }
+    }
+
+    /* Parse sequence */
+    const JsonValue* sequence_array = json_get_array(&root, "sequence");
+    if (sequence_array && song->sequence) {
+        int seq_count = (int)sequence_array->data.array_val.count;
+        if (seq_count > song->sequence_capacity) seq_count = song->sequence_capacity;
+
+        for (int i = 0; i < seq_count; i++) {
+            const JsonValue* entry = &sequence_array->data.array_val.items[i];
+            if (entry->type == JSON_OBJECT) {
+                song->sequence[i].pattern_index = json_get_int(entry, "pattern_index", 0);
+                song->sequence[i].repeat_count = json_get_int(entry, "repeat_count", 1);
+            }
+        }
+        song->sequence_length = seq_count;
+    }
+
+    json_value_free(&root);
+    return song;
+}
+
+TrackerPattern* tracker_json_parse_pattern(const char* json, int len, const char** error_msg) {
+    (void)len;
+
+    if (!json) {
+        if (error_msg) *error_msg = "NULL JSON input";
+        return NULL;
+    }
+
+    JsonValue root = json_parse(json);
+    if (root.type == JSON_ERROR) {
+        if (error_msg) *error_msg = "JSON parse error";
+        return NULL;
+    }
+
+    TrackerPattern* pattern = parse_pattern(&root);
+    json_value_free(&root);
+
+    if (!pattern && error_msg) {
+        *error_msg = "Failed to parse pattern";
+    }
+    return pattern;
 }
 
 bool tracker_json_parse_view_state(TrackerViewState* state, const char* json,
@@ -1085,7 +1327,7 @@ bool tracker_json_parse_view_state(TrackerViewState* state, const char* json,
     (void)json;
     (void)len;
     if (error_msg) {
-        *error_msg = "JSON parsing not yet implemented";
+        *error_msg = "View state parsing not yet implemented";
     }
     return false;
 }
@@ -1094,7 +1336,7 @@ TrackerTheme* tracker_json_parse_theme(const char* json, int len, const char** e
     (void)json;
     (void)len;
     if (error_msg) {
-        *error_msg = "JSON parsing not yet implemented";
+        *error_msg = "Theme parsing not yet implemented";
     }
     return NULL;
 }
@@ -1105,7 +1347,7 @@ bool tracker_json_apply_update(TrackerView* view, const char* json, int len,
     (void)json;
     (void)len;
     if (error_msg) {
-        *error_msg = "JSON parsing not yet implemented";
+        *error_msg = "Update parsing not yet implemented";
     }
     return false;
 }

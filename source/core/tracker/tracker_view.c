@@ -540,6 +540,42 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             if (view->engine) tracker_engine_all_notes_off(view->engine);
             break;
 
+        case TRACKER_INPUT_CYCLE_THEME: {
+            /* Cycle through available themes */
+            int count = 0;
+            const char** themes = tracker_theme_list(&count);
+            if (count > 0 && view->state.theme) {
+                /* Find current theme index */
+                int current = 0;
+                for (int i = 0; i < count; i++) {
+                    if (view->state.theme->name && strcmp(view->state.theme->name, themes[i]) == 0) {
+                        current = i;
+                        break;
+                    }
+                }
+                /* Switch to next theme */
+                int next = (current + 1) % count;
+                tracker_view_set_theme_by_name(view, themes[next]);
+                tracker_view_show_status(view, "Theme: %s", themes[next]);
+                tracker_view_invalidate(view);
+            }
+            break;
+        }
+
+        case TRACKER_INPUT_SAVE:
+            if (tracker_view_save(view, NULL)) {
+                tracker_view_show_status(view, "Saved: %s",
+                    view->file_path ? view->file_path : "song.trk");
+            } else {
+                tracker_view_show_error(view, "Save failed");
+            }
+            break;
+
+        case TRACKER_INPUT_OPEN:
+            /* TODO: implement file picker or command mode for file path */
+            tracker_view_show_status(view, "Open: use command line to load files");
+            break;
+
         default:
             handled = false;
             break;
@@ -1070,4 +1106,137 @@ void tracker_view_run(TrackerView* view, int frame_rate) {
 void tracker_view_request_quit(TrackerView* view) {
     if (!view) return;
     view->quit_requested = true;
+}
+
+/*============================================================================
+ * File I/O
+ *============================================================================*/
+
+void tracker_view_set_file_path(TrackerView* view, const char* path) {
+    if (!view) return;
+    free(view->file_path);
+    view->file_path = path ? str_dup(path) : NULL;
+}
+
+const char* tracker_view_get_file_path(TrackerView* view) {
+    if (!view) return NULL;
+    return view->file_path;
+}
+
+bool tracker_view_is_modified(TrackerView* view) {
+    if (!view) return false;
+    return view->modified;
+}
+
+void tracker_view_set_modified(TrackerView* view, bool modified) {
+    if (!view) return;
+    view->modified = modified;
+}
+
+bool tracker_view_save(TrackerView* view, const char* path) {
+    if (!view || !view->song) return false;
+
+    /* Use provided path or current file path */
+    const char* save_path = path ? path : view->file_path;
+    if (!save_path) {
+        save_path = "song.trk";  /* Default filename */
+    }
+
+    /* Serialize song to JSON */
+    char* json = tracker_json_song_to_string(view->song, true);
+    if (!json) {
+        return false;
+    }
+
+    /* Write to file */
+    FILE* f = fopen(save_path, "w");
+    if (!f) {
+        free(json);
+        return false;
+    }
+
+    size_t len = strlen(json);
+    size_t written = fwrite(json, 1, len, f);
+    fclose(f);
+    free(json);
+
+    if (written != len) {
+        return false;
+    }
+
+    /* Update file path and clear modified flag */
+    if (path) {
+        tracker_view_set_file_path(view, path);
+    } else if (!view->file_path) {
+        tracker_view_set_file_path(view, save_path);
+    }
+    view->modified = false;
+
+    return true;
+}
+
+bool tracker_view_load(TrackerView* view, const char* path) {
+    if (!view || !path) return false;
+
+    /* Read file contents */
+    FILE* f = fopen(path, "r");
+    if (!f) {
+        return false;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (file_size <= 0 || file_size > 100 * 1024 * 1024) {  /* Max 100MB */
+        fclose(f);
+        return false;
+    }
+
+    char* json = malloc(file_size + 1);
+    if (!json) {
+        fclose(f);
+        return false;
+    }
+
+    size_t read_size = fread(json, 1, file_size, f);
+    fclose(f);
+
+    if ((long)read_size != file_size) {
+        free(json);
+        return false;
+    }
+    json[file_size] = '\0';
+
+    /* Parse JSON into song */
+    const char* error_msg = NULL;
+    TrackerSong* song = tracker_json_parse_song(json, (int)file_size, &error_msg);
+    free(json);
+
+    if (!song) {
+        /* error_msg contains reason */
+        return false;
+    }
+
+    /* Replace current song */
+    if (view->song) {
+        tracker_song_free(view->song);
+    }
+    view->song = song;
+
+    /* Update engine if attached */
+    if (view->engine) {
+        tracker_engine_load_song(view->engine, song);
+    }
+
+    /* Update file path and reset state */
+    tracker_view_set_file_path(view, path);
+    view->modified = false;
+    view->state.cursor_pattern = 0;
+    view->state.cursor_track = 0;
+    view->state.cursor_row = 0;
+
+    tracker_view_invalidate(view);
+
+    return true;
 }

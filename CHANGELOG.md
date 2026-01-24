@@ -51,11 +51,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Beat row highlighting (every 4th row by default)
     - Track headers with names and channel numbers
     - Configurable cell width and colors
+    - True color (24-bit RGB) support for themes
+  - **File I/O**:
+    - Save songs with Ctrl+S (JSON format, `.trk` extension)
+    - Load songs with Ctrl+O (opens file picker prompt)
+    - Command line file loading: `./tracker_demo [soundfont.sf2] [song.trk]`
+    - JSON serialization preserves all song data (name, BPM, patterns, tracks, cells)
+    - JSON parsing using loki's built-in JSON parser
+    - Modified indicator tracks unsaved changes
+  - **Theme System**:
+    - Two built-in themes: default (dark) and retro (classic tracker colors)
+    - Theme cycling with 'T' key
+    - Supports indexed colors and RGB colors
+    - Customizable colors for cursor, selection, headers, cells, playback position
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)
     - TinySoundFont audio output
-    - Run with: `./build/tests/tracker/tracker_demo [soundfont.sf2]`
+    - Run with: `./build/tests/tracker/tracker_demo [soundfont.sf2] [song.trk]`
+    - Supports loading saved tracker files from command line
   - **Tests**: 75 unit tests (55 for notes plugin, 20 for audio integration)
   - **Files Added**:
     - `source/core/tracker/tracker_model.h`, `source/core/tracker/tracker_model.c`

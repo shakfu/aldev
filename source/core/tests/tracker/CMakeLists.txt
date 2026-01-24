@@ -21,9 +21,10 @@ target_include_directories(tracker PUBLIC
     ${PSND_ROOT_DIR}/source/core/tracker
     ${PSND_ROOT_DIR}/source/core/include
     ${PSND_ROOT_DIR}/source/core/shared
+    ${PSND_ROOT_DIR}/source/core/loki
 )
-# Link against shared library for audio integration
-target_link_libraries(tracker PUBLIC shared)
+# Link against shared library for audio integration and loki for JSON parser
+target_link_libraries(tracker PUBLIC shared libloki)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(tracker PRIVATE -Wall -Wextra -Wno-unused-function)
 endif()

@@ -172,7 +172,7 @@ void tracker_terminal_config_init(TrackerTerminalConfig* config) {
     config->use_unicode_borders = true;
     config->use_colors = true;
     config->use_256_colors = true;
-    config->use_true_color = false;
+    config->use_true_color = true;  /* Most modern terminals support 24-bit color */
     config->alternate_screen = true;
     config->mouse_support = false;
     config->frame_rate = DEFAULT_FRAME_RATE;
@@ -1012,8 +1012,9 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         switch (key) {
             case 3:  return TRACKER_INPUT_QUIT;         /* Ctrl-C */
             case 7:  return TRACKER_INPUT_PANIC;        /* Ctrl-G */
+            case 15: return TRACKER_INPUT_OPEN;         /* Ctrl-O */
             case 16: return TRACKER_INPUT_PLAY_TOGGLE;  /* Ctrl-P */
-            case 19: return TRACKER_INPUT_STOP;         /* Ctrl-S */
+            case 19: return TRACKER_INPUT_SAVE;         /* Ctrl-S */
             case 25: return TRACKER_INPUT_REDO;         /* Ctrl-Y */
             case 26: return TRACKER_INPUT_UNDO;         /* Ctrl-Z */
         }
@@ -1057,6 +1058,7 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         case 'v': return TRACKER_INPUT_SELECT_START;
         case 'm': return TRACKER_INPUT_MUTE_TRACK;
         case 'S': return TRACKER_INPUT_SOLO_TRACK;
+        case 'T': return TRACKER_INPUT_CYCLE_THEME;
         case 'q': return TRACKER_INPUT_QUIT;
         case 'Q': return TRACKER_INPUT_QUIT;
     }
