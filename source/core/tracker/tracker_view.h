@@ -876,6 +876,36 @@ void tracker_view_cursor_goto(TrackerView* view, int pattern, int track, int row
 void tracker_view_ensure_visible(TrackerView* view);
 
 /*============================================================================
+ * Pattern Management
+ *============================================================================*/
+
+/**
+ * Navigate to next pattern (wraps around).
+ */
+void tracker_view_next_pattern(TrackerView* view);
+
+/**
+ * Navigate to previous pattern (wraps around).
+ */
+void tracker_view_prev_pattern(TrackerView* view);
+
+/**
+ * Create a new empty pattern and navigate to it.
+ */
+void tracker_view_new_pattern(TrackerView* view);
+
+/**
+ * Clone the current pattern and navigate to the copy.
+ */
+void tracker_view_clone_pattern(TrackerView* view);
+
+/**
+ * Delete the current pattern.
+ * Cannot delete the last remaining pattern.
+ */
+void tracker_view_delete_pattern(TrackerView* view);
+
+/*============================================================================
  * Selection
  *============================================================================*/
 

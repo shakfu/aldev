@@ -389,10 +389,19 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             tracker_view_cursor_pattern_end(view);
             break;
         case TRACKER_INPUT_NEXT_PATTERN:
-            if (view->engine) tracker_engine_next_pattern(view->engine);
+            tracker_view_next_pattern(view);
             break;
         case TRACKER_INPUT_PREV_PATTERN:
-            if (view->engine) tracker_engine_prev_pattern(view->engine);
+            tracker_view_prev_pattern(view);
+            break;
+        case TRACKER_INPUT_NEW_PATTERN:
+            tracker_view_new_pattern(view);
+            break;
+        case TRACKER_INPUT_CLONE_PATTERN:
+            tracker_view_clone_pattern(view);
+            break;
+        case TRACKER_INPUT_DELETE_PATTERN:
+            tracker_view_delete_pattern(view);
             break;
 
         /* Editing */
@@ -771,6 +780,209 @@ void tracker_view_cursor_goto(TrackerView* view, int pattern, int track, int row
     tracker_view_clamp_cursor(view);
     tracker_view_ensure_visible(view);
     tracker_view_invalidate_cursor(view);
+}
+
+/*============================================================================
+ * Pattern Management
+ *============================================================================*/
+
+void tracker_view_next_pattern(TrackerView* view) {
+    if (!view || !view->song) return;
+    if (view->song->num_patterns <= 1) return;
+
+    int next = view->state.cursor_pattern + 1;
+    if (next >= view->song->num_patterns) {
+        next = 0;  /* Wrap around */
+    }
+
+    view->state.cursor_pattern = next;
+    view->state.cursor_row = 0;  /* Reset row on pattern change */
+    view->state.scroll_row = 0;
+
+    /* Sync engine if attached */
+    if (view->engine) {
+        tracker_engine_seek(view->engine, next, 0);
+    }
+
+    tracker_view_clamp_cursor(view);
+    tracker_view_invalidate(view);
+    tracker_view_show_status(view, "Pattern %d/%d",
+        view->state.cursor_pattern + 1, view->song->num_patterns);
+}
+
+void tracker_view_prev_pattern(TrackerView* view) {
+    if (!view || !view->song) return;
+    if (view->song->num_patterns <= 1) return;
+
+    int prev = view->state.cursor_pattern - 1;
+    if (prev < 0) {
+        prev = view->song->num_patterns - 1;  /* Wrap around */
+    }
+
+    view->state.cursor_pattern = prev;
+    view->state.cursor_row = 0;  /* Reset row on pattern change */
+    view->state.scroll_row = 0;
+
+    /* Sync engine if attached */
+    if (view->engine) {
+        tracker_engine_seek(view->engine, prev, 0);
+    }
+
+    tracker_view_clamp_cursor(view);
+    tracker_view_invalidate(view);
+    tracker_view_show_status(view, "Pattern %d/%d",
+        view->state.cursor_pattern + 1, view->song->num_patterns);
+}
+
+void tracker_view_new_pattern(TrackerView* view) {
+    if (!view || !view->song) return;
+
+    /* Get current pattern for reference */
+    TrackerPattern* current = tracker_view_get_current_pattern(view);
+    int rows = current ? current->num_rows : TRACKER_DEFAULT_ROWS;
+    int tracks = current ? current->num_tracks : 4;
+
+    /* Generate pattern name */
+    char name[64];
+    snprintf(name, sizeof(name), "Pattern %d", view->song->num_patterns + 1);
+
+    /* Create new pattern */
+    TrackerPattern* pattern = tracker_pattern_new(rows, tracks, name);
+    if (!pattern) {
+        tracker_view_show_status(view, "Failed to create pattern");
+        return;
+    }
+
+    /* Copy track names and channels from current pattern */
+    if (current) {
+        for (int t = 0; t < tracks && t < current->num_tracks; t++) {
+            if (current->tracks[t].name) {
+                free(pattern->tracks[t].name);
+                pattern->tracks[t].name = strdup(current->tracks[t].name);
+            }
+            pattern->tracks[t].default_channel = current->tracks[t].default_channel;
+        }
+    }
+
+    /* Add to song */
+    int new_index = tracker_song_add_pattern(view->song, pattern);
+    if (new_index < 0) {
+        tracker_pattern_free(pattern);
+        tracker_view_show_status(view, "Failed to add pattern");
+        return;
+    }
+
+    /* Navigate to new pattern */
+    view->state.cursor_pattern = new_index;
+    view->state.cursor_row = 0;
+    view->state.scroll_row = 0;
+
+    if (view->engine) {
+        tracker_engine_seek(view->engine, new_index, 0);
+    }
+
+    view->modified = true;
+    tracker_view_invalidate(view);
+    tracker_view_show_status(view, "Created pattern %d", new_index + 1);
+}
+
+void tracker_view_clone_pattern(TrackerView* view) {
+    if (!view || !view->song) return;
+
+    TrackerPattern* current = tracker_view_get_current_pattern(view);
+    if (!current) return;
+
+    /* Generate pattern name */
+    char name[64];
+    if (current->name) {
+        snprintf(name, sizeof(name), "%s (copy)", current->name);
+    } else {
+        snprintf(name, sizeof(name), "Pattern %d (copy)", view->state.cursor_pattern + 1);
+    }
+
+    /* Create new pattern with same dimensions */
+    TrackerPattern* pattern = tracker_pattern_new(current->num_rows, current->num_tracks, name);
+    if (!pattern) {
+        tracker_view_show_status(view, "Failed to clone pattern");
+        return;
+    }
+
+    /* Copy track data */
+    for (int t = 0; t < current->num_tracks; t++) {
+        TrackerTrack* src_track = &current->tracks[t];
+        TrackerTrack* dst_track = &pattern->tracks[t];
+
+        /* Copy track properties */
+        if (src_track->name) {
+            free(dst_track->name);
+            dst_track->name = strdup(src_track->name);
+        }
+        dst_track->default_channel = src_track->default_channel;
+        dst_track->muted = src_track->muted;
+        dst_track->solo = src_track->solo;
+
+        /* Copy cells */
+        for (int r = 0; r < current->num_rows; r++) {
+            TrackerCell* src = &src_track->cells[r];
+            TrackerCell* dst = &dst_track->cells[r];
+            tracker_cell_clone(dst, src);
+        }
+    }
+
+    /* Add to song */
+    int new_index = tracker_song_add_pattern(view->song, pattern);
+    if (new_index < 0) {
+        tracker_pattern_free(pattern);
+        tracker_view_show_status(view, "Failed to add cloned pattern");
+        return;
+    }
+
+    /* Navigate to new pattern */
+    view->state.cursor_pattern = new_index;
+    view->state.cursor_row = 0;
+    view->state.scroll_row = 0;
+
+    if (view->engine) {
+        tracker_engine_seek(view->engine, new_index, 0);
+    }
+
+    view->modified = true;
+    tracker_view_invalidate(view);
+    tracker_view_show_status(view, "Cloned to pattern %d", new_index + 1);
+}
+
+void tracker_view_delete_pattern(TrackerView* view) {
+    if (!view || !view->song) return;
+
+    /* Don't allow deleting the last pattern */
+    if (view->song->num_patterns <= 1) {
+        tracker_view_show_status(view, "Cannot delete last pattern");
+        return;
+    }
+
+    int delete_index = view->state.cursor_pattern;
+
+    /* Remove pattern from song */
+    if (!tracker_song_remove_pattern(view->song, delete_index)) {
+        tracker_view_show_status(view, "Failed to delete pattern");
+        return;
+    }
+
+    /* Adjust cursor if needed */
+    if (view->state.cursor_pattern >= view->song->num_patterns) {
+        view->state.cursor_pattern = view->song->num_patterns - 1;
+    }
+    view->state.cursor_row = 0;
+    view->state.scroll_row = 0;
+
+    if (view->engine) {
+        tracker_engine_seek(view->engine, view->state.cursor_pattern, 0);
+    }
+
+    view->modified = true;
+    tracker_view_invalidate(view);
+    tracker_view_show_status(view, "Deleted pattern %d (%d remaining)",
+        delete_index + 1, view->song->num_patterns);
 }
 
 void tracker_view_ensure_visible(TrackerView* view) {

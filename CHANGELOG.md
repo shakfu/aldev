@@ -84,6 +84,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - 'x' key clears current cell
     - Status messages confirm operations ("Copied N cells", "Pasted", etc.)
     - Works with single cells and multi-cell rectangular selections
+  - **Pattern Management**:
+    - '[' and ']' keys navigate between patterns (with wrap-around)
+    - 'n' key creates new empty pattern (inherits track layout from current)
+    - 'c' key clones current pattern with all cell content
+    - 'D' key (Shift+d) deletes current pattern (cannot delete last pattern)
+    - Status bar shows current pattern number (e.g., "Pattern 2/4")
+    - All changes sync with playback engine and mark song as modified
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)

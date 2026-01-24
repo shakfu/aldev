@@ -1074,6 +1074,13 @@ static TrackerInputType translate_key(int key, uint32_t* modifiers) {
         case 'T': return TRACKER_INPUT_CYCLE_THEME;
         case 'q': return TRACKER_INPUT_QUIT;
         case 'Q': return TRACKER_INPUT_QUIT;
+
+        /* Pattern management */
+        case '[': return TRACKER_INPUT_PREV_PATTERN;
+        case ']': return TRACKER_INPUT_NEXT_PATTERN;
+        case 'n': return TRACKER_INPUT_NEW_PATTERN;
+        case 'D': return TRACKER_INPUT_DELETE_PATTERN;
+        case 'c': return TRACKER_INPUT_CLONE_PATTERN;
     }
 
     /* Printable character */
