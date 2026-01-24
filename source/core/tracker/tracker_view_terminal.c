@@ -630,12 +630,21 @@ static void render_header(TrackerView* view) {
                 apply_style(tb, &theme->header_style);
             }
 
-            /* Track name or number */
+            /* Track name or number with mute/solo indicator */
             char header[64];
+            const char* indicator = "";
+            if (track->muted && track->solo) {
+                indicator = "[MS]";
+            } else if (track->muted) {
+                indicator = "[M]";
+            } else if (track->solo) {
+                indicator = "[S]";
+            }
+
             if (track->name) {
-                snprintf(header, sizeof(header), "%s", track->name);
+                snprintf(header, sizeof(header), "%s%s", track->name, indicator);
             } else {
-                snprintf(header, sizeof(header), "Track %d", track_idx + 1);
+                snprintf(header, sizeof(header), "Track %d%s", track_idx + 1, indicator);
             }
 
             /* Center the header */
@@ -844,11 +853,15 @@ static void render_status(TrackerView* view) {
 
     /* Mode indicator */
     const char* mode = "";
-    switch (view->state.edit_mode) {
-        case TRACKER_EDIT_MODE_NAVIGATE: mode = "NAV"; break;
-        case TRACKER_EDIT_MODE_EDIT: mode = "EDIT"; break;
-        case TRACKER_EDIT_MODE_SELECT: mode = "SEL"; break;
-        case TRACKER_EDIT_MODE_COMMAND: mode = "CMD"; break;
+    if (view->state.selecting) {
+        mode = "VISUAL";
+    } else {
+        switch (view->state.edit_mode) {
+            case TRACKER_EDIT_MODE_NAVIGATE: mode = "NAV"; break;
+            case TRACKER_EDIT_MODE_EDIT: mode = "EDIT"; break;
+            case TRACKER_EDIT_MODE_SELECT: mode = "SEL"; break;
+            case TRACKER_EDIT_MODE_COMMAND: mode = "CMD"; break;
+        }
     }
     output_printf(tb, " | %s", mode);
 

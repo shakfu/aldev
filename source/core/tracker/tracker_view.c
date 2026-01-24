@@ -353,26 +353,22 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
         case TRACKER_INPUT_CURSOR_UP:
             if (shift && !view->state.selecting) tracker_view_select_start(view);
             tracker_view_cursor_up(view, event->repeat_count ? event->repeat_count : 1);
-            if (shift) tracker_view_select_extend(view);
-            else if (!shift && view->state.selecting) tracker_view_select_clear(view);
+            if (shift || view->state.selecting) tracker_view_select_extend(view);
             break;
         case TRACKER_INPUT_CURSOR_DOWN:
             if (shift && !view->state.selecting) tracker_view_select_start(view);
             tracker_view_cursor_down(view, event->repeat_count ? event->repeat_count : 1);
-            if (shift) tracker_view_select_extend(view);
-            else if (!shift && view->state.selecting) tracker_view_select_clear(view);
+            if (shift || view->state.selecting) tracker_view_select_extend(view);
             break;
         case TRACKER_INPUT_CURSOR_LEFT:
             if (shift && !view->state.selecting) tracker_view_select_start(view);
             tracker_view_cursor_left(view, event->repeat_count ? event->repeat_count : 1);
-            if (shift) tracker_view_select_extend(view);
-            else if (!shift && view->state.selecting) tracker_view_select_clear(view);
+            if (shift || view->state.selecting) tracker_view_select_extend(view);
             break;
         case TRACKER_INPUT_CURSOR_RIGHT:
             if (shift && !view->state.selecting) tracker_view_select_start(view);
             tracker_view_cursor_right(view, event->repeat_count ? event->repeat_count : 1);
-            if (shift) tracker_view_select_extend(view);
-            else if (!shift && view->state.selecting) tracker_view_select_clear(view);
+            if (shift || view->state.selecting) tracker_view_select_extend(view);
             break;
         case TRACKER_INPUT_PAGE_UP:
             tracker_view_cursor_page_up(view);
@@ -422,6 +418,7 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
         /* Selection */
         case TRACKER_INPUT_SELECT_START:
             tracker_view_select_start(view);
+            tracker_view_show_status(view, "-- VISUAL --");
             break;
         case TRACKER_INPUT_SELECT_ALL:
             tracker_view_select_all(view);
@@ -438,16 +435,26 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
 
         /* Clipboard */
         case TRACKER_INPUT_CUT:
-            tracker_view_cut(view);
+            if (tracker_view_cut(view)) {
+                int count = view->clipboard.width * view->clipboard.height;
+                tracker_view_show_status(view, "Cut %d cell%s", count, count == 1 ? "" : "s");
+            }
             break;
         case TRACKER_INPUT_COPY:
-            tracker_view_copy(view);
+            if (tracker_view_copy(view)) {
+                int count = view->clipboard.width * view->clipboard.height;
+                tracker_view_show_status(view, "Copied %d cell%s", count, count == 1 ? "" : "s");
+            }
             break;
         case TRACKER_INPUT_PASTE:
-            tracker_view_paste(view);
+            if (tracker_view_paste(view)) {
+                tracker_view_show_status(view, "Pasted");
+            }
             break;
         case TRACKER_INPUT_PASTE_INSERT:
-            tracker_view_paste_insert(view);
+            if (tracker_view_paste_insert(view)) {
+                tracker_view_show_status(view, "Pasted (insert)");
+            }
             break;
 
         /* Transport */
@@ -489,6 +496,8 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                     bool muted = p->tracks[view->state.cursor_track].muted;
                     tracker_engine_mute_track(view->engine, view->state.cursor_track, !muted);
                     tracker_view_invalidate(view);
+                    tracker_view_show_status(view, "Track %d: %s",
+                        view->state.cursor_track + 1, !muted ? "Muted" : "Unmuted");
                 }
             }
             break;
@@ -499,6 +508,8 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
                     bool solo = p->tracks[view->state.cursor_track].solo;
                     tracker_engine_solo_track(view->engine, view->state.cursor_track, !solo);
                     tracker_view_invalidate(view);
+                    tracker_view_show_status(view, "Track %d: %s",
+                        view->state.cursor_track + 1, !solo ? "Solo" : "Solo off");
                 }
             }
             break;
@@ -533,8 +544,14 @@ bool tracker_view_handle_input(TrackerView* view, const TrackerInputEvent* event
             tracker_view_enter_command(view);
             break;
         case TRACKER_INPUT_QUIT:
-        case TRACKER_INPUT_CANCEL:  /* Escape in navigate mode also quits */
             tracker_view_request_quit(view);
+            break;
+        case TRACKER_INPUT_CANCEL:  /* Escape clears selection first, then quits */
+            if (view->state.selecting) {
+                tracker_view_select_clear(view);
+            } else {
+                tracker_view_request_quit(view);
+            }
             break;
         case TRACKER_INPUT_PANIC:
             if (view->engine) tracker_engine_all_notes_off(view->engine);

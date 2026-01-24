@@ -64,6 +64,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Theme cycling with 'T' key
     - Supports indexed colors and RGB colors
     - Customizable colors for cursor, selection, headers, cells, playback position
+  - **Track Mute/Solo**:
+    - 'm' key mutes/unmutes current track (silences immediately)
+    - 'S' key solos/unsolos current track (only soloed tracks play)
+    - Track headers display [M], [S], or [MS] indicators
+    - Muted/soloed tracks styled with distinct theme colors
+    - State persisted in JSON save files
+  - **Visual Selection Mode**:
+    - 'v' key enters visual selection mode (vim-style)
+    - Arrow keys or h/j/k/l extend selection while in visual mode
+    - Shift+arrows also extend selection (alternative method)
+    - Escape exits visual mode and clears selection
+    - Status bar shows "VISUAL" mode indicator
+    - Selected cells highlighted with selection theme style
+  - **Clipboard Operations**:
+    - 'y' key copies selection (or current cell if no selection)
+    - 'd' key cuts selection (copy + clear)
+    - 'p' key pastes at cursor position
+    - 'x' key clears current cell
+    - Status messages confirm operations ("Copied N cells", "Pasted", etc.)
+    - Works with single cells and multi-cell rectangular selections
   - **Interactive Demo** (`tracker_demo`):
     - Standalone demo program for testing the terminal UI
     - Pre-populated 4-track, 16-row pattern (lead, bass, drums, pad)
