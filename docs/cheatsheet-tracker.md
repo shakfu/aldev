@@ -184,6 +184,7 @@ Press `:` to enter command mode. Press `Enter` to execute, `Esc` to cancel.
 | `:wq` | Save and quit |
 | `:export` | Export to MIDI |
 | `:export file.mid` | Export to specific file |
+| `:import file.mid` | Import MIDI file |
 
 ### Playback Commands
 

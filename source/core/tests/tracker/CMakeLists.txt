@@ -13,6 +13,7 @@ set(TRACKER_SOURCES
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_clipboard.c
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_json.c
     ${PSND_ROOT_DIR}/source/core/tracker/tracker_view_terminal.c
+    ${PSND_ROOT_DIR}/source/core/tracker/tracker_midi_import.cpp
 )
 
 # Create tracker static library
@@ -22,9 +23,10 @@ target_include_directories(tracker PUBLIC
     ${PSND_ROOT_DIR}/source/core/include
     ${PSND_ROOT_DIR}/source/core/shared
     ${PSND_ROOT_DIR}/source/core/loki
+    ${PSND_ROOT_DIR}/source/thirdparty/midifile/include
 )
-# Link against shared library for audio integration and loki for JSON parser
-target_link_libraries(tracker PUBLIC shared libloki)
+# Link against shared library for audio integration, loki for JSON parser, midifile for MIDI import
+target_link_libraries(tracker PUBLIC shared libloki midifile)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(tracker PRIVATE -Wall -Wextra -Wno-unused-function)
 endif()
@@ -53,6 +55,7 @@ endmacro()
 # Add tracker tests
 add_tracker_test(plugin_notes)
 add_tracker_test(audio)
+add_tracker_test(midi_import)
 
 # Tracker demo (interactive, not a test)
 add_executable(tracker_demo tracker_demo.c)

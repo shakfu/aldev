@@ -4,6 +4,7 @@
 
 #include "tracker_view.h"
 #include "tracker_plugin.h"
+#include "tracker_midi_import.h"
 #include "../shared/midi/events.h"
 #include "../include/loki/midi_export.h"
 #include <stdlib.h>
@@ -2353,6 +2354,54 @@ static void execute_command(TrackerView* view, const char* cmd) {
             tracker_view_show_status(view, "Exported: %s", filename);
         } else {
             tracker_view_show_error(view, "Export failed");
+        }
+    }
+    else if (strcmp(name, "import") == 0) {
+        /* :import filename.mid - import MIDI file */
+        if (!arg[0]) {
+            tracker_view_show_error(view, "Usage: :import filename.mid");
+        } else {
+            TrackerMidiImportOptions opts;
+            tracker_midi_import_options_init(&opts);
+            opts.rows_per_beat = view->song ? view->song->rows_per_beat : 4;
+            opts.ticks_per_row = view->song ? view->song->ticks_per_row : 6;
+
+            TrackerSong* imported = tracker_midi_import(arg, &opts);
+            if (imported) {
+                /* Replace current song with imported song */
+                if (view->engine) {
+                    tracker_engine_stop(view->engine);
+                    tracker_engine_unload_song(view->engine);
+                }
+
+                tracker_song_free(view->song);
+                view->song = imported;
+
+                if (view->engine) {
+                    tracker_engine_load_song(view->engine, imported);
+                }
+
+                /* Reset view state */
+                view->state.cursor_row = 0;
+                view->state.cursor_track = 0;
+                view->state.cursor_pattern = 0;
+                view->state.scroll_row = 0;
+                view->state.scroll_track = 0;
+
+                /* Update file path */
+                free(view->file_path);
+                view->file_path = strdup(arg);
+
+                view->modified = true;
+                tracker_view_invalidate(view);
+                tracker_view_show_status(view, "Imported: %s (%d patterns, %d BPM)",
+                    imported->name ? imported->name : arg,
+                    imported->num_patterns, imported->bpm);
+            } else {
+                const char* err = tracker_midi_import_error();
+                tracker_view_show_error(view, "Import failed: %s",
+                    err ? err : "unknown error");
+            }
         }
     }
     else if (strcmp(name, "set") == 0) {

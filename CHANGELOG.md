@@ -135,6 +135,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
     - Tempo embedded in MIDI file header
     - Type 0 (single track) or Type 1 (multi-track) based on channel usage
     - Output filename derived from song name or file path (replaces .trk with .mid)
+  - **MIDI Import**:
+    - `:import file.mid` command imports Standard MIDI Files
+    - Automatic channel-to-track mapping
+    - Note quantization to tracker rows based on song timing settings
+    - Tempo extraction from MIDI file
+    - Velocity preservation in cell expressions (e.g., `C4@100`)
+    - Gate/duration encoding for long notes (e.g., `C4~4` for 4-row duration)
+    - Polyphony support (multiple notes at same position as chord)
+    - Configurable options: rows_per_beat, pattern_rows, quantize_strength
+    - Creates sequence from imported patterns automatically
   - **Pattern Sequence/Arrangement**:
     - 'r' key enters Arrange mode to edit the song sequence
     - Navigate sequence with j/k or arrow keys
