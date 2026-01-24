@@ -19,6 +19,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 
 ### Added
 
+- **SQLite FTS5 Search Plugin**: Full-text search index for `.psnd/` configuration files
+  - Fast content search across Lua modules, themes, scales, and compositions
+  - Path glob search for finding files by name pattern
+  - Incremental indexing (only re-indexes changed files based on mtime)
+  - FTS5 query syntax support (phrases, AND/OR, prefix matching)
+  - Lua API: `loki.fts.search()`, `loki.fts.find()`, `loki.fts.index()`, `loki.fts.stats()`
+  - Ex-commands: `:search`, `:find`, `:reindex`, `:rebuild-index`, `:index-stats`
+  - Requires system SQLite3 with FTS5 support (standard on macOS, most Linux)
+  - Build with `-DBUILD_PLUGIN_SQLITE=ON`
+
 - **Tracker Sequencer**: MIDI tracker/step sequencer with plugin-based cell evaluation
   - **Core Components**:
     - `tracker_model` - Data structures (TrackerSong, TrackerPattern, TrackerTrack, TrackerCell, TrackerPhrase, TrackerEvent)

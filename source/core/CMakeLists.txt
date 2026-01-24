@@ -264,6 +264,13 @@ function(psnd_build_loki)
         ${PSND_ALL_LANG_LINK_LIBRARIES}
     )
 
+    # SQLite FTS5 search index plugin
+    if(BUILD_PLUGIN_SQLITE)
+        target_compile_definitions(libloki PUBLIC BUILD_PLUGIN_SQLITE)
+        target_include_directories(libloki PRIVATE ${PSND_FTS_INCLUDE_DIR})
+        target_link_libraries(libloki PUBLIC ${PSND_FTS_LIBRARY})
+    endif()
+
     psnd_apply_lang_definitions(libloki)
     set_target_properties(libloki PROPERTIES OUTPUT_NAME "loki")
 

@@ -72,6 +72,7 @@ cmake -B build -DBUILD_CSOUND_BACKEND=ON # Enable Csound synthesis
 cmake -B build -DBUILD_WEB_HOST=ON       # Enable web server mode
 cmake -B build -DBUILD_WEBVIEW_HOST=ON   # Enable native webview mode
 cmake -B build -DBUILD_OSC=ON            # Enable OSC (Open Sound Control) support
+cmake -B build -DBUILD_PLUGIN_SQLITE=ON  # Enable SQLite FTS5 search index
 cmake -B build -DLOKI_EMBED_XTERM=ON     # Embed xterm.js in binary (no CDN)
 ```
 
@@ -1073,6 +1074,63 @@ Then in Joy:
 ### Thread Safety
 
 Parameter values use atomic floats, making them safe to read from any thread (main, audio, MIDI callback, OSC handler) without locks. This is essential for real-time audio applications where mutex locks could cause audio glitches.
+
+## Full-Text Search (SQLite FTS5)
+
+psnd includes an optional SQLite FTS5 plugin for fast full-text search across `.psnd/` configuration files, modules, themes, and scales.
+
+### Building with FTS
+
+```bash
+cmake -B build -DBUILD_PLUGIN_SQLITE=ON && make
+```
+
+Requires system SQLite3 with FTS5 support (standard on macOS 10.12+, most Linux distributions).
+
+### Usage
+
+**Ex-commands** (in editor):
+
+```text
+:search chord major      # Full-text search in file contents
+:find *.alda             # Find files by path pattern
+:reindex                 # Update index (incremental)
+:rebuild-index           # Full reindex from scratch
+:index-stats             # Show index statistics
+```
+
+**Lua API**:
+
+```lua
+-- Search content
+local results = loki.fts.search("chord major", 20)
+for _, r in ipairs(results) do
+    print(r.path, r.snippet)
+end
+
+-- Search file paths
+local files = loki.fts.find("*.lua")
+
+-- Index management
+loki.fts.index()           -- Incremental index of ~/.psnd
+loki.fts.index(path, false) -- Full reindex of specific path
+loki.fts.rebuild()         -- Full reindex of default path
+
+-- Statistics
+local stats = loki.fts.stats()
+print(stats.file_count, stats.total_bytes)
+```
+
+### FTS5 Query Syntax
+
+| Query | Description |
+|-------|-------------|
+| `chord` | Files containing "chord" |
+| `"major chord"` | Exact phrase match |
+| `chord AND major` | Both terms |
+| `chord OR minor` | Either term |
+| `cho*` | Prefix match (chord, chorus, etc.) |
+| `path:alda` | Search in file paths only |
 
 ## MIDI Export
 

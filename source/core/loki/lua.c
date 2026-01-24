@@ -43,6 +43,10 @@
 #include "shared/param/param.h"  /* Parameter system */
 #include "shared/audio/audio.h"  /* Audio backends including minihost */
 
+#ifdef BUILD_PLUGIN_SQLITE
+#include "lua_fts.h"  /* SQLite FTS5 search index plugin */
+#endif
+
 /* ======================= Lua API bindings ================================ */
 
 /* Registry key for storing editor context pointer.
@@ -2625,6 +2629,11 @@ void loki_lua_bind_editor(lua_State *L) {
     /* Register plugin module as loki.plugin */
     lua_register_plugin_module(L);
 
+#ifdef BUILD_PLUGIN_SQLITE
+    /* Register fts module as loki.fts */
+    lua_register_fts_module(L);
+#endif
+
     /* Set as global 'loki' */
     lua_setglobal(L, "loki");
 
@@ -2641,6 +2650,10 @@ void loki_lua_bind_editor(lua_State *L) {
     lua_setglobal(L, "param");
     lua_getfield(L, -1, "plugin");
     lua_setglobal(L, "plugin");
+#ifdef BUILD_PLUGIN_SQLITE
+    lua_getfield(L, -1, "fts");
+    lua_setglobal(L, "fts");
+#endif
     lua_pop(L, 1);  /* pop loki table */
 
     /* Register language-specific Lua APIs via the bridge */
